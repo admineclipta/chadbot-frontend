@@ -220,11 +220,20 @@ export interface MessagingCredentialRequestDto {
 
 export interface AiCredentialResponseDto {
   id: string;
-  aiProviderType: AiProviderType;
-  model: string;
-  temperature: number;
+  clientId: string;
+  serviceTypeId: number;
+  name: string;
+  metadata: Record<string, any>;
+  usageLimit: number;
+  currentUsage: number;
+  usageUnit: string;
+  usageResetAt: string | null;
+  remainingUsage: number;
+  usagePercentage: number;
+  hasReachedLimit: boolean;
+  isNearLimit: boolean;
+  active: boolean;
   createdAt: string;
-  updatedAt: string;
 }
 
 export interface AiCredentialRequestDto {
@@ -297,6 +306,84 @@ export interface UserListResponse {
   totalPages: number;
   first: boolean;
   last: boolean;
+}
+
+// ============================================
+// Team Types
+// ============================================
+
+export interface Team {
+  id: string;
+  clientId: string;
+  name: string;
+  description: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface TeamListResponse {
+  content: Team[];
+  page: number;
+  size: number;
+  totalElements: number;
+  totalPages: number;
+  first: boolean;
+  last: boolean;
+}
+
+// ============================================
+// Assistant Types
+// ============================================
+
+export interface Assistant {
+  id: string;
+  clientId: string;
+  aiCredentialId: string;
+  name: string;
+  description: string;
+  systemPrompt: string;
+  isDefault: boolean;
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface AssistantListResponse {
+  content: Assistant[];
+  page: number;
+  size: number;
+  totalElements: number;
+  totalPages: number;
+  first: boolean;
+  last: boolean;
+}
+
+export type SortDirection = "ASC" | "DESC";
+
+export interface GetAssistantsParams {
+  page?: number;
+  size?: number;
+  sortBy?: string;
+  direction?: SortDirection;
+  teamId?: string;
+  defaultOnly?: boolean;
+  search?: string;
+}
+
+export interface CreateAssistantRequest {
+  teamId?: string;
+  name: string;
+  description: string;
+  credentialId: string;
+  metadata?: Record<string, any>;
+}
+
+export interface UpdateAssistantRequest {
+  teamId?: string;
+  name?: string;
+  description?: string;
+  credentialId?: string;
+  metadata?: Record<string, any>;
 }
 
 // WebSocket Event Types

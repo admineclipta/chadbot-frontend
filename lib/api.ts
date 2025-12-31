@@ -36,6 +36,13 @@ import {
   type UserListResponse,
   type Role,
   type AssignRolesRequest,
+  type Assistant,
+  type AssistantListResponse,
+  type GetAssistantsParams,
+  type CreateAssistantRequest,
+  type UpdateAssistantRequest,
+  type Team,
+  type TeamListResponse,
   ApiError,
 } from "./api-types";
 
@@ -622,6 +629,91 @@ class ApiService {
       method: "POST",
       body: JSON.stringify({ roleIds: data.roleIds }),
     });
+  }
+
+  // ============================================
+  // Assistants
+  // ============================================
+
+  async getAssistants(
+    params: GetAssistantsParams = {}
+  ): Promise<AssistantListResponse> {
+    const {
+      page = 0,
+      size = 20,
+      sortBy,
+      direction,
+      teamId,
+      defaultOnly,
+      search,
+    } = params;
+
+    const queryParams = new URLSearchParams();
+    queryParams.append("page", page.toString());
+    queryParams.append("size", size.toString());
+    
+    if (sortBy) queryParams.append("sortBy", sortBy);
+    if (direction) queryParams.append("direction", direction);
+    if (teamId) queryParams.append("teamId", teamId);
+    if (defaultOnly !== undefined) queryParams.append("defaultOnly", defaultOnly.toString());
+    if (search) queryParams.append("search", search);
+
+    console.log(`🤖 [CHADBOT API] Fetching assistants with params: ${queryParams.toString()}`);
+    return this.request<AssistantListResponse>(
+      `assistants?${queryParams.toString()}`
+    );
+  }
+
+  async getAssistantById(id: string): Promise<Assistant> {
+    console.log(`🔍 [CHADBOT API] Fetching assistant ${id}`);
+    return this.request<Assistant>(`assistants/${id}`);
+  }
+
+  async createAssistant(
+    data: CreateAssistantRequest
+  ): Promise<Assistant> {
+    console.log(`➕ [CHADBOT API] Creating assistant: ${data.name}`);
+    return this.request<Assistant>("assistants", {
+      method: "POST",
+      body: JSON.stringify(data),
+    });
+  }
+
+  async updateAssistant(
+    id: string,
+    data: UpdateAssistantRequest
+  ): Promise<Assistant> {
+    console.log(`✏️ [CHADBOT API] Updating assistant ${id}`);
+    return this.request<Assistant>(`assistants/${id}`, {
+      method: "PUT",
+      body: JSON.stringify(data),
+    });
+  }
+
+  async deleteAssistant(id: string): Promise<void> {
+    console.log(`🗑️ [CHADBOT API] Deleting assistant ${id}`);
+    return this.request<void>(`assistants/${id}`, {
+      method: "DELETE",
+    });
+  }
+
+  async setAssistantAsDefault(id: string): Promise<Assistant> {
+    console.log(`⭐ [CHADBOT API] Setting assistant ${id} as default`);
+    return this.request<Assistant>(`assistants/${id}/default`, {
+      method: "PUT",
+    });
+  }
+
+  // ============================================
+  // Teams
+  // ============================================
+
+  async getTeams(
+    page: number = 0,
+    size: number = 20
+  ): Promise<TeamListResponse> {
+    console.log(`👥 [CHADBOT API] Fetching teams (page ${page}, size ${size})`);
+    return this.request<TeamListResponse>(`teams?page=${page}&size=${size}`);
   }
 
   // ============================================
