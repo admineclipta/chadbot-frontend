@@ -651,14 +651,17 @@ class ApiService {
     const queryParams = new URLSearchParams();
     queryParams.append("page", page.toString());
     queryParams.append("size", size.toString());
-    
+
     if (sortBy) queryParams.append("sortBy", sortBy);
     if (direction) queryParams.append("direction", direction);
     if (teamId) queryParams.append("teamId", teamId);
-    if (defaultOnly !== undefined) queryParams.append("defaultOnly", defaultOnly.toString());
+    if (defaultOnly !== undefined)
+      queryParams.append("defaultOnly", defaultOnly.toString());
     if (search) queryParams.append("search", search);
 
-    console.log(`🤖 [CHADBOT API] Fetching assistants with params: ${queryParams.toString()}`);
+    console.log(
+      `🤖 [CHADBOT API] Fetching assistants with params: ${queryParams.toString()}`
+    );
     return this.request<AssistantListResponse>(
       `assistants?${queryParams.toString()}`
     );
@@ -669,9 +672,7 @@ class ApiService {
     return this.request<Assistant>(`assistants/${id}`);
   }
 
-  async createAssistant(
-    data: CreateAssistantRequest
-  ): Promise<Assistant> {
+  async createAssistant(data: CreateAssistantRequest): Promise<Assistant> {
     console.log(`➕ [CHADBOT API] Creating assistant: ${data.name}`);
     return this.request<Assistant>("assistants", {
       method: "POST",
