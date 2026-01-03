@@ -200,6 +200,13 @@ export interface ActiveChannelResponseDto {
   hasCredentials: boolean;
 }
 
+export interface MessagingServiceDto {
+  id: number;
+  code: string;
+  name: string;
+  hasCredentials: boolean;
+}
+
 export interface MessagingCredentialResponseDto {
   id: string;
   messagingServiceType: MessagingServiceType;

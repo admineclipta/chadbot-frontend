@@ -297,12 +297,14 @@ const ChatView = forwardRef<ChatViewRef, ChatViewProps>(
 
     // Función para obtener configuración del estado actual
     const getCurrentStateConfig = () => {
-      return CONVERSATION_STATUS_CONFIG[conversation.status]
+      return CONVERSATION_STATUS_CONFIG[conversation.status] || CONVERSATION_STATUS_CONFIG.ACTIVE;
     }
 
     // Función para obtener el botón principal según el estado
     const getMainButtonText = (status: ConversationStatus) => {
       const config = CONVERSATION_STATUS_CONFIG[status]
+      if (!config) return "Cambiar Estado";
+      
       const transitions = config.allowedTransitions
       
       // Priorizar transiciones más comunes
@@ -323,6 +325,10 @@ const ChatView = forwardRef<ChatViewRef, ChatViewProps>(
     // Función para obtener el estado objetivo del botón principal
     const getMainButtonTargetState = (status: ConversationStatus): ConversationStatus => {
       const config = CONVERSATION_STATUS_CONFIG[status]
+      if (!config || !config.allowedTransitions || config.allowedTransitions.length === 0) {
+        return "CLOSED";
+      }
+      
       const transitions = config.allowedTransitions
       
       // Priorizar transiciones más comunes
@@ -342,7 +348,8 @@ const ChatView = forwardRef<ChatViewRef, ChatViewProps>(
 
     // Función para obtener los estados disponibles en el dropdown
     const getDropdownStates = (currentStatus: ConversationStatus): ConversationStatus[] => {
-      return CONVERSATION_STATUS_CONFIG[currentStatus].allowedTransitions
+      const config = CONVERSATION_STATUS_CONFIG[currentStatus];
+      return config?.allowedTransitions || [];
     }
 
     // Función para cambiar el estado de la conversación

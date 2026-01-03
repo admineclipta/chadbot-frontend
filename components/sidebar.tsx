@@ -14,6 +14,7 @@ import {
   Spinner,
   Select,
   SelectItem,
+  Tooltip,
 } from "@heroui/react";
 import {
   MessageCircle,
@@ -26,7 +27,7 @@ import {
   Bot,
 } from "lucide-react";
 import type { User } from "@/lib/types";
-import type { ActiveChannelResponseDto } from "@/lib/api-types";
+import type { MessagingServiceDto } from "@/lib/api-types";
 import { apiService } from "@/lib/api";
 import UserAvatar from "./user-avatar";
 import BulkMessageModal from "./bulk-message-modal";
@@ -69,21 +70,21 @@ export default function Sidebar({
   const [isBulkModalOpen, setIsBulkModalOpen] = useState(false);
   const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
   const [isNewChatModalOpen, setIsNewChatModalOpen] = useState(false);
-  const [activeChannels, setActiveChannels] = useState<ActiveChannelResponseDto[]>([]);
+  const [messagingServices, setMessagingServices] = useState<MessagingServiceDto[]>([]);
   const [loadingChannels, setLoadingChannels] = useState(true);
 
-  // Cargar canales activos al montar
+  // Cargar servicios de mensajería al montar
   useEffect(() => {
     const fetchChannels = async () => {
       try {
         setLoadingChannels(true);
-        const channels = await apiService.getActiveChannels();
-        const enabledChannels = channels.filter(ch => ch.hasCredentials);
-        setActiveChannels(enabledChannels);
+        const services = await apiService.getMessagingServices();
+        setMessagingServices(services);
         
-        // Si no hay canal seleccionado y hay canales disponibles, seleccionar el primero
-        if (!selectedChannel && enabledChannels.length > 0 && onChannelChange) {
-          onChannelChange(enabledChannels[0].serviceType);
+        // Si no hay canal seleccionado y hay canales con credenciales, seleccionar el primero
+        const enabledServices = services.filter(s => s.hasCredentials);
+        if (!selectedChannel && enabledServices.length > 0 && onChannelChange) {
+          onChannelChange(enabledServices[0].code);
         }
       } catch (error) {
         console.error("Error loading channels:", error);
@@ -96,14 +97,13 @@ export default function Sidebar({
   }, []);
 
   // Configuración UI de canales - Componente de ícono
-  const ChannelIcon = ({ serviceType }: { serviceType: string }) => {
-    console.log("ChannelIcon serviceType:", serviceType); // Debug
-    const type = serviceType?.toUpperCase();
+  const ChannelIcon = ({ code }: { code: string }) => {
+    const type = code?.toLowerCase();
     
-    if (type?.includes("WHATSAPP")) {
+    if (type?.includes("whatsapp")) {
       return <Image src="/WhatsApp.png" alt="WhatsApp" width={20} height={20} />;
     }
-    if (type?.includes("TELEGRAM")) {
+    if (type?.includes("telegram")) {
       return <Image src="/Telegram_2019_Logo.png" alt="Telegram" width={20} height={20} />;
     }
     return <MessageCircle className="h-5 w-5" />;
@@ -185,7 +185,7 @@ export default function Sidebar({
             <div className="flex items-center justify-center py-4">
               <Spinner size="sm" />
             </div>
-          ) : activeChannels.length === 0 ? (
+          ) : messagingServices.length === 0 ? (
             <p className="text-xs text-gray-400 dark:text-gray-500 py-2">
               No hay canales configurados
             </p>
@@ -196,25 +196,36 @@ export default function Sidebar({
               selectedKeys={selectedChannel ? [selectedChannel] : []}
               onSelectionChange={(keys) => {
                 const selected = Array.from(keys)[0] as string;
-                if (selected && onChannelChange) {
+                const service = messagingServices.find(s => s.code === selected);
+                
+                // Solo permitir selección si tiene credenciales
+                if (service?.hasCredentials && onChannelChange) {
                   onChannelChange(selected);
                 }
               }}
               size="sm"
               variant="bordered"
               className="max-w-full"
-              endContent={selectedChannel ? <ChannelIcon serviceType={selectedChannel} /> : null}
+              endContent={selectedChannel ? <ChannelIcon code={selectedChannel} /> : null}
             >
-              {activeChannels.map((channel) => (
+              {messagingServices.map((service) => (
                 <SelectItem
-                  key={channel.serviceType}
-                  value={channel.serviceType}
-                  textValue={channel.displayName}
+                  key={service.code}
+                  value={service.code}
+                  textValue={service.name}
+                  className={!service.hasCredentials ? "opacity-50" : ""}
                 >
-                  <div className="flex items-center gap-2">
-                    <ChannelIcon serviceType={channel.serviceType} />
-                    <span>{channel.displayName}</span>
-                  </div>
+                  <Tooltip 
+                    content={service.hasCredentials ? "" : "Este canal no tiene credenciales configuradas"}
+                    isDisabled={service.hasCredentials}
+                  >
+                    <div className="flex items-center gap-2">
+                      <ChannelIcon code={service.code} />
+                      <span className={!service.hasCredentials ? "text-gray-400" : ""}>
+                        {service.name}
+                      </span>
+                    </div>
+                  </Tooltip>
                 </SelectItem>
               ))}
             </Select>

@@ -128,12 +128,12 @@ export default function ConversationList({
             <Chip
               key={status}
               variant={selectedStatusFilter === status ? "solid" : "flat"}
-              color={selectedStatusFilter === status ? CONVERSATION_STATUS_CONFIG[status].color : "default"}
+              color={selectedStatusFilter === status ? CONVERSATION_STATUS_CONFIG[status]?.color || "default" : "default"}
               size="sm"
               className="cursor-pointer"
               onClick={() => onStatusFilterChange?.(status)}
             >
-              {CONVERSATION_STATUS_CONFIG[status].label} ({getStatusCount(status)})
+              {CONVERSATION_STATUS_CONFIG[status]?.label || status} ({getStatusCount(status)})
             </Chip>
           ))}
         </div>
@@ -301,17 +301,17 @@ export default function ConversationList({
                           <div className="flex items-center gap-1 flex-shrink-0 ml-2">
                             {/* Chip de estado de conversación */}
                             <Chip 
-                              color={CONVERSATION_STATUS_CONFIG[conversation.status].color} 
+                              color={CONVERSATION_STATUS_CONFIG[conversation.status]?.color || "default"} 
                               size="sm" 
                               variant="dot" 
                               className="text-xs"
                             >
-                              {CONVERSATION_STATUS_CONFIG[conversation.status].label}
+                              {CONVERSATION_STATUS_CONFIG[conversation.status]?.label || conversation.status}
                             </Chip>
                             
                             {/* Tags adicionales (si los hay) */}
                             {conversation.tags.slice(0, 1).map((tag) => (
-                              <Chip key={tag.id} color={tag.color as any} size="sm" variant="flat" className="text-xs">
+                              <Chip key={tag.id} color={(tag?.color || "default") as any} size="sm" variant="flat" className="text-xs">
                                 {tag.name}
                               </Chip>
                             ))}

@@ -24,6 +24,7 @@ import {
   type CreateTagRequest,
   type UpdateTagRequest,
   type ActiveChannelResponseDto,
+  type MessagingServiceDto,
   type MessagingServiceType,
   type MessagingCredentialResponseDto,
   type MessagingCredentialRequestDto,
@@ -482,6 +483,13 @@ class ApiService {
   async getActiveChannels(): Promise<ActiveChannelResponseDto[]> {
     console.log("📡 [CHADBOT API] Fetching active channels");
     return this.request<ActiveChannelResponseDto[]>("credentials/channels");
+  }
+
+  async getMessagingServices(): Promise<MessagingServiceDto[]> {
+    console.log("📡 [CHADBOT API] Fetching messaging services");
+    return this.request<MessagingServiceDto[]>(
+      "credentials/messaging/services"
+    );
   }
 
   async getMessagingCredentials(): Promise<
