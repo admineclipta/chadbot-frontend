@@ -9,6 +9,7 @@ import ChatView, { type ChatViewRef } from "@/components/chat-view"
 import UserProfile from "@/components/user-profile"
 import UserManagement from "@/components/user-management"
 import AssistantManagement from "@/components/assistant-management"
+import SettingsView from "@/components/settings-view"
 import EnvironmentIndicator from "@/components/environment-indicator"
 import ContactInfoModal from "@/components/contact-info-modal"
 import type { Conversation, User, Message, Tag } from "@/lib/types"
@@ -21,7 +22,7 @@ export default function Home() {
   const router = useRouter()
   const chatViewRef = useRef<ChatViewRef>(null)
   const [isAuthenticated, setIsAuthenticated] = useState(false)
-  const [currentView, setCurrentView] = useState<"welcome" | "conversations" | "profile" | "users" | "assistants">("welcome")
+  const [currentView, setCurrentView] = useState<"welcome" | "conversations" | "profile" | "users" | "assistants" | "settings">("welcome")
   const [selectedConversation, setSelectedConversation] = useState<Conversation | null>(null)
   const [conversations, setConversations] = useState<Conversation[]>([])
   const [user, setUser] = useState<User | null>(null)
@@ -599,6 +600,15 @@ export default function Home() {
         {currentView === "assistants" && (
           <div className="flex-1">
             <AssistantManagement />
+          </div>
+        )}
+
+        {currentView === "settings" && (
+          <div className="flex-1">
+            <SettingsView 
+              autoRefreshInterval={autoRefreshInterval}
+              onAutoRefreshIntervalChange={handleAutoRefreshIntervalChange}
+            />
           </div>
         )}
 

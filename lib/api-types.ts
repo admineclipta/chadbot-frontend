@@ -536,3 +536,122 @@ function mapLegacyStatus(legacyStatus: string): ConversationStatus {
   };
   return statusMap[legacyStatus] || "ACTIVE";
 }
+
+// ============================================
+// Current User Types (Auth/Me Endpoint)
+// ============================================
+
+export interface PermissionDto {
+  id: number;
+  code: string;
+  name: string;
+  description: string;
+}
+
+export interface RoleDto {
+  id: number;
+  code: string;
+  name: string;
+  permissions: PermissionDto[];
+}
+
+export interface CurrentUserResponse {
+  id: string;
+  clientId: string;
+  email: string;
+  name: string;
+  displayName: string;
+  agentId: string;
+  active: boolean;
+  lastLoginAt: string;
+  createdAt: string;
+  roles: RoleDto[];
+  permissions: PermissionDto[];
+}
+
+// ============================================
+// Credentials Types
+// ============================================
+
+export interface ServiceTypeDto {
+  id: number;
+  code: string;
+  name: string;
+  hasCredentials: boolean;
+}
+
+export interface MessagingCredentialDto {
+  id: string;
+  clientId: string;
+  serviceTypeId: number;
+  name: string;
+  webhookIdentity: string;
+  metadata: Record<string, any>;
+  active: boolean;
+  createdAt: string;
+}
+
+export interface MessagingCredentialsListResponse {
+  content: MessagingCredentialDto[];
+  page: number;
+  size: number;
+  totalElements: number;
+  totalPages: number;
+  first: boolean;
+  last: boolean;
+}
+
+export interface CreateMessagingCredentialRequest {
+  serviceTypeId: number;
+  name: string;
+  webhookIdentity: string;
+  metadata: Record<string, any>;
+}
+
+export interface UpdateMessagingCredentialRequest {
+  serviceTypeId: number;
+  name: string;
+  webhookIdentity: string;
+  metadata: Record<string, any>;
+}
+
+export interface AiCredentialDto {
+  id: string;
+  clientId: string;
+  serviceTypeId: number;
+  name: string;
+  metadata: Record<string, any>;
+  usageLimit?: number;
+  usageUnit?: string;
+  usageResetAt?: string;
+  active: boolean;
+  createdAt: string;
+}
+
+export interface AiCredentialsListResponse {
+  content: AiCredentialDto[];
+  page: number;
+  size: number;
+  totalElements: number;
+  totalPages: number;
+  first: boolean;
+  last: boolean;
+}
+
+export interface CreateAiCredentialRequest {
+  serviceTypeId: number;
+  name: string;
+  metadata: Record<string, any>;
+  usageLimit?: number;
+  usageUnit?: string;
+  usageResetAt?: string;
+}
+
+export interface UpdateAiCredentialRequest {
+  serviceTypeId: number;
+  name: string;
+  metadata: Record<string, any>;
+  usageLimit?: number;
+  usageUnit?: string;
+  usageResetAt?: string;
+}

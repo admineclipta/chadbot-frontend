@@ -485,104 +485,6 @@ class ApiService {
     return this.request<ActiveChannelResponseDto[]>("credentials/channels");
   }
 
-  async getMessagingServices(): Promise<MessagingServiceDto[]> {
-    console.log("📡 [CHADBOT API] Fetching messaging services");
-    return this.request<MessagingServiceDto[]>(
-      "credentials/messaging/services"
-    );
-  }
-
-  async getMessagingCredentials(): Promise<
-    PageResponseDto<MessagingCredentialResponseDto>
-  > {
-    console.log("🔑 [CHADBOT API] Fetching messaging credentials");
-    return this.request<PageResponseDto<MessagingCredentialResponseDto>>(
-      "credentials/messaging"
-    );
-  }
-
-  async getMessagingCredentialById(
-    id: string
-  ): Promise<MessagingCredentialResponseDto> {
-    console.log(`🔍 [CHADBOT API] Fetching messaging credential ${id}`);
-    return this.request<MessagingCredentialResponseDto>(
-      `credentials/messaging/${id}`
-    );
-  }
-
-  async createMessagingCredential(
-    data: MessagingCredentialRequestDto
-  ): Promise<MessagingCredentialResponseDto> {
-    console.log(
-      `➕ [CHADBOT API] Creating messaging credential for ${data.messagingServiceType}`
-    );
-    return this.request<MessagingCredentialResponseDto>(
-      "credentials/messaging",
-      {
-        method: "POST",
-        body: JSON.stringify(data),
-      }
-    );
-  }
-
-  async updateMessagingCredential(
-    id: string,
-    data: MessagingCredentialRequestDto
-  ): Promise<MessagingCredentialResponseDto> {
-    console.log(`✏️ [CHADBOT API] Updating messaging credential ${id}`);
-    return this.request<MessagingCredentialResponseDto>(
-      `credentials/messaging/${id}`,
-      {
-        method: "PUT",
-        body: JSON.stringify(data),
-      }
-    );
-  }
-
-  async deleteMessagingCredential(id: string): Promise<void> {
-    console.log(`🗑️ [CHADBOT API] Deleting messaging credential ${id}`);
-    return this.request<void>(`credentials/messaging/${id}`, {
-      method: "DELETE",
-    });
-  }
-
-  async getAiCredentials(): Promise<PageResponseDto<AiCredentialResponseDto>> {
-    console.log("🤖 [CHADBOT API] Fetching AI credentials");
-    return this.request<PageResponseDto<AiCredentialResponseDto>>(
-      "credentials/ai"
-    );
-  }
-
-  async createAiCredential(
-    data: AiCredentialRequestDto
-  ): Promise<AiCredentialResponseDto> {
-    console.log(
-      `➕ [CHADBOT API] Creating AI credential for ${data.aiProviderType}`
-    );
-    return this.request<AiCredentialResponseDto>("credentials/ai", {
-      method: "POST",
-      body: JSON.stringify(data),
-    });
-  }
-
-  async updateAiCredential(
-    id: string,
-    data: AiCredentialRequestDto
-  ): Promise<AiCredentialResponseDto> {
-    console.log(`✏️ [CHADBOT API] Updating AI credential ${id}`);
-    return this.request<AiCredentialResponseDto>(`credentials/ai/${id}`, {
-      method: "PUT",
-      body: JSON.stringify(data),
-    });
-  }
-
-  async deleteAiCredential(id: string): Promise<void> {
-    console.log(`🗑️ [CHADBOT API] Deleting AI credential ${id}`);
-    return this.request<void>(`credentials/ai/${id}`, {
-      method: "DELETE",
-    });
-  }
-
   // ============================================
   // User Management
   // ============================================
@@ -723,6 +625,133 @@ class ApiService {
   ): Promise<TeamListResponse> {
     console.log(`👥 [CHADBOT API] Fetching teams (page ${page}, size ${size})`);
     return this.request<TeamListResponse>(`teams?page=${page}&size=${size}`);
+  }
+
+  // ============================================
+  // Current User / Settings
+  // ============================================
+
+  async getCurrentUser(): Promise<import("./api-types").CurrentUserResponse> {
+    console.log("👤 [CHADBOT API] Fetching current user info");
+    return this.request<import("./api-types").CurrentUserResponse>("auth/me");
+  }
+
+  // ============================================
+  // Messaging Credentials
+  // ============================================
+
+  async getMessagingServices(): Promise<
+    import("./api-types").ServiceTypeDto[]
+  > {
+    console.log("📱 [CHADBOT API] Fetching messaging service types");
+    return this.request<import("./api-types").ServiceTypeDto[]>(
+      "credentials/messaging/services"
+    );
+  }
+
+  async getMessagingCredentials(
+    page: number = 0,
+    size: number = 20,
+    includeInactive: boolean = true
+  ): Promise<import("./api-types").MessagingCredentialsListResponse> {
+    console.log(
+      `🔑 [CHADBOT API] Fetching messaging credentials (page ${page}, size ${size})`
+    );
+    return this.request<import("./api-types").MessagingCredentialsListResponse>(
+      `credentials/messaging?page=${page}&size=${size}&includeInactive=${includeInactive}`
+    );
+  }
+
+  async createMessagingCredential(
+    data: import("./api-types").CreateMessagingCredentialRequest
+  ): Promise<import("./api-types").MessagingCredentialDto> {
+    console.log("➕ [CHADBOT API] Creating messaging credential:", data.name);
+    return this.request<import("./api-types").MessagingCredentialDto>(
+      "credentials/messaging",
+      {
+        method: "POST",
+        body: JSON.stringify(data),
+      }
+    );
+  }
+
+  async updateMessagingCredential(
+    id: string,
+    data: import("./api-types").UpdateMessagingCredentialRequest
+  ): Promise<import("./api-types").MessagingCredentialDto> {
+    console.log("✏️ [CHADBOT API] Updating messaging credential:", id);
+    return this.request<import("./api-types").MessagingCredentialDto>(
+      `credentials/messaging/${id}`,
+      {
+        method: "PUT",
+        body: JSON.stringify(data),
+      }
+    );
+  }
+
+  async deleteMessagingCredential(id: string): Promise<void> {
+    console.log("🗑️ [CHADBOT API] Deleting messaging credential:", id);
+    return this.request<void>(`credentials/messaging/${id}`, {
+      method: "DELETE",
+    });
+  }
+
+  // ============================================
+  // AI Credentials
+  // ============================================
+
+  async getAiServices(): Promise<import("./api-types").ServiceTypeDto[]> {
+    console.log("🤖 [CHADBOT API] Fetching AI service types");
+    return this.request<import("./api-types").ServiceTypeDto[]>(
+      "credentials/ai/services"
+    );
+  }
+
+  async getAiCredentials(
+    page: number = 0,
+    size: number = 20,
+    includeInactive: boolean = true
+  ): Promise<import("./api-types").AiCredentialsListResponse> {
+    console.log(
+      `🔑 [CHADBOT API] Fetching AI credentials (page ${page}, size ${size})`
+    );
+    return this.request<import("./api-types").AiCredentialsListResponse>(
+      `credentials/ai?page=${page}&size=${size}&includeInactive=${includeInactive}`
+    );
+  }
+
+  async createAiCredential(
+    data: import("./api-types").CreateAiCredentialRequest
+  ): Promise<import("./api-types").AiCredentialDto> {
+    console.log("➕ [CHADBOT API] Creating AI credential:", data.name);
+    return this.request<import("./api-types").AiCredentialDto>(
+      "credentials/ai",
+      {
+        method: "POST",
+        body: JSON.stringify(data),
+      }
+    );
+  }
+
+  async updateAiCredential(
+    id: string,
+    data: import("./api-types").UpdateAiCredentialRequest
+  ): Promise<import("./api-types").AiCredentialDto> {
+    console.log("✏️ [CHADBOT API] Updating AI credential:", id);
+    return this.request<import("./api-types").AiCredentialDto>(
+      `credentials/ai/${id}`,
+      {
+        method: "PUT",
+        body: JSON.stringify(data),
+      }
+    );
+  }
+
+  async deleteAiCredential(id: string): Promise<void> {
+    console.log("🗑️ [CHADBOT API] Deleting AI credential:", id);
+    return this.request<void>(`credentials/ai/${id}`, {
+      method: "DELETE",
+    });
   }
 
   // ============================================

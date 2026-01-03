@@ -41,7 +41,8 @@ interface SidebarProps {
     | "conversations"
     | "profile"
     | "users"
-    | "assistants";
+    | "assistants"
+    | "settings";
   onViewChange: (
     view:
       | "welcome"
@@ -49,6 +50,7 @@ interface SidebarProps {
       | "profile"
       | "users"
       | "assistants"
+      | "settings"
   ) => void;
   onLogout: () => void;
   autoRefreshInterval?: number;
@@ -366,7 +368,7 @@ export default function Sidebar({
               <DropdownItem
                 key="settings"
                 startContent={<Settings className="h-4 w-4" />}
-                onPress={() => setIsSettingsModalOpen(true)}
+                onPress={() => onViewChange("settings")}
               >
                 Configuración
               </DropdownItem>
