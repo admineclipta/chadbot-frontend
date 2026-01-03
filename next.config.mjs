@@ -1,9 +1,10 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   output: 'export',
+  distDir: 'dist',
   trailingSlash: true,
   skipTrailingSlashRedirect: true,
-  distDir: 'dist',
+  // distDir se usa para el export cuando output: 'export' está habilitado
   eslint: {
     ignoreDuringBuilds: true,
   },

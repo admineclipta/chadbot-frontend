@@ -177,11 +177,12 @@
 
 @layer base {
   * {
-    @apply border-border;
+    border-color: hsl(var(--border));
   }
   html,
   body {
-    @apply bg-background text-foreground;
+    background-color: hsl(var(--background));
+    color: hsl(var(--foreground));
     overflow: hidden;
     height: 100%;
   }
@@ -348,7 +349,12 @@
 
 /* Focus styles */
 .focus-ring {
-  @apply focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2;
+  outline: none;
+}
+
+.focus-ring:focus {
+  outline: 2px solid var(--heroui-primary);
+  outline-offset: 2px;
 }
 
 /* Hover effects */
