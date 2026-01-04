@@ -49,3 +49,8 @@ function getConfig(): Config {
 }
 
 export const config = getConfig();
+
+// Debounce constants for API calls
+export const DEBOUNCE_NONE = 0; // No debounce - immediate fetch
+export const DEBOUNCE_FILTER_MS = 150; // For filters and pagination
+export const DEBOUNCE_SEARCH_MS = 300; // For search inputs

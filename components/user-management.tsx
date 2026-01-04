@@ -26,6 +26,9 @@ import {
   Switch,
   Select,
   SelectItem,
+  Popover,
+  PopoverTrigger,
+  PopoverContent,
 } from "@heroui/react"
 import {
   Plus,
@@ -38,6 +41,7 @@ import {
   Calendar,
   Eye,
   Shield,
+  Info,
 } from "lucide-react"
 import type { UserDto, Role, RoleDto, UserRequest, UserUpdateRequest } from "@/lib/api-types"
 import { useUserManagement } from "@/hooks/use-user-management"
@@ -583,15 +587,39 @@ export default function UserManagement() {
                       {selectedUserDetails.roles && selectedUserDetails.roles.length > 0 ? (
                         <div className="flex flex-wrap gap-2">
                           {selectedUserDetails.roles.map((role: any) => (
-                            <Chip
-                              key={role.id}
-                              color="primary"
-                              variant="flat"
-                              size="sm"
-                              startContent={<Shield className="h-3 w-3" />}
-                            >
-                              {role.name}
-                            </Chip>
+                            <div key={role.id} className="inline-flex">
+                              {role.description ? (
+                                <Popover placement="top" showArrow>
+                                  <PopoverTrigger>
+                                    <div className="cursor-help">
+                                      <Chip
+                                        color="primary"
+                                        variant="flat"
+                                        size="sm"
+                                        startContent={<Shield className="h-3 w-3" />}
+                                      >
+                                        {role.name}
+                                      </Chip>
+                                    </div>
+                                  </PopoverTrigger>
+                                  <PopoverContent className="max-w-xs">
+                                    <div className="px-1 py-2">
+                                      <div className="text-small font-bold mb-1">Descripción</div>
+                                      <div className="text-tiny text-gray-600 dark:text-gray-300">{role.description}</div>
+                                    </div>
+                                  </PopoverContent>
+                                </Popover>
+                              ) : (
+                                <Chip
+                                  color="primary"
+                                  variant="flat"
+                                  size="sm"
+                                  startContent={<Shield className="h-3 w-3" />}
+                                >
+                                  {role.name}
+                                </Chip>
+                              )}
+                            </div>
                           ))}
                         </div>
                       ) : (
@@ -684,15 +712,36 @@ export default function UserManagement() {
                                   )}
                                 </div>
                                 <div className="flex-1 min-w-0">
-                                  <h5 className={`
-                                    font-medium text-sm mb-1
-                                    ${isSelected 
-                                      ? 'text-primary-900 dark:text-primary-100' 
-                                      : 'text-gray-900 dark:text-gray-100'
-                                    }
-                                  `}>
-                                    {role.name}
-                                  </h5>
+                                  <div className="flex items-center gap-2 mb-1">
+                                    <h5 className={`
+                                      font-medium text-sm
+                                      ${isSelected 
+                                        ? 'text-primary-900 dark:text-primary-100' 
+                                        : 'text-gray-900 dark:text-gray-100'
+                                      }
+                                    `}>
+                                      {role.name}
+                                    </h5>
+                                    {role.description && (
+                                      <Popover placement="right" showArrow>
+                                        <PopoverTrigger>
+                                          <button
+                                            className="inline-flex items-center justify-center rounded-full hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors"
+                                            style={{ width: '20px', height: '20px', minWidth: '20px' }}
+                                            onClick={(e) => e.stopPropagation()}
+                                          >
+                                            <Info className="w-3.5 h-3.5 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300" />
+                                          </button>
+                                        </PopoverTrigger>
+                                        <PopoverContent className="max-w-xs">
+                                          <div className="px-1 py-2">
+                                            <div className="text-small font-bold mb-1">Descripción</div>
+                                            <div className="text-tiny text-gray-600 dark:text-gray-300">{role.description}</div>
+                                          </div>
+                                        </PopoverContent>
+                                      </Popover>
+                                    )}
+                                  </div>
                                   <p className={`
                                     text-xs leading-relaxed
                                     ${isSelected 

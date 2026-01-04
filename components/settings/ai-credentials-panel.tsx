@@ -18,6 +18,7 @@ import {
 import { Plus, Edit, Trash2, Calendar, TrendingUp } from "lucide-react"
 import { useApi } from "@/hooks/use-api"
 import { apiService } from "@/lib/api"
+import { DEBOUNCE_FILTER_MS } from "@/lib/config"
 import { toast } from "sonner"
 import { format } from "date-fns"
 import { es } from "date-fns/locale"
@@ -41,8 +42,9 @@ export default function AiCredentialsPanel() {
     loading: credentialsLoading,
     refetch: refetchCredentials,
   } = useApi(
-    () => apiService.getAiCredentials(currentPage, 10, true),
-    [currentPage]
+    (signal) => apiService.getAiCredentials(currentPage, 10, true, signal),
+    [currentPage],
+    DEBOUNCE_FILTER_MS
   )
 
   const handleCreate = () => {

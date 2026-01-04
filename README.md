@@ -64,11 +64,11 @@ chadbot-frontend/
 
 ```bash
 # Clone the repository
-git clone https://github.com/your-org/chadbot-frontend.git
+git clone https://github.com/admineclipta/chadbot-frontend.git
 cd chadbot-frontend
 
 # Install dependencies
-npm install
+npm install --force
 
 # Start development server
 npm run dev

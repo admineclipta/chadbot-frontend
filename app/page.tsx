@@ -8,6 +8,7 @@ import ConversationList from "@/components/conversation-list"
 import ChatView, { type ChatViewRef } from "@/components/chat-view"
 import UserProfile from "@/components/user-profile"
 import UserManagement from "@/components/user-management"
+import ContactManagement from "@/components/contact-management"
 import AssistantManagement from "@/components/assistant-management"
 import SettingsView from "@/components/settings-view"
 import EnvironmentIndicator from "@/components/environment-indicator"
@@ -16,13 +17,14 @@ import type { Conversation, User, Message, Tag } from "@/lib/types"
 import type { ConversationStatus, MessagingServiceType } from "@/lib/api-types"
 import { mapApiConversacionToConversation, mapApiConversacionesResponseToConversation, mapApiMensajeToMessage } from "@/lib/types"
 import { apiService } from "@/lib/api"
+import { DEBOUNCE_FILTER_MS } from "@/lib/config"
 import { useApi } from "@/hooks/use-api"
 
 export default function Home() {
   const router = useRouter()
   const chatViewRef = useRef<ChatViewRef>(null)
   const [isAuthenticated, setIsAuthenticated] = useState(false)
-  const [currentView, setCurrentView] = useState<"welcome" | "conversations" | "profile" | "users" | "assistants" | "settings">("welcome")
+  const [currentView, setCurrentView] = useState<"welcome" | "conversations" | "profile" | "users" | "contacts" | "assistants" | "settings">("welcome")
   const [selectedConversation, setSelectedConversation] = useState<Conversation | null>(null)
   const [conversations, setConversations] = useState<Conversation[]>([])
   const [user, setUser] = useState<User | null>(null)
@@ -70,7 +72,7 @@ export default function Home() {
     error: conversationsError,
     refetch: refetchConversations,
   } = useApi(
-    () => {
+    (signal) => {
       // Cargar todas las conversaciones cuando estamos en la vista de conversaciones
       if (currentView !== "conversations") {
         return Promise.resolve(null);
@@ -84,10 +86,13 @@ export default function Home() {
         0, 
         50, 
         statusParam,
-        selectedChannel?.toUpperCase() as any // MessagingServiceType
+        selectedChannel?.toUpperCase() as any, // MessagingServiceType
+        true,
+        signal
       )
     },
     [isAuthenticated, currentView, selectedChannel, selectedStatusFilter],
+    DEBOUNCE_FILTER_MS
   )
 
   // Función para cargar más conversaciones
@@ -165,8 +170,8 @@ export default function Home() {
     error: messagesError,
     refetch: refetchMessages,
   } = useApi(
-    () =>
-      selectedConversation ? apiService.getMessages(selectedConversation.id, 0, 20) : Promise.resolve(null),
+    (signal) =>
+      selectedConversation ? apiService.getMessages(selectedConversation.id, 0, 20, signal) : Promise.resolve(null),
     [selectedConversation?.id, messagesRefreshKey], // Incluir refreshKey para forzar refresco
   )
 
@@ -594,6 +599,12 @@ export default function Home() {
         {currentView === "users" && (
           <div className="flex-1">
             <UserManagement />
+          </div>
+        )}
+
+        {currentView === "contacts" && (
+          <div className="flex-1">
+            <ContactManagement />
           </div>
         )}
 

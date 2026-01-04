@@ -14,6 +14,8 @@ import {
   type SendImageRequest,
   type Contact,
   type ContactListResponse,
+  type ContactRequest,
+  type ContactUpdateRequest,
   type Agent,
   type AgentListResponse,
   type AgentStatusRequest,
@@ -86,9 +88,17 @@ class ApiService {
     }
   }
 
+  /**
+   * Internal HTTP request method with optional AbortSignal for cancellation support.
+   * 
+   * Read operations (GET) should pass an AbortSignal for cancellation support.
+   * Write operations (POST/PUT/DELETE) typically don't pass signal to prevent
+   * interrupting transactions mid-flight.
+   */
   private async request<T>(
     endpoint: string,
-    options: RequestInit = {}
+    options: RequestInit = {},
+    signal?: AbortSignal
   ): Promise<T> {
     const url = `${this.baseUrl}${endpoint}`;
 
@@ -102,6 +112,7 @@ class ApiService {
 
     const config: RequestInit = {
       ...options,
+      signal,
       headers: {
         ...defaultHeaders,
         ...options.headers,
@@ -153,6 +164,14 @@ class ApiService {
 
       return (await response.text()) as unknown as T;
     } catch (error) {
+      // Handle AbortError silently (request was intentionally cancelled)
+      if (error instanceof Error && error.name === "AbortError") {
+        if (process.env.NODE_ENV === "development") {
+          console.debug(`[ApiService] Request aborted: ${endpoint}`);
+        }
+        throw error;
+      }
+
       if (error instanceof ApiError) {
         throw error;
       }
@@ -254,7 +273,8 @@ class ApiService {
     size: number = 20,
     status?: ConversationStatus,
     messagingServiceType?: MessagingServiceType,
-    fetchContactInfo: boolean = true
+    fetchContactInfo: boolean = true,
+    signal?: AbortSignal
   ): Promise<ConversationListResponse> {
     let url = `conversations?page=${page}&size=${size}&fetchContactInfo=${fetchContactInfo}`;
     if (status) {
@@ -265,14 +285,18 @@ class ApiService {
     }
 
     console.log(`📋 [CHADBOT API] Fetching conversations: ${url}`);
-    return this.request<ConversationListResponse>(url);
+    return this.request<ConversationListResponse>(url, {}, signal);
   }
 
-  async getConversationById(id: string): Promise<ConversationDetailResponse> {
+  async getConversationById(id: string, signal?: AbortSignal): Promise<ConversationDetailResponse> {
     console.log(`🔍 [CHADBOT API] Fetching conversation: ${id}`);
-    return this.request<ConversationDetailResponse>(`conversations/${id}`);
+    return this.request<ConversationDetailResponse>(`conversations/${id}`, {}, signal);
   }
 
+  /**
+   * Create a new conversation.
+   * Note: Write operations do not support cancellation to prevent interrupting transactions.
+   */
   async createConversation(
     data: CreateConversationRequest
   ): Promise<Conversation> {
@@ -322,16 +346,23 @@ class ApiService {
   async getMessages(
     conversationId: string,
     page: number = 0,
-    size: number = 50
+    size: number = 50,
+    signal?: AbortSignal
   ): Promise<MessageListResponse> {
     console.log(
       `💬 [CHADBOT API] Fetching messages for conversation ${conversationId}`
     );
     return this.request<MessageListResponse>(
-      `messages?conversationId=${conversationId}&page=${page}&size=${size}`
+      `messages?conversationId=${conversationId}&page=${page}&size=${size}`,
+      {},
+      signal
     );
   }
 
+  /**
+   * Send a message to a conversation.
+   * Note: Write operations do not support cancellation to prevent interrupting transactions.
+   */
   async sendMessage(data: SendMessageRequest): Promise<SendMessageResponse> {
     console.log(
       `📤 [CHADBOT API] Sending message to conversation ${data.conversationId}`
@@ -353,56 +384,17 @@ class ApiService {
   }
 
   // ============================================
-  // Contacts
-  // ============================================
-
-  async getContacts(
-    page: number = 0,
-    size: number = 20,
-    search?: string
-  ): Promise<ContactListResponse> {
-    let url = `contacts?page=${page}&size=${size}`;
-    if (search) {
-      url += `&search=${encodeURIComponent(search)}`;
-    }
-
-    console.log(`📇 [CHADBOT API] Fetching contacts`);
-    return this.request<ContactListResponse>(url);
-  }
-
-  async getContactById(id: string): Promise<Contact> {
-    console.log(`🔍 [CHADBOT API] Fetching contact: ${id}`);
-    return this.request<Contact>(`contacts/${id}`);
-  }
-
-  async createContact(data: Partial<Contact>): Promise<Contact> {
-    console.log(`➕ [CHADBOT API] Creating contact`);
-    return this.request<Contact>("contacts", {
-      method: "POST",
-      body: JSON.stringify(data),
-    });
-  }
-
-  async updateContact(id: string, data: Partial<Contact>): Promise<Contact> {
-    console.log(`✏️ [CHADBOT API] Updating contact: ${id}`);
-    return this.request<Contact>(`contacts/${id}`, {
-      method: "PUT",
-      body: JSON.stringify(data),
-    });
-  }
-
-  // ============================================
   // Agents
   // ============================================
 
-  async getAgents(onlineOnly?: boolean): Promise<AgentListResponse> {
+  async getAgents(onlineOnly?: boolean, signal?: AbortSignal): Promise<AgentListResponse> {
     let url = "agents";
     if (onlineOnly !== undefined) {
       url += `?onlineOnly=${onlineOnly}`;
     }
 
     console.log(`👥 [CHADBOT API] Fetching agents`);
-    return this.request<AgentListResponse>(url);
+    return this.request<AgentListResponse>(url, {}, signal);
   }
 
   async updateAgentStatus(
@@ -424,9 +416,9 @@ class ApiService {
   // Tags
   // ============================================
 
-  async getTags(): Promise<Tag[]> {
+  async getTags(signal?: AbortSignal): Promise<Tag[]> {
     console.log(`🏷️ [CHADBOT API] Fetching tags`);
-    return this.request<Tag[]>("tags");
+    return this.request<Tag[]>("tags", {}, signal);
   }
 
   async createTag(data: CreateTagRequest): Promise<Tag> {
@@ -480,9 +472,61 @@ class ApiService {
   // Channels / Credentials
   // ============================================
 
-  async getActiveChannels(): Promise<ActiveChannelResponseDto[]> {
+  async getActiveChannels(signal?: AbortSignal): Promise<ActiveChannelResponseDto[]> {
     console.log("📡 [CHADBOT API] Fetching active channels");
-    return this.request<ActiveChannelResponseDto[]>("credentials/channels");
+    return this.request<ActiveChannelResponseDto[]>("credentials/channels", {}, signal);
+  }
+
+  // ============================================
+  // Contact Management
+  // ============================================
+
+  async getContacts(
+    page: number = 0,
+    size: number = 20,
+    search?: string,
+    signal?: AbortSignal
+  ): Promise<ContactListResponse> {
+    const params = new URLSearchParams({
+      page: page.toString(),
+      size: size.toString(),
+    });
+    if (search) {
+      params.append("search", search);
+    }
+    console.log(`📇 [CHADBOT API] Fetching contacts (page ${page}, size ${size}${search ? `, search: ${search}` : ''})`);
+    return this.request<ContactListResponse>(`contacts?${params.toString()}`, {}, signal);
+  }
+
+  async getContactById(contactId: string, signal?: AbortSignal): Promise<Contact> {
+    console.log(`🔍 [CHADBOT API] Fetching contact ${contactId}`);
+    return this.request<Contact>(`contacts/${contactId}`, {}, signal);
+  }
+
+  async createContact(contactData: ContactRequest): Promise<Contact> {
+    console.log(`➕ [CHADBOT API] Creating contact: ${contactData.fullName}`);
+    return this.request<Contact>(`contacts`, {
+      method: "POST",
+      body: JSON.stringify(contactData),
+    });
+  }
+
+  async updateContact(
+    contactId: string,
+    contactData: ContactUpdateRequest
+  ): Promise<Contact> {
+    console.log(`✏️ [CHADBOT API] Updating contact ${contactId}`);
+    return this.request<Contact>(`contacts/${contactId}`, {
+      method: "PUT",
+      body: JSON.stringify(contactData),
+    });
+  }
+
+  async deleteContact(contactId: string): Promise<void> {
+    console.log(`🗑️ [CHADBOT API] Deleting contact ${contactId}`);
+    return this.request<void>(`contacts/${contactId}`, {
+      method: "DELETE",
+    });
   }
 
   // ============================================
@@ -491,15 +535,16 @@ class ApiService {
 
   async getUsers(
     page: number = 0,
-    size: number = 20
+    size: number = 20,
+    signal?: AbortSignal
   ): Promise<UserListResponse> {
     console.log(`👥 [CHADBOT API] Fetching users (page ${page}, size ${size})`);
-    return this.request<UserListResponse>(`users?page=${page}&size=${size}`);
+    return this.request<UserListResponse>(`users?page=${page}&size=${size}`, {}, signal);
   }
 
-  async getUserById(userId: string): Promise<UserDto> {
+  async getUserById(userId: string, signal?: AbortSignal): Promise<UserDto> {
     console.log(`🔍 [CHADBOT API] Fetching user ${userId}`);
-    return this.request<UserDto>(`users/${userId}`);
+    return this.request<UserDto>(`users/${userId}`, {}, signal);
   }
 
   async createUser(userData: UserRequest): Promise<UserDto> {
@@ -528,9 +573,9 @@ class ApiService {
     });
   }
 
-  async getRoles(): Promise<Role[]> {
+  async getRoles(signal?: AbortSignal): Promise<Role[]> {
     console.log(`🔐 [CHADBOT API] Fetching roles`);
-    return this.request<Role[]>(`roles`);
+    return this.request<Role[]>(`roles`, {}, signal);
   }
 
   async assignRolesToUser(data: AssignRolesRequest): Promise<void> {
@@ -546,7 +591,8 @@ class ApiService {
   // ============================================
 
   async getAssistants(
-    params: GetAssistantsParams = {}
+    params: GetAssistantsParams = {},
+    signal?: AbortSignal
   ): Promise<AssistantListResponse> {
     const {
       page = 0,
@@ -573,13 +619,15 @@ class ApiService {
       `🤖 [CHADBOT API] Fetching assistants with params: ${queryParams.toString()}`
     );
     return this.request<AssistantListResponse>(
-      `assistants?${queryParams.toString()}`
+      `assistants?${queryParams.toString()}`,
+      {},
+      signal
     );
   }
 
-  async getAssistantById(id: string): Promise<Assistant> {
+  async getAssistantById(id: string, signal?: AbortSignal): Promise<Assistant> {
     console.log(`🔍 [CHADBOT API] Fetching assistant ${id}`);
-    return this.request<Assistant>(`assistants/${id}`);
+    return this.request<Assistant>(`assistants/${id}`, {}, signal);
   }
 
   async createAssistant(data: CreateAssistantRequest): Promise<Assistant> {
@@ -621,44 +669,50 @@ class ApiService {
 
   async getTeams(
     page: number = 0,
-    size: number = 20
+    size: number = 20,
+    signal?: AbortSignal
   ): Promise<TeamListResponse> {
     console.log(`👥 [CHADBOT API] Fetching teams (page ${page}, size ${size})`);
-    return this.request<TeamListResponse>(`teams?page=${page}&size=${size}`);
+    return this.request<TeamListResponse>(`teams?page=${page}&size=${size}`, {}, signal);
   }
 
   // ============================================
   // Current User / Settings
   // ============================================
 
-  async getCurrentUser(): Promise<import("./api-types").CurrentUserResponse> {
+  async getCurrentUser(signal?: AbortSignal): Promise<import("./api-types").CurrentUserResponse> {
     console.log("👤 [CHADBOT API] Fetching current user info");
-    return this.request<import("./api-types").CurrentUserResponse>("auth/me");
+    return this.request<import("./api-types").CurrentUserResponse>("auth/me", {}, signal);
   }
 
   // ============================================
   // Messaging Credentials
   // ============================================
 
-  async getMessagingServices(): Promise<
+  async getMessagingServices(signal?: AbortSignal): Promise<
     import("./api-types").ServiceTypeDto[]
   > {
     console.log("📱 [CHADBOT API] Fetching messaging service types");
     return this.request<import("./api-types").ServiceTypeDto[]>(
-      "credentials/messaging/services"
+      "credentials/messaging/services",
+      {},
+      signal
     );
   }
 
   async getMessagingCredentials(
     page: number = 0,
     size: number = 20,
-    includeInactive: boolean = true
+    includeInactive: boolean = true,
+    signal?: AbortSignal
   ): Promise<import("./api-types").MessagingCredentialsListResponse> {
     console.log(
       `🔑 [CHADBOT API] Fetching messaging credentials (page ${page}, size ${size})`
     );
     return this.request<import("./api-types").MessagingCredentialsListResponse>(
-      `credentials/messaging?page=${page}&size=${size}&includeInactive=${includeInactive}`
+      `credentials/messaging?page=${page}&size=${size}&includeInactive=${includeInactive}`,
+      {},
+      signal
     );
   }
 
@@ -700,23 +754,28 @@ class ApiService {
   // AI Credentials
   // ============================================
 
-  async getAiServices(): Promise<import("./api-types").ServiceTypeDto[]> {
+  async getAiServices(signal?: AbortSignal): Promise<import("./api-types").ServiceTypeDto[]> {
     console.log("🤖 [CHADBOT API] Fetching AI service types");
     return this.request<import("./api-types").ServiceTypeDto[]>(
-      "credentials/ai/services"
+      "credentials/ai/services",
+      {},
+      signal
     );
   }
 
   async getAiCredentials(
     page: number = 0,
     size: number = 20,
-    includeInactive: boolean = true
+    includeInactive: boolean = true,
+    signal?: AbortSignal
   ): Promise<import("./api-types").AiCredentialsListResponse> {
     console.log(
       `🔑 [CHADBOT API] Fetching AI credentials (page ${page}, size ${size})`
     );
     return this.request<import("./api-types").AiCredentialsListResponse>(
-      `credentials/ai?page=${page}&size=${size}&includeInactive=${includeInactive}`
+      `credentials/ai?page=${page}&size=${size}&includeInactive=${includeInactive}`,
+      {},
+      signal
     );
   }
 
@@ -776,6 +835,10 @@ class ApiService {
     if (typeof window !== "undefined") {
       localStorage.setItem("chadbot_token", token);
     }
+  }
+
+  getToken(): string | null {
+    return this.token;
   }
 }
 

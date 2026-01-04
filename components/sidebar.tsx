@@ -41,6 +41,7 @@ interface SidebarProps {
     | "conversations"
     | "profile"
     | "users"
+    | "contacts"
     | "assistants"
     | "settings";
   onViewChange: (
@@ -49,6 +50,7 @@ interface SidebarProps {
       | "conversations"
       | "profile"
       | "users"
+      | "contacts"
       | "assistants"
       | "settings"
   ) => void;
@@ -125,6 +127,12 @@ export default function Sidebar({
       key: "admin-users",
       label: "Usuarios",
       icon: Users,
+      count: 0,
+    },
+    {
+      key: "admin-contacts",
+      label: "Contactos",
+      icon: MessageCircle,
       count: 0,
     },
     {
@@ -292,6 +300,7 @@ export default function Sidebar({
                   const isActive =
                     (item.key === "admin-users" && currentView === "users") ||
                     (item.key === "admin-assistants" && currentView === "assistants") ||
+                    (item.key === "admin-contacts" && currentView === "contacts") ||
                     currentView === item.key;
 
                   return (
@@ -311,6 +320,8 @@ export default function Sidebar({
                             ? "users"
                             : item.key === "admin-assistants"
                             ? "assistants"
+                            : item.key === "admin-contacts"
+                            ? "contacts"
                             : (item.key as any)
                         )
                       }

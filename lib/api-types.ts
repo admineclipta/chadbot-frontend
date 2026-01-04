@@ -32,19 +32,29 @@ export interface JWTPayload {
 }
 
 // Contact Types
+export interface MessagingChannelDto {
+  contactId: string;
+  credentialId: string;
+  serviceTypeName: string;
+  externalContactId: string;
+  metadata?: Record<string, any>;
+}
+
 export interface Contact {
   id: string;
   clientId: string;
   fullName: string;
-  phone?: string;
-  email?: string;
-  customFields?: Record<string, any>;
+  metadata?: Record<string, any>;
+  blocked: boolean;
+  messagingChannels: MessagingChannelDto[];
   createdAt: string;
   updatedAt: string;
   // Legacy - mantener para compatibilidad
+  phone?: string;
+  email?: string;
+  customFields?: Record<string, any>;
   name?: string;
   phoneNumber?: string;
-  metadata?: Record<string, any>;
 }
 
 export interface ContactListResponse {
@@ -53,7 +63,23 @@ export interface ContactListResponse {
   size: number;
   totalElements: number;
   totalPages: number;
+  first: boolean;
+  last: boolean;
 }
+
+export interface ContactMessagingChannelRequest {
+  credentialId: string;
+  externalContactId: string;
+  metadata?: Record<string, any>;
+}
+
+export interface ContactRequest {
+  fullName: string;
+  metadata?: Record<string, any>;
+  messagingChannels?: ContactMessagingChannelRequest[];
+}
+
+export interface ContactUpdateRequest extends ContactRequest {}
 
 // Conversation Types
 export type ConversationStatus =

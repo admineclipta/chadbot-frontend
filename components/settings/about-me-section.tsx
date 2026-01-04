@@ -1,7 +1,7 @@
 "use client"
 
-import { Card, CardBody, CardHeader, Divider, Chip, Accordion, AccordionItem, Skeleton, User as HeroUser } from "@heroui/react"
-import { Mail, Hash, Calendar, Shield, CheckCircle, XCircle } from "lucide-react"
+import { Card, CardBody, CardHeader, Divider, Chip, Accordion, AccordionItem, Skeleton, User as HeroUser, Popover, PopoverTrigger, PopoverContent } from "@heroui/react"
+import { Mail, Hash, Calendar, Shield, CheckCircle, XCircle, Info } from "lucide-react"
 import { useApi } from "@/hooks/use-api"
 import { apiService } from "@/lib/api"
 import { format } from "date-fns"
@@ -157,6 +157,25 @@ export default function AboutMeSection() {
                       {role.code}
                     </Chip>
                     <span className="font-medium">{role.name}</span>
+                    {role.description && (
+                      <Popover placement="right" showArrow>
+                        <PopoverTrigger>
+                          <button
+                            className="inline-flex items-center justify-center rounded-full hover:bg-default-200 dark:hover:bg-default-100 transition-colors"
+                            style={{ width: '20px', height: '20px', minWidth: '20px' }}
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            <Info className="w-4 h-4 text-default-400 hover:text-default-600 dark:hover:text-default-300" />
+                          </button>
+                        </PopoverTrigger>
+                        <PopoverContent className="max-w-xs">
+                          <div className="px-1 py-2">
+                            <div className="text-small font-bold mb-1">Descripción</div>
+                            <div className="text-tiny text-default-600 dark:text-default-300">{role.description}</div>
+                          </div>
+                        </PopoverContent>
+                      </Popover>
+                    )}
                   </div>
                 }
               >
@@ -166,19 +185,42 @@ export default function AboutMeSection() {
                   </p>
                   <div className="flex flex-wrap gap-2">
                     {role.permissions.map((permission) => (
-                      <Chip
-                        key={permission.id}
-                        variant="bordered"
-                        size="sm"
-                        classNames={{
-                          base: "border-default-200",
-                        }}
-                      >
-                        <div className="flex flex-col items-start py-1">
-                          <span className="font-medium text-xs">{permission.name}</span>
-                          <span className="text-[10px] text-default-400">{permission.code}</span>
-                        </div>
-                      </Chip>
+                      <div key={permission.id} className="inline-flex">
+                        {permission.description ? (
+                          <Popover placement="top" showArrow>
+                            <PopoverTrigger>
+                              <div className="cursor-help">
+                                <Chip
+                                  variant="bordered"
+                                  size="sm"
+                                  classNames={{
+                                    base: "border-default-200",
+                                  }}
+                                >
+                                  {permission.name}
+                                </Chip>
+                              </div>
+                            </PopoverTrigger>
+                            <PopoverContent className="max-w-xs">
+                              <div className="px-1 py-2">
+                                <div className="text-small font-bold mb-1">Descripción</div>
+                                <div className="text-tiny text-default-600 dark:text-default-300">{permission.description}</div>
+                                <div className="text-[10px] text-default-400 mt-2">Código: {permission.code}</div>
+                              </div>
+                            </PopoverContent>
+                          </Popover>
+                        ) : (
+                          <Chip
+                            variant="bordered"
+                            size="sm"
+                            classNames={{
+                              base: "border-default-200",
+                            }}
+                          >
+                            {permission.name}
+                          </Chip>
+                        )}
+                      </div>
                     ))}
                   </div>
                 </div>
@@ -193,17 +235,40 @@ export default function AboutMeSection() {
                 <p className="text-sm font-semibold mb-3">Permisos Adicionales (fuera de roles)</p>
                 <div className="flex flex-wrap gap-2">
                   {currentUser.permissions.map((permission) => (
-                    <Chip
-                      key={permission.id}
-                      color="secondary"
-                      variant="flat"
-                      size="sm"
-                    >
-                      <div className="flex flex-col items-start py-1">
-                        <span className="font-medium text-xs">{permission.name}</span>
-                        <span className="text-[10px]">{permission.description}</span>
-                      </div>
-                    </Chip>
+                    <div key={permission.id} className="inline-flex">
+                      {permission.description ? (
+                        <Popover placement="top" showArrow>
+                          <PopoverTrigger>
+                            <div className="cursor-help">
+                              <Chip
+                                color="secondary"
+                                variant="flat"
+                                size="sm"
+                              >
+                                {permission.name}
+                              </Chip>
+                            </div>
+                          </PopoverTrigger>
+                          <PopoverContent className="max-w-xs">
+                            <div className="px-1 py-2">
+                              <div className="text-small font-bold mb-1">Descripción</div>
+                              <div className="text-tiny text-default-600 dark:text-default-300">{permission.description}</div>
+                              {permission.code && (
+                                <div className="text-[10px] text-default-400 mt-2">Código: {permission.code}</div>
+                              )}
+                            </div>
+                          </PopoverContent>
+                        </Popover>
+                      ) : (
+                        <Chip
+                          color="secondary"
+                          variant="flat"
+                          size="sm"
+                        >
+                          {permission.name}
+                        </Chip>
+                      )}
+                    </div>
                   ))}
                 </div>
               </div>
