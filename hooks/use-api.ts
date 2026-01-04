@@ -5,15 +5,15 @@ import { ApiError } from "@/lib/api";
 
 /**
  * Custom hook for data fetching with automatic cancellation on unmount or dependency changes.
- * 
+ *
  * @param apiCall - Function that performs the API call, receives optional AbortSignal
  * @param dependencies - Array of dependencies that trigger re-fetch when changed
  * @param debounceMs - Debounce delay in milliseconds (default: 0 for immediate fetch)
- * 
+ *
  * @example
  * // Immediate fetch
  * const { data, loading, error } = useApi(() => apiService.getUsers(), []);
- * 
+ *
  * @example
  * // Search with 300ms debounce
  * const { data, loading } = useApi(
