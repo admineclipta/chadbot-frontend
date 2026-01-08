@@ -1,0 +1,63 @@
+name: Deploy Frontend (release/*)
+
+on:
+  push:
+    branches:
+      - "release/**"
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    env:
+      PROJECT_ID: chadbot-483020
+      REGION: us-central1
+      SERVICE: chadbot-frontend
+      REPO: chadbot-repo
+      IMAGE_NAME: chadbot-frontend
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # Auth con Workload Identity (igual que backend)
+      - name: Auth (Workload Identity)
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ secrets.GCP_WIF_PROVIDER }}
+          service_account: ${{ secrets.GCP_DEPLOY_SA }}
+
+      - name: Setup gcloud
+        uses: google-github-actions/setup-gcloud@v2
+
+      - name: Configure Docker auth
+        run: gcloud auth configure-docker ${{ env.REGION }}-docker.pkg.dev --quiet
+
+      # Si vos NO querés buildear en CI y solo subir dist, dist debe venir commiteado en la rama.
+      - name: Validate dist exists
+        run: |
+          test -d dist
+          test -f dist/index.html
+          echo "dist/ OK"
+
+      - name: Build and Push image
+        run: |
+          TAG="${GITHUB_REF_NAME//\//-}-${GITHUB_SHA::7}"
+          IMAGE="${REGION}-docker.pkg.dev/${PROJECT_ID}/${REPO}/${IMAGE_NAME}:${TAG}"
+          echo "IMAGE=$IMAGE" >> $GITHUB_ENV
+
+          docker build -t "$IMAGE" .
+          docker push "$IMAGE"
+
+      - name: Deploy to Cloud Run
+        run: |
+          gcloud run deploy "${SERVICE}" \
+            --project "${PROJECT_ID}" \
+            --region "${REGION}" \
+            --image "${IMAGE}" \
+            --allow-unauthenticated \
+            --port 8080 \
+            --quiet

@@ -1,0 +1,24 @@
+name: PR production/* -> production
+
+on:
+  push:
+    branches:
+      - "production/**"
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  pr:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Create PR to production
+        uses: peter-evans/create-pull-request@v6
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          base: production
+          branch: ${{ github.ref_name }}
+          title: "Merge ${{ github.ref_name }} into production"
+          body: "Auto-generated PR from release branch to production."
+          draft: false
