@@ -24,7 +24,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      # Build dist/ inside CI so we don't need to commit it
+      # Build dist/ inside CI so we don't need to commit
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
