@@ -28,13 +28,14 @@ function getConfig(): Config {
   }
 
   if (
-    hostname.includes("chadbot-backend.azurewebsites.net") ||
+    hostname.includes("us-central1.run.app") ||
     hostname.includes("dev") ||
     hostname.includes("staging")
   ) {
     return {
-      apiUrl: "https://chadbot-backend-dev.azurewebsites.net/api/v1/",
-      wsUrl: "https://chadbot-backend-dev.azurewebsites.net/ws",
+      apiUrl:
+        "https://chadbot-backend-914352408266.us-central1.run.app/api/v1/",
+      wsUrl: "https://chadbot-backend-914352408266.us-central1.run.app/ws",
       environment: "staging",
       environmentName: "staging",
     };
