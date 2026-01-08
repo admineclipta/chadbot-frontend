@@ -72,6 +72,7 @@ jobs:
             --image "$IMAGE" \
             --allow-unauthenticated \
             --port 8080 \
+            --service-account chadbot-run-sa@chadbot-483020.iam.gserviceaccount.com \
             --quiet
 
       - name: Output service URL
