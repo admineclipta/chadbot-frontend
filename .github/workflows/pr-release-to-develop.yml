@@ -1,0 +1,24 @@
+name: PR release/* -> develop
+
+on:
+  push:
+    branches:
+      - "release/**"
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  pr:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Create PR to develop
+        uses: peter-evans/create-pull-request@v6
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          base: develop
+          branch: ${{ github.ref_name }}
+          title: "Merge ${{ github.ref_name }} into develop"
+          body: "Auto-generated PR from release branch to develop."
+          draft: false
