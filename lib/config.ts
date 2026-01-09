@@ -28,7 +28,7 @@ function getConfig(): Config {
   }
 
   if (
-    hostname.includes("us-central1.run.app") ||
+    hostname.includes(".run.app") ||
     hostname.includes("dev") ||
     hostname.includes("staging")
   ) {
@@ -42,8 +42,8 @@ function getConfig(): Config {
   }
 
   return {
-    apiUrl: "https://chadbot-backend.azurewebsites.net/api/v1/",
-    wsUrl: "https://chadbot-backend.azurewebsites.net/ws",
+    apiUrl: "http://localhost:8080/api/v1/",
+    wsUrl: "http://localhost:8080/ws",
     environment: "production",
     environmentName: "prod",
   };
