@@ -235,27 +235,31 @@ export default function Login() {
       if (response.accessToken) {
         console.log("Login successful, token received")
         
-        // Los datos del usuario ya fueron guardados por apiService.login
-        // Solo necesitamos obtenerlos del localStorage y preparar el frontend
-        const userDataStr = localStorage.getItem("chadbot_user");
-        
-        if (userDataStr) {
-          const userData = JSON.parse(userDataStr);
-          console.log("User data from JWT:", userData);
+        // Obtener los datos completos del usuario desde el endpoint /auth/me
+        try {
+          const fullUserData = await apiService.getCurrentUser();
+          console.log("Full user data from API:", fullUserData);
           
           // Determinar el rol basado en los roles del usuario
-          const isAdmin = userData.roles?.some((role: string) => 
-            role.toLowerCase().includes("admin") || 
-            role.toLowerCase().includes("administrador")
-          );
+          // Consideramos admin a usuarios con roles: admin, administrador, owner, superadmin
+          const isAdmin = fullUserData.roles?.some((role) => {
+            const roleLower = role.code.toLowerCase();
+            return roleLower.includes("admin") || 
+                   roleLower.includes("administrador") ||
+                   roleLower.includes("owner") ||
+                   roleLower.includes("superadmin");
+          });
           
           const frontendUserData = {
-            id: userData.id,
-            name: userData.email.split('@')[0], // Usar parte del email como nombre por defecto
-            email: userData.email,
+            id: fullUserData.id,
+            name: fullUserData.name || fullUserData.displayName || fullUserData.email.split('@')[0],
+            email: fullUserData.email,
             avatar: "https://cdn-icons-png.flaticon.com/512/6596/6596121.png",
             role: isAdmin ? "admin" : "agent",
-            roles: userData.roles || [], // Guardar todos los roles
+            roles: fullUserData.roles || [], // Guardar todos los roles con sus permisos
+            permissions: fullUserData.permissions || [], // Guardar todos los permisos
+            displayName: fullUserData.displayName,
+            agentId: fullUserData.agentId,
           }
 
           localStorage.setItem("chadbot_user", JSON.stringify(frontendUserData))
@@ -263,9 +267,9 @@ export default function Login() {
 
           // Redirigir al dashboard
           router.push("/")
-        } else {
-          console.error("Failed to get user data from token")
-          setError("Error al procesar los datos del usuario.")
+        } catch (userError) {
+          console.error("Failed to fetch user data:", userError)
+          setError("Error al cargar los datos del usuario.")
         }
       } else {
         console.error("Login failed or missing token in response")

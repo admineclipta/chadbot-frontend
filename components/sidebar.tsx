@@ -42,6 +42,7 @@ interface SidebarProps {
     | "profile"
     | "users"
     | "contacts"
+    | "teams"
     | "assistants"
     | "settings";
   onViewChange: (
@@ -51,6 +52,7 @@ interface SidebarProps {
       | "profile"
       | "users"
       | "contacts"
+      | "teams"
       | "assistants"
       | "settings"
   ) => void;
@@ -59,6 +61,32 @@ interface SidebarProps {
   onAutoRefreshIntervalChange?: (interval: number) => void;
   selectedChannel?: string;
   onChannelChange?: (channel: string) => void;
+}
+
+// Helper para verificar si el usuario tiene permisos de admin
+function hasAdminPermissions(user: User): boolean {
+  // Verificar si tiene roles de admin
+  if (user.roles && Array.isArray(user.roles)) {
+    const hasAdminRole = user.roles.some((role) => {
+      const roleCode = role.code?.toLowerCase() || '';
+      return roleCode.includes('admin') || 
+             roleCode === 'owner' || 
+             roleCode.includes('superadmin') ||
+             roleCode.includes('administrador');
+    });
+    if (hasAdminRole) return true;
+  }
+
+  // Verificar permisos específicos de administración
+  if (user.permissions && Array.isArray(user.permissions)) {
+    const adminPermissions = ['manage_users', 'manage_client', 'view_users', 'manage_teams'];
+    const hasAdminPerm = user.permissions.some((perm) => 
+      adminPermissions.includes(perm.code)
+    );
+    if (hasAdminPerm) return true;
+  }
+
+  return false;
 }
 
 export default function Sidebar({
@@ -133,6 +161,12 @@ export default function Sidebar({
       key: "admin-contacts",
       label: "Contactos",
       icon: MessageCircle,
+      count: 0,
+    },
+    {
+      key: "admin-teams",
+      label: "Equipos",
+      icon: Users,
       count: 0,
     },
     {
@@ -288,7 +322,7 @@ export default function Sidebar({
             })}
 
             {/* Sección de Administración - Solo para admins */}
-            {user.role === "admin" && (
+            {(user.role === "admin" || hasAdminPermissions(user)) && (
               <>
                 <Divider className="my-4" />
                 <h2 className="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-3">
@@ -301,6 +335,7 @@ export default function Sidebar({
                     (item.key === "admin-users" && currentView === "users") ||
                     (item.key === "admin-assistants" && currentView === "assistants") ||
                     (item.key === "admin-contacts" && currentView === "contacts") ||
+                    (item.key === "admin-teams" && currentView === "teams") ||
                     currentView === item.key;
 
                   return (
@@ -322,6 +357,8 @@ export default function Sidebar({
                             ? "assistants"
                             : item.key === "admin-contacts"
                             ? "contacts"
+                            : item.key === "admin-teams"
+                            ? "teams"
                             : (item.key as any)
                         )
                       }

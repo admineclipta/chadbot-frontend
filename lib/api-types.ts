@@ -681,3 +681,45 @@ export interface UpdateAiCredentialRequest {
   usageUnit?: string;
   usageResetAt?: string;
 }
+
+// Team Types
+export interface Team {
+  id: string;
+  clientId: string;
+  name: string;
+  description?: string;
+  active: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface TeamListResponse {
+  content: Team[];
+  page: number;
+  size: number;
+  totalElements: number;
+  totalPages: number;
+  first: boolean;
+  last: boolean;
+}
+
+export interface TeamMember {
+  teamId: string;
+  agentId: string;
+  agentName: string;
+  agentEmail: string;
+}
+
+export interface CreateTeamRequest {
+  name: string;
+  description?: string;
+}
+
+export interface UpdateTeamRequest {
+  name: string;
+  description?: string;
+}
+
+export interface AddTeamMembersRequest {
+  agentIds: string[];
+}

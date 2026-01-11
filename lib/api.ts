@@ -46,6 +46,10 @@ import {
   type UpdateAssistantRequest,
   type Team,
   type TeamListResponse,
+  type CreateTeamRequest,
+  type UpdateTeamRequest,
+  type TeamMember,
+  type AddTeamMembersRequest,
   ApiError,
 } from "./api-types";
 
@@ -110,14 +114,20 @@ class ApiService {
       defaultHeaders.Authorization = `Bearer ${this.token}`;
     }
 
+    // Build config without signal first
     const config: RequestInit = {
-      ...options,
-      signal,
+      method: options.method,
+      body: options.body,
       headers: {
         ...defaultHeaders,
         ...options.headers,
       },
     };
+
+    // Only include signal if it's actually provided and valid
+    if (signal !== undefined && signal !== null) {
+      config.signal = signal;
+    }
 
     try {
       const response = await fetch(url, config);
@@ -395,16 +405,18 @@ class ApiService {
   // ============================================
 
   async getAgents(
-    onlineOnly?: boolean,
+    page: number = 0,
+    size: number = 20,
     signal?: AbortSignal
   ): Promise<AgentListResponse> {
-    let url = "agents";
-    if (onlineOnly !== undefined) {
-      url += `?onlineOnly=${onlineOnly}`;
-    }
-
-    console.log(`👥 [CHADBOT API] Fetching agents`);
-    return this.request<AgentListResponse>(url, {}, signal);
+    console.log(
+      `👥 [CHADBOT API] Fetching agents (page ${page}, size ${size})`
+    );
+    return this.request<AgentListResponse>(
+      `agents?page=${page}&size=${size}`,
+      {},
+      signal
+    );
   }
 
   async updateAgentStatus(
@@ -852,6 +864,92 @@ class ApiService {
   async deleteAiCredential(id: string): Promise<void> {
     console.log("🗑️ [CHADBOT API] Deleting AI credential:", id);
     return this.request<void>(`credentials/ai/${id}`, {
+      method: "DELETE",
+    });
+  }
+
+  // ============================================
+  // Team Management
+  // ============================================
+
+  async getTeams(
+    page: number = 0,
+    size: number = 20,
+    signal?: AbortSignal
+  ): Promise<TeamListResponse> {
+    console.log(`👥 [CHADBOT API] Fetching teams (page ${page}, size ${size})`);
+    return this.request<TeamListResponse>(
+      `teams?page=${page}&size=${size}`,
+      {},
+      signal
+    );
+  }
+
+  async getTeamById(teamId: string, signal?: AbortSignal): Promise<Team> {
+    console.log(`🔍 [CHADBOT API] Fetching team ${teamId}`);
+    return this.request<Team>(`teams/${teamId}`, {}, signal);
+  }
+
+  async createTeam(teamData: CreateTeamRequest): Promise<Team> {
+    console.log(`➕ [CHADBOT API] Creating team: ${teamData.name}`);
+    return this.request<Team>(`teams`, {
+      method: "POST",
+      body: JSON.stringify(teamData),
+    });
+  }
+
+  async updateTeam(teamId: string, teamData: UpdateTeamRequest): Promise<Team> {
+    console.log(`✏️ [CHADBOT API] Updating team ${teamId}`);
+    return this.request<Team>(`teams/${teamId}`, {
+      method: "PUT",
+      body: JSON.stringify(teamData),
+    });
+  }
+
+  async activateTeam(teamId: string): Promise<void> {
+    console.log(`✅ [CHADBOT API] Activating team ${teamId}`);
+    return this.request<void>(`teams/${teamId}/activate`, {
+      method: "PATCH",
+    });
+  }
+
+  async deactivateTeam(teamId: string): Promise<void> {
+    console.log(`❌ [CHADBOT API] Deactivating team ${teamId}`);
+    return this.request<void>(`teams/${teamId}/deactivate`, {
+      method: "PATCH",
+    });
+  }
+
+  async deleteTeam(teamId: string): Promise<void> {
+    console.log(`🗑️ [CHADBOT API] Deleting team ${teamId}`);
+    return this.request<void>(`teams/${teamId}`, {
+      method: "DELETE",
+    });
+  }
+
+  async getTeamMembers(
+    teamId: string,
+    signal?: AbortSignal
+  ): Promise<TeamMember[]> {
+    console.log(`👥 [CHADBOT API] Fetching members for team ${teamId}`);
+    return this.request<TeamMember[]>(`teams/${teamId}/members`, {}, signal);
+  }
+
+  async addTeamMembers(teamId: string, agentIds: string[]): Promise<void> {
+    console.log(
+      `➕ [CHADBOT API] Adding ${agentIds.length} members to team ${teamId}`
+    );
+    return this.request<void>(`teams/${teamId}/members`, {
+      method: "POST",
+      body: JSON.stringify({ agentIds }),
+    });
+  }
+
+  async deleteTeamMember(teamId: string, agentId: string): Promise<void> {
+    console.log(
+      `🗑️ [CHADBOT API] Removing agent ${agentId} from team ${teamId}`
+    );
+    return this.request<void>(`teams/${teamId}/members/${agentId}`, {
       method: "DELETE",
     });
   }

@@ -9,6 +9,7 @@ import ChatView, { type ChatViewRef } from "@/components/chat-view"
 import UserProfile from "@/components/user-profile"
 import UserManagement from "@/components/user-management"
 import ContactManagement from "@/components/contact-management"
+import TeamManagement from "@/components/team-management"
 import AssistantManagement from "@/components/assistant-management"
 import SettingsView from "@/components/settings-view"
 import EnvironmentIndicator from "@/components/environment-indicator"
@@ -24,7 +25,7 @@ export default function Home() {
   const router = useRouter()
   const chatViewRef = useRef<ChatViewRef>(null)
   const [isAuthenticated, setIsAuthenticated] = useState(false)
-  const [currentView, setCurrentView] = useState<"welcome" | "conversations" | "profile" | "users" | "contacts" | "assistants" | "settings">("welcome")
+  const [currentView, setCurrentView] = useState<"welcome" | "conversations" | "profile" | "users" | "contacts" | "teams" | "assistants" | "settings">("welcome")
   const [selectedConversation, setSelectedConversation] = useState<Conversation | null>(null)
   const [conversations, setConversations] = useState<Conversation[]>([])
   const [user, setUser] = useState<User | null>(null)
@@ -605,6 +606,12 @@ export default function Home() {
         {currentView === "contacts" && (
           <div className="flex-1">
             <ContactManagement />
+          </div>
+        )}
+
+        {currentView === "teams" && (
+          <div className="flex-1">
+            <TeamManagement />
           </div>
         )}
 

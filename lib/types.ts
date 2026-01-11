@@ -55,6 +55,25 @@ export interface User {
   email: string;
   avatar: string;
   role: "admin" | "agent" | "supervisor";
+  roles?: Array<{
+    id: number;
+    code: string;
+    name: string;
+    permissions?: Array<{
+      id: number;
+      code: string;
+      name: string;
+      description?: string;
+    }>;
+  }>;
+  permissions?: Array<{
+    id: number;
+    code: string;
+    name: string;
+    description?: string;
+  }>;
+  displayName?: string;
+  agentId?: string;
 }
 
 // Funciones de utilidad para convertir entre UserDto y User
