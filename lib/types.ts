@@ -4,6 +4,10 @@ import type {
   Mensaje,
   UserDto,
   ConversationStatus,
+  ApiConversation,
+  ApiTag,
+  MessageType,
+  MessageStatus,
 } from "./api-types";
 
 // ============================================
@@ -165,6 +169,9 @@ export interface Conversation {
   archived?: boolean;
   id_representante: number;
   subject?: string; // Agregado según API v1
+  // New fields for API v1
+  lastMessageType?: MessageType;
+  lastMessageStatus?: MessageStatus;
 }
 
 // Funciones de mapeo para convertir datos de la API a tipos locales
@@ -270,5 +277,89 @@ export function mapApiMensajeToMessage(apiMsg: Mensaje): Message {
             : apiMsg.Timestamp + "Z"
         )
       : new Date(),
+  };
+}
+
+// ============================================
+// API v1 Conversation Mapper (New Backend Schema)
+// ============================================
+
+/**
+ * Maps the new backend API conversation response to frontend domain model
+ * Handles nullable fields (currentTeam, agents) and parses dates
+ *
+ * @example
+ * // Usage in API service:
+ * const response: ApiConversationResponse = await fetch('/api/v1/conversations')
+ * const conversations = response.content.map(mapApiConversationToDomain)
+ *
+ * // Backend JSON structure (example):
+ * {
+ *   "id": "047cdfca-51a4-41ac-a7cd-311e3e0e1a9b",
+ *   "contact": {
+ *     "fullName": "Federico Marquez",
+ *     "messagingChannel": { "externalContactId": "+5493511234567" }
+ *   },
+ *   "lastMessage": {
+ *     "type": "image",
+ *     "status": "sent",
+ *     "content": { "caption": "Aqui estan los productos" },
+ *     "createdAt": "2026-01-10T14:58:55.535649Z"
+ *   },
+ *   "tags": [{ "tagId": "...", "label": "VIP", "color": "#FFD700" }]
+ * }
+ */
+export function mapApiConversationToDomain(
+  apiConv: ApiConversation
+): Conversation {
+  // Extract contact info with fallback
+  const contactName = apiConv.contact?.fullName || "Sin nombre";
+  const contactPhone =
+    apiConv.contact?.messagingChannel?.externalContactId || "";
+
+  // Parse last message content
+  const lastMessageContent =
+    apiConv.lastMessage?.content?.text ||
+    apiConv.lastMessage?.content?.caption ||
+    "";
+
+  // Map tags from API format
+  const tags: Tag[] = (apiConv.tags || []).map((apiTag: ApiTag) => ({
+    id: apiTag.tagId,
+    label: apiTag.label,
+    color: apiTag.color,
+    agentId: apiTag.agentId,
+    isPrivate: apiTag.isPrivate,
+  }));
+
+  // Parse last activity date
+  const lastActivity = apiConv.lastMessage?.createdAt
+    ? new Date(apiConv.lastMessage.createdAt)
+    : new Date();
+
+  // TODO: Calculate unreadCount from backend or set to 0
+  // Backend might need to add this field in the future
+  const unreadCount = 0;
+
+  return {
+    id: apiConv.id,
+    customer: {
+      id: apiConv.contact?.contactId || "",
+      name: contactName,
+      email: apiConv.contact?.metadata?.email || "",
+      phone: contactPhone,
+      avatar: `https://cdn-icons-png.flaticon.com/512/6596/6596121.png`,
+    },
+    messages: [], // Messages loaded separately
+    lastMessage: lastMessageContent,
+    lastActivity: lastActivity,
+    status: apiConv.status,
+    unreadCount: unreadCount,
+    tags: tags,
+    integration: "whatsapp", // Default, can be inferred from messagingChannel.serviceTypeName
+    id_representante: -1, // Legacy field, not used with new API
+    // Store additional metadata for new features
+    lastMessageType: apiConv.lastMessage?.type,
+    lastMessageStatus: apiConv.lastMessage?.status,
   };
 }

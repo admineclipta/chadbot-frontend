@@ -170,34 +170,8 @@ export default function Home() {
   // Actualizar conversaciones cuando lleguen de la API
   useEffect(() => {
     if (apiConversaciones) {
-      // API v1 retorna ConversationListResponse con paginación
-      const mappedConversations = apiConversaciones.content.map(conv => ({
-        id: conv.id,
-        customer: conv.contact ? {
-          id: conv.contact.contactId || conv.contact.id,
-          name: conv.contact.fullName || "Cliente",
-          email: conv.contact.email || "",
-          phone: conv.contact.metadata?.phone || conv.contact.phone || "",
-          avatar: "https://cdn-icons-png.flaticon.com/512/6596/6596121.png",
-        } : {
-          id: conv.contactId,
-          name: "Cliente",
-          email: "",
-          phone: "",
-          avatar: "https://cdn-icons-png.flaticon.com/512/6596/6596121.png",
-        },
-        messages: [],
-        lastMessage: "",
-        lastActivity: conv.updatedAt ? new Date(conv.updatedAt) : new Date(),
-        status: conv.status?.toUpperCase() as any || "ACTIVE",
-        unreadCount: 0,
-        tags: conv.tags || [],
-        integration: conv.contact?.messagingChannel?.serviceTypeName?.toLowerCase().replace(/\s/g, '') || "whatsapp" as const,
-        archived: conv.status?.toLowerCase() === "closed",
-        id_representante: conv.agents?.[0]?.userId ? Number.parseInt(conv.agents[0].userId) : -1,
-      }))
-      
-      setConversations(mappedConversations)
+      // API v1 con mapper automático - ya viene en formato domain
+      setConversations(apiConversaciones.content)
       
       // Actualizar información de paginación
       setTotalPages(apiConversaciones.totalPages)

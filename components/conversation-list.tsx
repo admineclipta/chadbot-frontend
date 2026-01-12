@@ -1,8 +1,14 @@
 "use client"
 
-import { Card, CardBody, Chip, Badge, Spinner, Pagination } from "@heroui/react"
-import { MessageSquare, Phone, Clock } from "lucide-react"
+import { useState } from "react"
+import { Card, CardBody, Chip, Badge, Spinner, Pagination, Dropdown, DropdownTrigger, DropdownMenu, DropdownItem, Button } from "@heroui/react"
+import { MessageSquare, Clock, ChevronDown, Tag as TagIcon, Info } from "lucide-react"
 import UserAvatar from "./user-avatar"
+import MessageStatusIcon from "./message-status-icon"
+import MessageTypeIndicator from "./message-type-indicator"
+import ConversationTagsPopover from "./conversation-tags-popover"
+import ConversationInfoModal from "./conversation-info-modal"
+import ConversationTagsModal from "./conversation-tags-modal"
 import type { Conversation } from "@/lib/types"
 import { CONVERSATION_STATUS_CONFIG } from "@/lib/types"
 import { formatConversationTime } from "@/lib/utils"
@@ -31,20 +37,20 @@ export default function ConversationList({
   totalPages,
   onPageChange,
 }: ConversationListProps) {
+  const [hoveredConversation, setHoveredConversation] = useState<string | null>(null)
+  const [infoModalOpen, setInfoModalOpen] = useState(false)
+  const [tagsModalOpen, setTagsModalOpen] = useState(false)
+  const [selectedConvForInfo, setSelectedConvForInfo] = useState<Conversation | null>(null)
+  const [selectedConvForTags, setSelectedConvForTags] = useState<Conversation | null>(null)
 
-  const getIntegrationIcon = (integration: string) => {
-    switch (integration.toLowerCase()) {
-      case "whatsapp":
-        return "💬"
-      case "telegram":
-        return "✈️"
-      case "facebook":
-        return "📘"
-      case "instagram":
-        return "📷"
-      default:
-        return "💬"
-    }
+  const handleOpenInfo = (conversation: Conversation) => {
+    setSelectedConvForInfo(conversation)
+    setInfoModalOpen(true)
+  }
+
+  const handleOpenTags = (conversation: Conversation) => {
+    setSelectedConvForTags(conversation)
+    setTagsModalOpen(true)
   }
 
   if (loading) {
@@ -93,100 +99,152 @@ export default function ConversationList({
         ) : (
           <div className="space-y-1 p-2">
             {conversations.map((conversation) => (
-              <Card
+              <div 
                 key={conversation.id}
-                isPressable
-                isHoverable
-                className={`cursor-pointer transition-all w-full h-24 ${
-                  selectedConversation?.id === conversation.id
-                    ? "bg-primary-50 dark:bg-primary-900/20 border-primary-200 dark:border-primary-800"
-                    : "hover:bg-default-100 dark:hover:bg-default-50"
-                }`}
-                onPress={() => onSelectConversation(conversation)}
+                className="relative"
+                onMouseEnter={() => setHoveredConversation(conversation.id)}
+                onMouseLeave={() => setHoveredConversation(null)}
               >
-                <CardBody className="p-3 h-full flex flex-col justify-between">
-                  <div className="flex items-start gap-3 h-full">
-                    {/* Avatar */}
-                    <div className="relative">
-                      <UserAvatar
-                        name={conversation.customer.name}
-                        size="md"
-                        className="cursor-pointer"
-                        onClick={(e) => {
-                          e?.stopPropagation()
-                          onUserClick(conversation.customer.id)
-                        }}
-                        showTooltip={true}
-                      />
-                      {conversation.unreadCount > 0 && (
-                        <Badge
-                          content={conversation.unreadCount}
-                          color="danger"
-                          size="sm"
-                          className="absolute -top-1 -right-1"
-                        >
-                          <div />
-                        </Badge>
-                      )}
-                    </div>
+                <Card
+                  isPressable
+                  isHoverable
+                  className={`cursor-pointer transition-all w-full h-24 ${
+                    selectedConversation?.id === conversation.id
+                      ? "bg-primary-50 dark:bg-primary-900/20 border-primary-200 dark:border-primary-800"
+                      : "hover:bg-default-100 dark:hover:bg-default-50"
+                  }`}
+                  onPress={() => onSelectConversation(conversation)}
+                >
+                  <CardBody className="p-3 h-full">
+                    <div className="flex items-start gap-3 h-full">
+                      {/* Avatar with unread badge */}
+                      <div className="relative flex-shrink-0">
+                        {conversation.unreadCount > 0 ? (
+                          <Badge
+                            content={conversation.unreadCount}
+                            color="primary"
+                            size="sm"
+                            placement="top-right"
+                          >
+                            <UserAvatar
+                              name={conversation.customer.name}
+                              size="md"
+                              className="cursor-pointer"
+                              onClick={(e) => {
+                                e?.stopPropagation()
+                                onUserClick(conversation.customer.id)
+                              }}
+                              showTooltip={true}
+                            />
+                          </Badge>
+                        ) : (
+                          <UserAvatar
+                            name={conversation.customer.name}
+                            size="md"
+                            className="cursor-pointer"
+                            onClick={(e) => {
+                              e?.stopPropagation()
+                              onUserClick(conversation.customer.id)
+                            }}
+                            showTooltip={true}
+                          />
+                        )}
+                      </div>
 
-                    {/* Content */}
-                    <div className="flex-1 min-w-0 flex flex-col justify-between h-full">
-                      <div className="flex items-center justify-between mb-1">
-                        <h3 className="font-semibold text-foreground truncate text-sm">
-                          {conversation.customer.name}
-                        </h3>
-                        <div className="flex items-center gap-1 flex-shrink-0">
-                          <span className="text-xs text-default-500">
-                            {getIntegrationIcon(conversation.integration)}
-                          </span>
-                          <span className="text-xs text-default-500 flex items-center gap-1">
+                      {/* Content column */}
+                      <div className="flex-1 min-w-0 flex flex-col justify-between h-full">
+                        {/* Row 1: Name + Time */}
+                        <div className="flex items-center justify-between mb-1">
+                          <h3 className="font-semibold text-foreground truncate text-sm flex-1 mr-2">
+                            {conversation.customer.name}
+                          </h3>
+                          <span className="text-xs text-default-500 flex items-center gap-1 flex-shrink-0">
                             <Clock className="h-3 w-3" />
                             {formatConversationTime(conversation.lastActivity)}
                           </span>
                         </div>
-                      </div>
 
-                      <p className="text-xs text-default-600 truncate mb-2 flex-1">
-                        {conversation.lastMessage}
-                      </p>
-
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-1 flex-shrink-0">
-                          <Phone className="h-3 w-3 text-default-400" />
-                          <span className="text-xs text-default-500 truncate">
-                            {conversation.customer.phone}
-                          </span>
+                        {/* Row 2: Last message with status + type */}
+                        <div className="flex items-center gap-1.5 mb-2">
+                          {/* Message status icon (before content) */}
+                          {conversation.lastMessageStatus && (
+                            <MessageStatusIcon
+                              status={conversation.lastMessageStatus}
+                            />
+                          )}
+                          
+                          {/* Message type indicator or text content */}
+                          <MessageTypeIndicator
+                            type={conversation.lastMessageType || "text"}
+                            content={{
+                              text: conversation.lastMessage,
+                            }}
+                            className="flex-1 min-w-0"
+                          />
                         </div>
 
-                        <div className="flex items-center gap-1 flex-shrink-0 ml-2">
-                          {/* Chip de estado de conversación */}
+                        {/* Row 3: Status + Tags */}
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          {/* Status chip */}
                           <Chip 
                             color={CONVERSATION_STATUS_CONFIG[conversation.status]?.color || "default"} 
                             size="sm" 
                             variant="dot" 
-                            className="text-xs"
+                            className="text-xs flex-shrink-0"
                           >
                             {CONVERSATION_STATUS_CONFIG[conversation.status]?.label || conversation.status}
                           </Chip>
                           
-                          {/* Tags adicionales (si los hay) */}
-                          {conversation.tags.slice(0, 1).map((tag) => (
-                          <Chip key={tag.id} style={{ backgroundColor: tag.color, color: "#000" }} size="sm" variant="flat" className="text-xs">
-                            {tag.label}
-                            </Chip>
-                          ))}
-                          {conversation.tags.length > 1 && (
-                            <Chip size="sm" variant="flat" color="default" className="text-xs">
-                              +{conversation.tags.length - 1}
-                            </Chip>
-                          )}
+                          {/* Tags with popover */}
+                          <ConversationTagsPopover tags={conversation.tags} />
                         </div>
                       </div>
                     </div>
+                  </CardBody>
+                </Card>
+                
+                {/* Dropdown menu - aparece en hover */}
+                {hoveredConversation === conversation.id && (
+                  <div className="absolute right-2 top-1/2 -translate-y-1/2 z-10">
+                    <Dropdown placement="bottom-end">
+                      <DropdownTrigger>
+                        <Button
+                          isIconOnly
+                          size="sm"
+                          variant="flat"
+                          className="backdrop-blur-md bg-background/60 dark:bg-background/80 border border-divider shadow-lg"
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          <ChevronDown className="h-4 w-4" />
+                        </Button>
+                      </DropdownTrigger>
+                      <DropdownMenu 
+                        aria-label="Opciones de conversación"
+                        onAction={(key) => {
+                          if (key === "tags") {
+                            handleOpenTags(conversation)
+                          } else if (key === "info") {
+                            handleOpenInfo(conversation)
+                          }
+                        }}
+                      >
+                        <DropdownItem
+                          key="tags"
+                          startContent={<TagIcon className="h-4 w-4" />}
+                        >
+                          Etiquetas
+                        </DropdownItem>
+                        <DropdownItem
+                          key="info"
+                          startContent={<Info className="h-4 w-4" />}
+                        >
+                          Información
+                        </DropdownItem>
+                      </DropdownMenu>
+                    </Dropdown>
                   </div>
-                </CardBody>
-              </Card>
+                )}
+              </div>
             ))}
           </div>
         )}
@@ -205,6 +263,28 @@ export default function ConversationList({
           />
         </div>
       )}
+      
+      {/* Modal de información */}
+      <ConversationInfoModal
+        isOpen={infoModalOpen}
+        onClose={() => {
+          setInfoModalOpen(false)
+          setSelectedConvForInfo(null)
+        }}
+        conversation={selectedConvForInfo}
+      />
+      
+      {/* Modal de etiquetas */}
+      <ConversationTagsModal
+        isOpen={tagsModalOpen}
+        onClose={() => {
+          setTagsModalOpen(false)
+          setSelectedConvForTags(null)
+        }}
+        tags={selectedConvForTags?.tags || []}
+        // onAddTag y onRemoveTag se pueden implementar más adelante
+        // cuando se integre con la API
+      />
     </div>
   )
 }

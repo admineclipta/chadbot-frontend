@@ -48,6 +48,9 @@ import {
   type CreateAssistantRequest,
   type UpdateAssistantRequest,
   type Team,
+  // New API v1 types
+  type ApiConversationResponse,
+  type ApiConversation,
   type TeamListResponse,
   type CreateTeamRequest,
   type UpdateTeamRequest,
@@ -55,6 +58,8 @@ import {
   type AddTeamMembersRequest,
   ApiError,
 } from "./api-types";
+import { mapApiConversationToDomain } from "./types";
+import type { Conversation as DomainConversation } from "./types";
 
 export { ApiError } from "./api-types";
 
@@ -281,6 +286,10 @@ class ApiService {
   // Conversations
   // ============================================
 
+  /**
+   * Fetches conversations with new API v1 schema
+   * Automatically maps backend response to frontend domain model
+   */
   async getConversations(
     page: number = 0,
     size: number = 20,
@@ -294,7 +303,13 @@ class ApiService {
     sortBy?: ConversationSortField,
     sortDirection?: SortDirection,
     signal?: AbortSignal
-  ): Promise<ConversationListResponse> {
+  ): Promise<{
+    content: DomainConversation[];
+    page: number;
+    size: number;
+    totalElements: number;
+    totalPages: number;
+  }> {
     let url = `conversations?page=${page}&size=${size}&fetchContactInfo=${fetchContactInfo}`;
 
     if (status) {
@@ -323,19 +338,43 @@ class ApiService {
     }
 
     console.log(`📋 [CHADBOT API] Fetching conversations: ${url}`);
-    return this.request<ConversationListResponse>(url, {}, signal);
+
+    // Fetch from new API v1 endpoint
+    const response = await this.request<ApiConversationResponse>(
+      url,
+      {},
+      signal
+    );
+
+    // Map API response to domain model
+    const mappedConversations = response.content.map(
+      mapApiConversationToDomain
+    );
+
+    return {
+      content: mappedConversations,
+      page: response.page,
+      size: response.size,
+      totalElements: response.totalElements,
+      totalPages: response.totalPages,
+    };
   }
 
+  /**
+   * Fetches a single conversation by ID with new API v1 schema
+   * Automatically maps backend response to frontend domain model
+   */
   async getConversationById(
     id: string,
     signal?: AbortSignal
-  ): Promise<ConversationDetailResponse> {
+  ): Promise<DomainConversation> {
     console.log(`🔍 [CHADBOT API] Fetching conversation: ${id}`);
-    return this.request<ConversationDetailResponse>(
+    const response = await this.request<ApiConversation>(
       `conversations/${id}`,
       {},
       signal
     );
+    return mapApiConversationToDomain(response);
   }
 
   /**

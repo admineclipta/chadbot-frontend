@@ -231,6 +231,86 @@ export interface Tag {
   createdAt: string;
 }
 
+// API v1 - New Conversation Response Types (matching backend exactly)
+export interface ApiMessagingChannel {
+  credentialId: string;
+  serviceTypeName: string;
+  externalContactId: string;
+  metadata?: Record<string, any>;
+}
+
+export interface ApiContact {
+  contactId: string;
+  clientId: string;
+  fullName: string;
+  metadata?: Record<string, any>;
+  blocked: boolean;
+  messagingChannel: ApiMessagingChannel;
+}
+
+export interface ApiMessageSender {
+  id: string;
+  type: SenderType;
+  name: string;
+  metadata?: Record<string, any> | null;
+}
+
+export interface ApiLastMessage {
+  id: string;
+  conversationId: string;
+  sender: ApiMessageSender;
+  type: MessageType;
+  status: MessageStatus;
+  content: MessageContent;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ApiCurrentTeam {
+  teamId: string;
+  name: string;
+  description?: string;
+  active: boolean;
+}
+
+export interface ApiAgent {
+  agentId: string;
+  userId: string;
+  displayName: string;
+  active: boolean;
+}
+
+export interface ApiTag {
+  tagId: string;
+  agentId: string;
+  label: string;
+  color: string;
+  isPrivate: boolean;
+}
+
+export interface ApiConversation {
+  id: string;
+  clientId: string;
+  contact: ApiContact;
+  status: ConversationStatus;
+  currentTeam?: ApiCurrentTeam | null;
+  agents?: ApiAgent[];
+  tags?: ApiTag[];
+  lastMessage: ApiLastMessage;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ApiConversationResponse {
+  content: ApiConversation[];
+  page: number;
+  size: number;
+  totalElements: number;
+  totalPages: number;
+  first: boolean;
+  last: boolean;
+}
+
 export interface CreateTagRequest {
   name: string;
   color: string;
