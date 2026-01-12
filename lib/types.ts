@@ -129,9 +129,12 @@ export interface Customer {
 
 export interface Tag {
   id: string;
-  name: string;
-  color: "default" | "primary" | "secondary" | "success" | "warning" | "danger";
-  description?: string;
+  label: string; // Cambiado de 'name' a 'label' para coincidir con la API
+  color: string; // Cambiado para aceptar cualquier color hex
+  clientId?: string;
+  agentId?: string;
+  isPrivate?: boolean;
+  createdAt?: string;
 }
 
 export interface Attachment {

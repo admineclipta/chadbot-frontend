@@ -7,6 +7,8 @@ import {
   type ConversationListResponse,
   type ConversationDetailResponse,
   type ConversationStatus,
+  type ConversationSortField,
+  type SortDirection,
   type Message,
   type MessageListResponse,
   type SendMessageRequest,
@@ -23,6 +25,7 @@ import {
   type ChangeConversationStatusRequest,
   type CreateConversationRequest,
   type Tag,
+  type TagListResponse,
   type CreateTagRequest,
   type UpdateTagRequest,
   type ActiveChannelResponseDto,
@@ -284,14 +287,39 @@ class ApiService {
     status?: ConversationStatus,
     messagingServiceType?: MessagingServiceType,
     fetchContactInfo: boolean = true,
+    search?: string,
+    teamId?: string,
+    agentId?: string,
+    tags?: string[],
+    sortBy?: ConversationSortField,
+    sortDirection?: SortDirection,
     signal?: AbortSignal
   ): Promise<ConversationListResponse> {
     let url = `conversations?page=${page}&size=${size}&fetchContactInfo=${fetchContactInfo}`;
+
     if (status) {
-      url += `&status=${status}`;
+      url += `&status=${status.toLowerCase()}`;
     }
     if (messagingServiceType) {
       url += `&messagingServiceType=${messagingServiceType}`;
+    }
+    if (search && search.trim()) {
+      url += `&search=${encodeURIComponent(search.trim())}`;
+    }
+    if (teamId) {
+      url += `&teamId=${teamId}`;
+    }
+    if (agentId) {
+      url += `&agentId=${agentId}`;
+    }
+    if (tags && tags.length > 0) {
+      url += `&tags=${tags.join(",")}`;
+    }
+    if (sortBy) {
+      url += `&sortBy=${sortBy}`;
+    }
+    if (sortDirection) {
+      url += `&sortDirection=${sortDirection}`;
     }
 
     console.log(`📋 [CHADBOT API] Fetching conversations: ${url}`);
@@ -364,13 +392,15 @@ class ApiService {
     conversationId: string,
     page: number = 0,
     size: number = 50,
+    sortBy: string = "createdAt",
+    direction: "ASC" | "DESC" = "DESC",
     signal?: AbortSignal
   ): Promise<MessageListResponse> {
     console.log(
-      `💬 [CHADBOT API] Fetching messages for conversation ${conversationId}`
+      `💬 [CHADBOT API] Fetching messages for conversation ${conversationId} (page ${page}, size ${size}, sort: ${sortBy} ${direction})`
     );
     return this.request<MessageListResponse>(
-      `messages?conversationId=${conversationId}&page=${page}&size=${size}`,
+      `conversations/${conversationId}/messages?page=${page}&size=${size}&sortBy=${sortBy}&direction=${direction}`,
       {},
       signal
     );
@@ -438,9 +468,20 @@ class ApiService {
   // Tags
   // ============================================
 
-  async getTags(signal?: AbortSignal): Promise<Tag[]> {
-    console.log(`🏷️ [CHADBOT API] Fetching tags`);
-    return this.request<Tag[]>("tags", {}, signal);
+  async getTags(
+    page: number = 0,
+    size: number = 20,
+    search?: string,
+    signal?: AbortSignal
+  ): Promise<TagListResponse> {
+    let url = `tags?page=${page}&size=${size}`;
+
+    if (search && search.trim()) {
+      url += `&search=${encodeURIComponent(search.trim())}`;
+    }
+
+    console.log(`🏷️ [CHADBOT API] Fetching tags: ${url}`);
+    return this.request<TagListResponse>(url, {}, signal);
   }
 
   async createTag(data: CreateTagRequest): Promise<Tag> {

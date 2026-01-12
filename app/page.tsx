@@ -2,9 +2,10 @@
 
 import { useEffect, useState, useCallback, useRef } from "react"
 import { useRouter } from "next/navigation"
-import { Select, SelectItem } from "@heroui/react"
+import { Select, SelectItem, Kbd } from "@heroui/react"
 import Sidebar from "@/components/sidebar"
 import ConversationList from "@/components/conversation-list"
+import ConversationFilters from "@/components/conversation-filters"
 import ChatView, { type ChatViewRef } from "@/components/chat-view"
 import UserProfile from "@/components/user-profile"
 import UserManagement from "@/components/user-management"
@@ -15,10 +16,10 @@ import SettingsView from "@/components/settings-view"
 import EnvironmentIndicator from "@/components/environment-indicator"
 import ContactInfoModal from "@/components/contact-info-modal"
 import type { Conversation, User, Message, Tag } from "@/lib/types"
-import type { ConversationStatus, MessagingServiceType } from "@/lib/api-types"
+import type { ConversationStatus, MessagingServiceType, ConversationSortField, SortDirection } from "@/lib/api-types"
 import { mapApiConversacionToConversation, mapApiConversacionesResponseToConversation, mapApiMensajeToMessage } from "@/lib/types"
 import { apiService } from "@/lib/api"
-import { DEBOUNCE_FILTER_MS } from "@/lib/config"
+import { DEBOUNCE_SEARCH_MS } from "@/lib/config"
 import { useApi } from "@/hooks/use-api"
 
 export default function Home() {
@@ -35,15 +36,22 @@ export default function Home() {
   const [selectedRepresentativeFilter, setSelectedRepresentativeFilter] = useState<"all" | "mine" | number>("all") // Filtro por representante
   const [availableRepresentatives, setAvailableRepresentatives] = useState<Array<{id: number, name: string}>>([]) // Lista de representantes disponibles
   
-  // Estados para paginación
-  const [currentPage, setCurrentPage] = useState<number>(1)
+  // Estados para paginación (0-indexed)
+  const [currentPage, setCurrentPage] = useState<number>(0)
+  const [totalPages, setTotalPages] = useState<number>(0)
+  const [totalElements, setTotalElements] = useState<number>(0)
   const [hasMoreConversations, setHasMoreConversations] = useState<boolean>(false)
   const [loadingMore, setLoadingMore] = useState<boolean>(false)
 
-  // Estados para filtros nuevos (Fase 2)
+  // Estados para filtros nuevos (Fase 2 - mejorados)
+  const [searchTerm, setSearchTerm] = useState<string>("")
   const [selectedChannel, setSelectedChannel] = useState<string | undefined>(undefined)
   const [selectedStatusFilter, setSelectedStatusFilter] = useState<ConversationStatus | "all">("all")
+  const [selectedTeam, setSelectedTeam] = useState<string>("")
+  const [selectedAgent, setSelectedAgent] = useState<string>("")
   const [selectedTags, setSelectedTags] = useState<string[]>([])
+  const [sortBy, setSortBy] = useState<ConversationSortField>("updatedAt")
+  const [sortDirection, setSortDirection] = useState<SortDirection>("DESC")
   const [availableTags, setAvailableTags] = useState<Tag[]>([])
 
   // Estado para modal de información del cliente
@@ -54,8 +62,8 @@ export default function Home() {
   useEffect(() => {
     const fetchTags = async () => {
       try {
-        const tags = await apiService.getTags();
-        setAvailableTags(tags);
+        const tagsResponse = await apiService.getTags(0, 100);
+        setAvailableTags(tagsResponse.content);
       } catch (error) {
         console.error("Error loading tags:", error);
       }
@@ -66,7 +74,7 @@ export default function Home() {
     }
   }, [isAuthenticated]);
 
-  // Hook para cargar conversaciones desde la API
+  // Hook para cargar conversaciones desde la API con todos los filtros
   const {
     data: apiConversaciones,
     loading: conversationsLoading,
@@ -82,78 +90,48 @@ export default function Home() {
       // Determinar el status a filtrar (si no es "all")
       const statusParam = selectedStatusFilter !== "all" ? selectedStatusFilter : undefined;
       
-      // Usar API v1 con paginación, filtros de estado y canal
+      // Usar API v1 con paginación completa y todos los filtros
       return apiService.getConversations(
-        0, 
-        50, 
+        currentPage,
+        20, // Tamaño de página
         statusParam,
         selectedChannel?.toUpperCase() as any, // MessagingServiceType
-        true,
+        true, // fetchContactInfo
+        searchTerm || undefined,
+        selectedTeam || undefined,
+        selectedAgent || undefined,
+        selectedTags.length > 0 ? selectedTags : undefined,
+        sortBy,
+        sortDirection,
         signal
       )
     },
-    [isAuthenticated, currentView, selectedChannel, selectedStatusFilter],
-    DEBOUNCE_FILTER_MS
+    [isAuthenticated, currentView, currentPage, selectedChannel, selectedStatusFilter, searchTerm, selectedTeam, selectedAgent, selectedTags, sortBy, sortDirection],
+    DEBOUNCE_SEARCH_MS
   )
 
-  // Función para cargar más conversaciones
-  const handleLoadMore = useCallback(async () => {
-    if (loadingMore) return
+  // Función para cambiar de página
+  const handlePageChange = useCallback((page: number) => {
+    setCurrentPage(page - 1) // HeroUI Pagination es 1-indexed, API es 0-indexed
+    setSelectedConversation(null) // Limpiar conversación seleccionada al cambiar de página
+  }, [])
 
-    setLoadingMore(true)
-    try {
-      const nextPage = currentPage + 1
-      const statusParam = selectedStatusFilter !== "all" ? selectedStatusFilter : undefined;
-      const response = await apiService.getConversations(
-        nextPage, 
-        50, 
-        statusParam,
-        selectedChannel?.toUpperCase() as any
-      )
-      
-      if (response && response.content && response.content.length > 0) {
-        // Mapear conversaciones de API v1 a tipo local
-        const mappedConversations = response.content.map(conv => ({
-          id: conv.id,
-          customer: conv.contact ? {
-            id: conv.contact.contactId || conv.contact.id,
-            name: conv.contact.fullName || "Cliente",
-            email: conv.contact.email || "",
-            phone: conv.contact.metadata?.phone || conv.contact.phone || "",
-            avatar: "https://cdn-icons-png.flaticon.com/512/6596/6596121.png",
-          } : {
-            id: conv.contactId,
-            name: "Cliente",
-            email: "",
-            phone: "",
-            avatar: "https://cdn-icons-png.flaticon.com/512/6596/6596121.png",
-          },
-          messages: [],
-          lastMessage: "",
-          lastActivity: conv.updatedAt ? new Date(conv.updatedAt) : new Date(),
-          status: conv.status?.toUpperCase() as any || "ACTIVE",
-          unreadCount: 0,
-          tags: conv.tags || [],
-          integration: conv.contact?.messagingChannel?.serviceTypeName?.toLowerCase().replace(/\s/g, '') || "whatsapp" as const,
-          archived: conv.status?.toLowerCase() === "closed",
-          id_representante: conv.agents?.[0]?.userId ? Number.parseInt(conv.agents[0].userId) : -1,
-        }))
-        
-        setConversations(prev => [...prev, ...mappedConversations])
-        setCurrentPage(nextPage)
-        
-        // Verificar si hay más conversaciones
-        setHasMoreConversations(response.page < response.totalPages - 1)
-      } else {
-        // No hay más conversaciones
-        setHasMoreConversations(false)
-      }
-    } catch (error) {
-      console.error("Error loading more conversations:", error)
-    } finally {
-      setLoadingMore(false)
-    }
-  }, [currentPage, loadingMore, selectedStatusFilter, selectedChannel])
+  // Función para limpiar todos los filtros
+  const handleClearFilters = useCallback(() => {
+    setSearchTerm("")
+    setSelectedStatusFilter("all")
+    setSelectedTeam("")
+    setSelectedAgent("")
+    setSelectedTags([])
+    setSortBy("updatedAt")
+    setSortDirection("DESC")
+    setCurrentPage(0)
+  }, [])
+
+  // Resetear a página 0 cuando cambian los filtros
+  useEffect(() => {
+    setCurrentPage(0)
+  }, [searchTerm, selectedStatusFilter, selectedTeam, selectedAgent, selectedTags, sortBy, sortDirection])
 
   // TODO: Implementar filtrado por agente en API v1
   // Hook para cargar lista de representantes disponibles
@@ -221,52 +199,52 @@ export default function Home() {
       
       setConversations(mappedConversations)
       
-      // Verificar si hay más páginas
+      // Actualizar información de paginación
+      setTotalPages(apiConversaciones.totalPages)
+      setTotalElements(apiConversaciones.totalElements)
       setHasMoreConversations(apiConversaciones.page < apiConversaciones.totalPages - 1)
-      
-      // Reset page to 0
-      setCurrentPage(0)
     }
   }, [apiConversaciones])
-
-  // Filtrado local de conversaciones
-  const filteredConversations = conversations.filter((conv) => {
-    // Filtrar por estado
-    if (selectedStatusFilter !== "all" && conv.status !== selectedStatusFilter) {
-      return false;
-    }
-
-    // Filtrar por tags
-    if (selectedTags.length > 0) {
-      const convTagIds = conv.tags.map(t => t.id);
-      const hasAllTags = selectedTags.every(tagId => convTagIds.includes(tagId));
-      if (!hasAllTags) {
-        return false;
-      }
-    }
-
-    return true;
-  });
 
   // Actualizar mensajes cuando lleguen de la API
   useEffect(() => {
     if (apiMensajesResponse && selectedConversation) {
-      // API v1 retorna MessageListResponse
-      const mappedMessages = apiMensajesResponse.content.map(msg => ({
-        id: msg.id,
-        content: msg.content,
-        sender: msg.senderType === "CONTACT" ? "client" : msg.senderType === "AGENT" ? "agent" : "bot",
-        timestamp: new Date(msg.createdAt),
-        attachments: msg.mediaUrl ? [{
+      // API v1 retorna MessageListResponse con nueva estructura
+      const mappedMessages = apiMensajesResponse.content.map(msg => {
+        // Determinar el contenido del mensaje
+        const messageContent = msg.content?.text || msg.content?.caption || "";
+        
+        // Determinar el tipo de sender
+        let senderType: "client" | "agent" | "bot" = "client";
+        if (msg.sender.type === "agent") {
+          senderType = "agent";
+        } else if (msg.sender.type === "bot") {
+          senderType = "bot";
+        }
+
+        // Construir URL del archivo si existe
+        let mediaUrl: string | undefined;
+        if (msg.file && msg.file.status === "available") {
+          // Construir URL desde storageUri (ajustar según tu configuración)
+          mediaUrl = `/api/files/${msg.file.id}`;
+        }
+
+        return {
           id: msg.id,
-          name: "Media",
-          type: msg.type,
-          url: msg.mediaUrl,
-        }] : undefined,
-      }))
+          content: messageContent,
+          sender: senderType,
+          timestamp: new Date(msg.createdAt),
+          attachments: mediaUrl ? [{
+            id: msg.file!.id,
+            name: msg.file!.metadata?.filename || "Media",
+            type: msg.type,
+            url: mediaUrl,
+          }] : undefined,
+        };
+      });
       
-      // Ordenar por timestamp de forma ascendente (más antiguo primero = orden cronológico correcto)
-      const sortedMessages = mappedMessages.sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime())
+      // Como vienen ordenados DESC (más reciente primero), invertimos para orden cronológico
+      const sortedMessages = mappedMessages.reverse();
       
       setSelectedConversation((prev) =>
         prev
@@ -319,18 +297,33 @@ export default function Home() {
       const response = await apiService.getMessages(selectedConversation.id, 0, 20)
 
       if (response && response.content.length > 0) {
-        const mappedMessages = response.content.map(msg => ({
-          id: msg.id,
-          content: msg.content,
-          sender: msg.senderType === "CONTACT" ? "client" : msg.senderType === "AGENT" ? "agent" : "bot",
-          timestamp: new Date(msg.createdAt),
-          attachments: msg.mediaUrl ? [{
+        const mappedMessages = response.content.map(msg => {
+          const messageContent = msg.content?.text || msg.content?.caption || "";
+          let senderType: "client" | "agent" | "bot" = "client";
+          if (msg.sender.type === "agent") {
+            senderType = "agent";
+          } else if (msg.sender.type === "bot") {
+            senderType = "bot";
+          }
+
+          let mediaUrl: string | undefined;
+          if (msg.file && msg.file.status === "available") {
+            mediaUrl = `/api/files/${msg.file.id}`;
+          }
+
+          return {
             id: msg.id,
-            name: "Media",
-            type: msg.type,
-            url: msg.mediaUrl,
-          }] : undefined,
-        })).sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime())
+            content: messageContent,
+            sender: senderType,
+            timestamp: new Date(msg.createdAt),
+            attachments: mediaUrl ? [{
+              id: msg.file!.id,
+              name: msg.file!.metadata?.filename || "Media",
+              type: msg.type,
+              url: mediaUrl,
+            }] : undefined,
+          };
+        }).reverse(); // Invertir porque vienen DESC
         
         setSelectedConversation((prev) => {
           if (!prev) return null
@@ -511,7 +504,7 @@ export default function Home() {
     // Limpiar lista de conversaciones actual
     setConversations([])
     // Resetear paginación
-    setCurrentPage(1)
+    setCurrentPage(0)
     setSelectedChannel(channel)
   }, [])
 
@@ -551,22 +544,41 @@ export default function Home() {
 
         {currentView === "conversations" && (
           <>
-            <ConversationList
-              conversations={filteredConversations}
-              selectedConversation={selectedConversation}
-              onSelectConversation={handleSelectConversation}
-              onUserClick={handleUserClick}
-              loading={conversationsLoading}
-              error={conversationsError}
-              hasMoreConversations={hasMoreConversations}
-              onLoadMore={handleLoadMore}
-              loadingMore={loadingMore}
-              selectedStatusFilter={selectedStatusFilter}
-              onStatusFilterChange={setSelectedStatusFilter}
-              selectedTags={selectedTags}
-              onTagsFilterChange={setSelectedTags}
-              availableTags={availableTags}
-            />
+            <div className="flex flex-col h-full">
+              {/* Componente de filtros */}
+              <div className="p-3">
+                <ConversationFilters
+                  searchTerm={searchTerm}
+                  selectedStatus={selectedStatusFilter}
+                  selectedTeam={selectedTeam}
+                  selectedAgent={selectedAgent}
+                  selectedTags={selectedTags}
+                  sortBy={sortBy}
+                  sortDirection={sortDirection}
+                  onSearchChange={setSearchTerm}
+                  onStatusChange={setSelectedStatusFilter}
+                  onTeamChange={setSelectedTeam}
+                  onAgentChange={setSelectedAgent}
+                  onTagsChange={setSelectedTags}
+                  onSortByChange={setSortBy}
+                  onSortDirectionChange={setSortDirection}
+                  onClearFilters={handleClearFilters}
+                />
+              </div>
+
+              {/* Lista de conversaciones con paginación */}
+              <ConversationList
+                conversations={conversations}
+                selectedConversation={selectedConversation}
+                onSelectConversation={handleSelectConversation}
+                onUserClick={handleUserClick}
+                loading={conversationsLoading}
+                error={conversationsError}
+                currentPage={currentPage}
+                totalPages={totalPages}
+                onPageChange={handlePageChange}
+              />
+            </div>
 
             {selectedConversation ? (
               <ChatView

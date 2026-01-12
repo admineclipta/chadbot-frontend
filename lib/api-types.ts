@@ -88,6 +88,14 @@ export type ConversationStatus =
   | "NO_ANSWER"
   | "CLOSED";
 
+export type ConversationSortField =
+  | "createdAt"
+  | "updatedAt"
+  | "status"
+  | "contactName";
+
+export type SortDirection = "ASC" | "DESC";
+
 export interface Conversation {
   id: string;
   contactId: string;
@@ -115,20 +123,50 @@ export interface ConversationDetailResponse extends Conversation {
 }
 
 // Message Types
-export type SenderType = "CONTACT" | "AGENT" | "SYSTEM";
-export type MessageType = "TEXT" | "IMAGE" | "VIDEO" | "AUDIO" | "DOCUMENT";
-export type MessageStatus = "SENT" | "DELIVERED" | "READ";
+export type SenderType = "contact" | "agent" | "bot" | "system";
+export type MessageType = "text" | "image" | "video" | "audio" | "document";
+export type MessageStatus = "sent" | "delivered" | "read" | "failed";
+
+export interface MessageSender {
+  id: string;
+  type: SenderType;
+  name: string;
+  metadata?: Record<string, any> | null;
+}
+
+export interface MessageContent {
+  text?: string;
+  caption?: string;
+}
+
+export interface MessageFile {
+  id: string;
+  messageId: string;
+  storageProvider: string;
+  storageUri: string;
+  storageMeta?: Record<string, any> | null;
+  metadata?: {
+    width?: number;
+    height?: number;
+    filename?: string;
+    mime_type?: string;
+    size_bytes?: number;
+    file_extension?: string;
+  };
+  status: string;
+  uploadedAt: string;
+}
 
 export interface Message {
   id: string;
   conversationId: string;
-  senderType: SenderType;
-  senderName: string;
-  content: string;
+  sender: MessageSender;
   type: MessageType;
-  mediaUrl?: string;
   status: MessageStatus;
+  content: MessageContent;
+  file?: MessageFile;
   createdAt: string;
+  updatedAt: string;
 }
 
 export interface MessageListResponse {
@@ -137,6 +175,8 @@ export interface MessageListResponse {
   size: number;
   totalElements: number;
   totalPages: number;
+  first: boolean;
+  last: boolean;
 }
 
 export interface SendMessageRequest {
@@ -183,11 +223,12 @@ export interface AgentStatusRequest {
 // Tag Types
 export interface Tag {
   id: string;
-  name: string;
+  clientId: string;
+  agentId?: string;
+  label: string; // Campo correcto de la API
   color: string;
-  description?: string;
+  isPrivate: boolean;
   createdAt: string;
-  updatedAt: string;
 }
 
 export interface CreateTagRequest {
@@ -200,6 +241,14 @@ export interface UpdateTagRequest {
   name?: string;
   color?: string;
   description?: string;
+}
+
+export interface TagListResponse {
+  content: Tag[];
+  page: number;
+  size: number;
+  totalElements: number;
+  totalPages: number;
 }
 
 // Conversation Actions
