@@ -1,0 +1,83 @@
+name: Deploy Frontend (prod/*)
+
+on:
+  push:
+    branches:
+      - "prod/**"
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    env:
+      PROJECT_ID: chadbot-483020
+      REGION: us-central1
+      REPO: chadbot-repo
+      SERVICE: chadbot-frontend-prod
+      IMAGE_NAME: chadbot-frontend
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # Build dist/ inside CI so we don't need to commit it
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Install dependencies
+        run: npm install --legacy-peer-deps --no-audit --no-fund
+
+      - name: Build CSR (dist/)
+        run: npm run build:csr
+
+      - name: Verify dist/
+        run: |
+          test -d dist
+          test -f dist/index.html
+          echo "dist/ ready"
+
+      # Auth to GCP using Workload Identity Federation
+      - name: Auth (Workload Identity)
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ secrets.GCP_WIF_PROVIDER }}
+          service_account: ${{ secrets.GCP_DEPLOY_SA }}
+
+      - name: Setup gcloud
+        uses: google-github-actions/setup-gcloud@v2
+
+      - name: Configure Docker auth for Artifact Registry
+        run: gcloud auth configure-docker ${{ env.REGION }}-docker.pkg.dev --quiet
+
+      - name: Build and push image
+        run: |
+          TAG="${GITHUB_REF_NAME//\//-}-${GITHUB_SHA::7}"
+          IMAGE="${REGION}-docker.pkg.dev/${PROJECT_ID}/${REPO}/${IMAGE_NAME}:${TAG}"
+          echo "IMAGE=$IMAGE" >> $GITHUB_ENV
+
+          docker build -t "$IMAGE" .
+          docker push "$IMAGE"
+
+      - name: Deploy to Cloud Run (prod)
+        run: |
+          gcloud run deploy "$SERVICE" \
+            --project "$PROJECT_ID" \
+            --region "$REGION" \
+            --image "$IMAGE" \
+            --allow-unauthenticated \
+            --port 8080 \
+            --service-account chadbot-run-sa@chadbot-483020.iam.gserviceaccount.com \
+            --quiet
+
+      - name: Output service URL
+        run: |
+          gcloud run services describe "$SERVICE" \
+            --project "$PROJECT_ID" \
+            --region "$REGION" \
+            --format="value(status.url)"

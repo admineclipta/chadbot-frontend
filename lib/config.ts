@@ -28,21 +28,22 @@ function getConfig(): Config {
   }
 
   if (
-    hostname.includes("chadbot-backend.azurewebsites.net") ||
+    hostname.includes(".run.app") ||
     hostname.includes("dev") ||
     hostname.includes("staging")
   ) {
     return {
-      apiUrl: "https://chadbot-backend-dev.azurewebsites.net/api/v1/",
-      wsUrl: "https://chadbot-backend-dev.azurewebsites.net/ws",
+      apiUrl:
+        "https://chadbot-backend-914352408266.us-central1.run.app/api/v1/",
+      wsUrl: "https://chadbot-backend-914352408266.us-central1.run.app/ws",
       environment: "staging",
       environmentName: "staging",
     };
   }
 
   return {
-    apiUrl: "https://chadbot-backend.azurewebsites.net/api/v1/",
-    wsUrl: "https://chadbot-backend.azurewebsites.net/ws",
+    apiUrl: "http://localhost:8080/api/v1/",
+    wsUrl: "http://localhost:8080/ws",
     environment: "production",
     environmentName: "prod",
   };
