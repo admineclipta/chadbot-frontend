@@ -34,15 +34,19 @@ import type {
   Team,
   UserDto,
   Tag,
+  MessagingServiceDto,
 } from "@/lib/api-types"
 import { generatePastelColor } from "@/lib/utils"
 import SearchableSelect from "./searchable-select"
 import SearchableMultiSelect from "./searchable-multi-select"
+import Image from "next/image"
+import { MessageCircle } from "lucide-react"
 
 interface ConversationFiltersProps {
   // Estados de filtros
   searchTerm: string
   selectedStatus: ConversationStatus | "all"
+  selectedChannel: string | undefined
   selectedTeam: string
   selectedAgent: string
   selectedTags: string[]
@@ -52,6 +56,7 @@ interface ConversationFiltersProps {
   // Callbacks
   onSearchChange: (value: string) => void
   onStatusChange: (value: ConversationStatus | "all") => void
+  onChannelChange: (value: string | undefined) => void
   onTeamChange: (value: string) => void
   onAgentChange: (value: string) => void
   onTagsChange: (value: string[]) => void
@@ -82,6 +87,7 @@ const sortDirectionOptions: { key: SortDirection; label: string }[] = [
 export default function ConversationFilters({
   searchTerm,
   selectedStatus,
+  selectedChannel,
   selectedTeam,
   selectedAgent,
   selectedTags,
@@ -89,6 +95,7 @@ export default function ConversationFilters({
   sortDirection,
   onSearchChange,
   onStatusChange,
+  onChannelChange,
   onTeamChange,
   onAgentChange,
   onTagsChange,
@@ -101,6 +108,7 @@ export default function ConversationFilters({
   
   // Estados temporales para el modal (solo se aplican al dar "Filtrar")
   const [tempStatus, setTempStatus] = useState(selectedStatus)
+  const [tempChannel, setTempChannel] = useState(selectedChannel)
   const [tempTeam, setTempTeam] = useState(selectedTeam)
   const [tempAgent, setTempAgent] = useState(selectedAgent)
   const [tempTags, setTempTags] = useState(selectedTags)
@@ -124,13 +132,14 @@ export default function ConversationFilters({
   useEffect(() => {
     if (isOpen) {
       setTempStatus(selectedStatus)
+      setTempChannel(selectedChannel)
       setTempTeam(selectedTeam)
       setTempAgent(selectedAgent)
       setTempTags(selectedTags)
       setTempSortBy(sortBy)
       setTempSortDirection(sortDirection)
     }
-  }, [isOpen, selectedStatus, selectedTeam, selectedAgent, selectedTags, sortBy, sortDirection])
+  }, [isOpen, selectedStatus, selectedChannel, selectedTeam, selectedAgent, selectedTags, sortBy, sortDirection])
 
   // Fetch teams
   const { data: teamsData, loading: teamsLoading } = useApi(
@@ -153,9 +162,17 @@ export default function ConversationFilters({
     0
   )
 
+  // Fetch messaging services
+  const { data: messagingServices, loading: channelsLoading } = useApi(
+    (signal) => apiService.getMessagingServices(signal),
+    [],
+    []
+  )
+
   const teams = teamsData?.content || []
   const users = usersData?.content || []
   const tags = tagsData?.content || []
+  const channels = messagingServices || []
 
   // Filtrar users que tengan agentId
   const agents = useMemo(() => users.filter(u => u.agentId !== null), [users])
@@ -163,6 +180,7 @@ export default function ConversationFilters({
   // Calcular cantidad de filtros activos (excluyendo búsqueda y sortBy default)
   const activeFiltersCount = [
     selectedStatus !== "all",
+    selectedChannel !== undefined,
     selectedTeam !== "",
     selectedAgent !== "",
     selectedTags.length > 0,
@@ -171,6 +189,7 @@ export default function ConversationFilters({
   // Aplicar filtros del modal
   const handleApplyFilters = () => {
     onStatusChange(tempStatus)
+    onChannelChange(tempChannel)
     onTeamChange(tempTeam)
     onAgentChange(tempAgent)
     onTagsChange(tempTags)
@@ -182,6 +201,7 @@ export default function ConversationFilters({
   // Limpiar filtros temporales en el modal
   const handleClearFiltersInModal = () => {
     setTempStatus("all")
+    setTempChannel(undefined)
     setTempTeam("")
     setTempAgent("")
     setTempTags([])
@@ -194,6 +214,9 @@ export default function ConversationFilters({
     switch (type) {
       case "status":
         onStatusChange("all")
+        break
+      case "channel":
+        onChannelChange(undefined)
         break
       case "team":
         onTeamChange("")
@@ -218,6 +241,14 @@ export default function ConversationFilters({
       filters.push({
         type: "status",
         label: `${statusOption?.label || selectedStatus}`,
+      })
+    }
+    
+    if (selectedChannel) {
+      const channel = channels.find(c => c.code === selectedChannel)
+      filters.push({
+        type: "channel",
+        label: `${channel?.name || selectedChannel}`,
       })
     }
     
@@ -344,6 +375,82 @@ export default function ConversationFilters({
                       </Chip>
                     ))}
                   </div>
+                </div>
+
+                <Divider />
+
+                {/* Sección: Canal */}
+                <div>
+                  <label className="text-sm font-medium mb-2 block">Canal de Mensajería</label>
+                  {channelsLoading ? (
+                    <div className="flex items-center justify-center py-8">
+                      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+                    </div>
+                  ) : (
+                    <Select
+                      label="Canal"
+                      placeholder="Todos los canales"
+                      selectedKeys={tempChannel ? [tempChannel] : []}
+                      onSelectionChange={(keys) => {
+                        const selected = Array.from(keys)[0] as string
+                        setTempChannel(selected === "all" ? undefined : selected)
+                      }}
+                      classNames={{
+                        trigger: "min-h-12",
+                      }}
+                      renderValue={(items: SelectedItems<MessagingServiceDto>) => {
+                        const item = Array.from(items)[0]
+                        if (!item) return "Todos los canales"
+                        const service = channels.find(c => c.code === item.key)
+                        if (!service) return "Todos los canales"
+                        
+                        const ChannelIcon = ({ code }: { code: string }) => {
+                          const type = code?.toLowerCase()
+                          if (type?.includes("whatsapp")) {
+                            return <Image src="/WhatsApp.png" alt="WhatsApp" width={16} height={16} />
+                          }
+                          if (type?.includes("telegram")) {
+                            return <Image src="/Telegram_2019_Logo.png" alt="Telegram" width={16} height={16} />
+                          }
+                          return <MessageCircle className="h-4 w-4" />
+                        }
+                        
+                        return (
+                          <div className="flex items-center gap-2">
+                            <ChannelIcon code={service.code} />
+                            <span>{service.name}</span>
+                          </div>
+                        )
+                      }}
+                    >
+                      <SelectItem key="all" value="all">
+                        Todos los canales
+                      </SelectItem>
+                      {channels
+                        .filter(service => service.hasCredentials)
+                        .map((service) => {
+                          const ChannelIcon = ({ code }: { code: string }) => {
+                            const type = code?.toLowerCase()
+                            if (type?.includes("whatsapp")) {
+                              return <Image src="/WhatsApp.png" alt="WhatsApp" width={20} height={20} />
+                            }
+                            if (type?.includes("telegram")) {
+                              return <Image src="/Telegram_2019_Logo.png" alt="Telegram" width={20} height={20} />
+                            }
+                            return <MessageCircle className="h-5 w-5" />
+                          }
+                          
+                          return (
+                            <SelectItem key={service.code} value={service.code} textValue={service.name}>
+                              <div className="flex items-center gap-2">
+                                <ChannelIcon code={service.code} />
+                                <span>{service.name}</span>
+                              </div>
+                            </SelectItem>
+                          )
+                        })}
+                    </Select>
+                  )}
                 </div>
 
                 <Divider />
