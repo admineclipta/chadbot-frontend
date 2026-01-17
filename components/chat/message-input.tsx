@@ -6,7 +6,7 @@ import { useState, useRef } from "react"
 import { Button, Textarea, Dropdown, DropdownTrigger, DropdownMenu, DropdownItem, Card, CardBody } from "@heroui/react"
 import { SendIcon, PaperclipIcon, SmileIcon, BoldIcon, ItalicIcon, ListIcon, ImageIcon, FileIcon, MessageSquare, Clock, AlertTriangle } from "lucide-react"
 import { isOutside24HourWindow, getRemainingTimeIn24HourWindow } from "@/lib/utils"
-import TemplateMessageModal from "./template-message-modal"
+import TemplateMessageModal from "@/components/modals/template-message-modal"
 import type { Message } from "@/lib/types"
 
 interface MessageInputProps {

@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
-import TeamManagement from "@/components/team-management"
+import TeamManagement from "@/components/management/team-management"
 import { apiService } from "@/lib/api"
 
 export default function TeamsPage() {

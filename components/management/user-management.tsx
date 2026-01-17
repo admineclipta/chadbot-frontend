@@ -45,7 +45,7 @@ import {
 } from "lucide-react"
 import type { UserDto, Role, RoleDto, UserRequest, UserUpdateRequest } from "@/lib/api-types"
 import { useUserManagement } from "@/hooks/use-user-management"
-import UserAvatar from "./user-avatar"
+import UserAvatar from "@/components/management/user-avatar"
 import { apiService } from "@/lib/api"
 import { toast } from "sonner"
 

@@ -21,7 +21,7 @@ import { Send, MessageCircle, Phone, User, Eye } from "lucide-react"
 import { toast } from "sonner"
 import { apiService } from "@/lib/api"
 import type { PlantillaWhatsApp, TemplateComponents } from "@/lib/api-types"
-import CountrySelector from "./country-selector"
+import CountrySelector from "@/components/shared/country-selector"
 import { countries, type Country } from "@/lib/countries"
 
 interface NewChatModalProps {

@@ -1,17 +1,27 @@
 "use client"
 
 import { forwardRef, useImperativeHandle, useRef, useEffect, useState, useCallback } from "react"
-import { Phone, Video, MoreVertical, ArrowLeft, Clock, Bot, User, X, Sparkles, UserPlus, CheckCheck, Check, Send } from "lucide-react"
+import { Phone, Video, MoreVertical, ArrowLeft, Clock, Bot, User, X, Sparkles, UserPlus, CheckCheck, Check, Send, ChevronDown } from "lucide-react"
 import { toast } from "sonner"
 import Image from "next/image"
+import { 
+  Dropdown, 
+  DropdownTrigger, 
+  DropdownMenu, 
+  DropdownItem,
+  ButtonGroup,
+  Button as HeroButton
+} from "@heroui/react"
 import { Avatar } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
 import MessageInput from "./message-input"
-import AISummaryPanel from "./ai-summary-panel"
-import AssignConversationModal from "./assign-conversation-modal"
-import ContactInfoModal from "./contact-info-modal"
+import AISummaryPanel from "@/components/shared/ai-summary-panel"
+import AssignConversationModal from "@/components/modals/assign-conversation-modal"
+import ContactInfoModal from "@/components/modals/contact-info-modal"
 import { apiService } from "@/lib/api"
 import type { Conversation, Message } from "@/lib/types"
+import { CONVERSATION_STATUS_CONFIG } from "@/lib/types"
+import type { ConversationStatus } from "@/lib/api-types"
 import { formatMessageTime } from "@/lib/utils"
 import { getChannelDisplayName, getChannelIcon } from "@/lib/messaging-channels"
 
@@ -54,6 +64,7 @@ const ChatView = forwardRef<ChatViewRef, ChatViewProps>(
     const [showAssignModal, setShowAssignModal] = useState(false)
     const [showContactInfoModal, setShowContactInfoModal] = useState(false)
     const [intervenirLoading, setIntervenirLoading] = useState(false)
+    const [changingStatus, setChangingStatus] = useState(false)
 
     const scrollToBottom = useCallback((behavior: ScrollBehavior = "smooth") => {
       messagesEndRef.current?.scrollIntoView({ behavior })
@@ -146,6 +157,97 @@ const ChatView = forwardRef<ChatViewRef, ChatViewProps>(
         onRefreshMessages()
       }
       toast.success('Conversación asignada exitosamente')
+    }
+
+    // Función para obtener el estado actual de la conversación
+    const getCurrentState = (): ConversationStatus => {
+      return conversation.status
+    }
+
+    // Función para obtener configuración del estado actual
+    const getCurrentStateConfig = () => {
+      return CONVERSATION_STATUS_CONFIG[conversation.status] || CONVERSATION_STATUS_CONFIG.ACTIVE
+    }
+
+    // Función para obtener el botón principal según el estado
+    const getMainButtonText = (status: ConversationStatus) => {
+      const config = CONVERSATION_STATUS_CONFIG[status]
+      if (!config) return "Cambiar Estado"
+      
+      const transitions = config.allowedTransitions
+      
+      // Priorizar transiciones más comunes
+      if (status === "ACTIVE" && transitions.includes("INTERVENED")) {
+        return "Intervenir"
+      }
+      if (status === "INTERVENED" && transitions.includes("CLOSED")) {
+        return "Cerrar"
+      }
+      if ((status === "CLOSED" || status === "NO_ANSWER") && transitions.includes("ACTIVE")) {
+        return "Activar"
+      }
+      
+      // Fallback: usar primera transición disponible
+      return CONVERSATION_STATUS_CONFIG[transitions[0]]?.label || "Cambiar Estado"
+    }
+
+    // Función para obtener el estado objetivo del botón principal
+    const getMainButtonTargetState = (status: ConversationStatus): ConversationStatus => {
+      const config = CONVERSATION_STATUS_CONFIG[status]
+      if (!config || !config.allowedTransitions || config.allowedTransitions.length === 0) {
+        return "CLOSED"
+      }
+      
+      const transitions = config.allowedTransitions
+      
+      // Priorizar transiciones más comunes
+      if (status === "ACTIVE" && transitions.includes("INTERVENED")) {
+        return "INTERVENED"
+      }
+      if (status === "INTERVENED" && transitions.includes("CLOSED")) {
+        return "CLOSED"
+      }
+      if ((status === "CLOSED" || status === "NO_ANSWER") && transitions.includes("ACTIVE")) {
+        return "ACTIVE"
+      }
+      
+      // Fallback: usar primera transición disponible
+      return transitions[0] || "CLOSED"
+    }
+
+    // Función para obtener los estados disponibles en el dropdown
+    const getDropdownStates = (currentStatus: ConversationStatus): ConversationStatus[] => {
+      const config = CONVERSATION_STATUS_CONFIG[currentStatus]
+      return config?.allowedTransitions || []
+    }
+
+    // Función para cambiar el estado de la conversación
+    const handleStatusChange = async (newStatus: ConversationStatus) => {
+      try {
+        setChangingStatus(true)
+        
+        await apiService.changeConversationStatus(conversation.id, { status: newStatus })
+        
+        // Actualizar la conversación localmente
+        const updatedConversation: Conversation = {
+          ...conversation,
+          status: newStatus,
+          archived: newStatus === "CLOSED"
+        }
+
+        // Notificar al componente padre sobre el cambio
+        if (onConversationUpdate) {
+          onConversationUpdate(updatedConversation)
+        }
+
+        const statusLabel = CONVERSATION_STATUS_CONFIG[newStatus].label
+        toast.success(`Estado cambiado a "${statusLabel}" exitosamente`)
+      } catch (error) {
+        console.error("Error al cambiar estado:", error)
+        toast.error("Error al cambiar el estado de la conversación")
+      } finally {
+        setChangingStatus(false)
+      }
     }
 
     const getMessageStatusIcon = (status?: string) => {
@@ -246,16 +348,59 @@ const ChatView = forwardRef<ChatViewRef, ChatViewProps>(
                 >
                   <Sparkles className="w-5 h-5 text-slate-600 group-hover:text-violet-600" />
                 </button>
-                <button 
-                  onClick={() => setShowAssignModal(true)}
-                  className="p-2.5 hover:bg-slate-100 rounded-lg transition-colors group"
-                  title="Asignar"
-                >
-                  <UserPlus className="w-5 h-5 text-slate-600 group-hover:text-blue-600" />
-                </button>
-                <button className="p-2.5 hover:bg-slate-100 rounded-lg transition-colors">
-                  <MoreVertical className="w-5 h-5 text-slate-600" />
-                </button>
+
+                {/* Botón de estado con dropdown */}
+                <ButtonGroup size="sm" className="shadow-sm">
+                  <HeroButton
+                    color={getCurrentStateConfig().color}
+                    variant="flat"
+                    isLoading={changingStatus}
+                    onPress={() => handleStatusChange(getMainButtonTargetState(getCurrentState()))}
+                    className="font-medium"
+                  >
+                    {getMainButtonText(getCurrentState())}
+                  </HeroButton>
+                  <Dropdown placement="bottom-end">
+                    <DropdownTrigger>
+                      <HeroButton
+                        color={getCurrentStateConfig().color}
+                        variant="flat"
+                        isIconOnly
+                        isDisabled={changingStatus}
+                      >
+                        <ChevronDown className="h-4 w-4" />
+                      </HeroButton>
+                    </DropdownTrigger>
+                    <DropdownMenu
+                      aria-label="Estados de conversación"
+                      onAction={(key) => handleStatusChange(key as ConversationStatus)}
+                    >
+                      {getDropdownStates(getCurrentState()).map((status) => (
+                        <DropdownItem key={status}>
+                          {CONVERSATION_STATUS_CONFIG[status].label}
+                        </DropdownItem>
+                      ))}
+                    </DropdownMenu>
+                  </Dropdown>
+                </ButtonGroup>
+
+                {/* Dropdown de opciones */}
+                <Dropdown placement="bottom-end">
+                  <DropdownTrigger>
+                    <button className="p-2.5 hover:bg-slate-100 rounded-lg transition-colors">
+                      <MoreVertical className="w-5 h-5 text-slate-600" />
+                    </button>
+                  </DropdownTrigger>
+                  <DropdownMenu aria-label="Opciones de conversación">
+                    <DropdownItem 
+                      key="assign" 
+                      startContent={<UserPlus className="w-4 h-4" />}
+                      onPress={() => setShowAssignModal(true)}
+                    >
+                      Asignar usuario
+                    </DropdownItem>
+                  </DropdownMenu>
+                </Dropdown>
               </div>
             </div>
           </div>

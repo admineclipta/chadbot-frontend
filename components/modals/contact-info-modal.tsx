@@ -19,7 +19,7 @@ import {
 } from "@heroui/react"
 import { User, Phone, Mail, Calendar, Tag as TagIcon, MessageSquare, Plus, X, Save } from "lucide-react"
 import { toast } from "sonner"
-import UserAvatar from "./user-avatar"
+import UserAvatar from "@/components/management/user-avatar"
 import { apiService } from "@/lib/api"
 import type { Contact, Conversation } from "@/lib/api-types"
 import { formatConversationTime } from "@/lib/utils"

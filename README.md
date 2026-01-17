@@ -37,11 +37,36 @@ chadbot-frontend/
 │   ├── page.tsx           # Main dashboard
 │   ├── login/             # Authentication
 │   └── layout.tsx         # Root layout
-├── components/            # React UI components
-│   ├── chat-view.tsx
-│   ├── conversation-list.tsx
-│   ├── sidebar.tsx
-│   └── ...
+├── components/            # React UI components (modular structure)
+│   ├── chat/              # Chat & conversation components
+│   │   ├── chat-view.tsx
+│   │   ├── conversation-list.tsx
+│   │   ├── conversation-filters.tsx
+│   │   ├── message-input.tsx
+│   │   └── message-*.tsx
+│   ├── layout/            # Navigation & layout
+│   │   ├── sidebar.tsx
+│   │   └── environment-indicator.tsx
+│   ├── management/        # User/contact/team management
+│   │   ├── user-management.tsx
+│   │   ├── contact-management.tsx
+│   │   ├── team-management.tsx
+│   │   └── assistant-management.tsx
+│   ├── modals/            # All modal dialogs
+│   │   ├── contact-info-modal.tsx
+│   │   ├── new-chat-modal.tsx
+│   │   └── *.modal.tsx
+│   ├── settings/          # Settings & configuration
+│   │   ├── settings-view.tsx
+│   │   └── *-section.tsx
+│   ├── shared/            # Shared utilities
+│   │   ├── api-error-alert.tsx
+│   │   ├── searchable-select.tsx
+│   │   └── theme-provider.tsx
+│   └── ui/                # Base UI components
+│       ├── avatar.tsx
+│       ├── button.tsx
+│       └── ...
 ├── lib/                   # Business logic & API client
 │   ├── api.ts            # Centralized HTTP client (API v1)
 │   ├── api-types.ts      # TypeScript types for API

@@ -55,20 +55,3 @@ export const config = getConfig();
 export const DEBOUNCE_NONE = 0; // No debounce - immediate fetch
 export const DEBOUNCE_FILTER_MS = 150; // For filters and pagination
 export const DEBOUNCE_SEARCH_MS = 300; // For search inputs
-
-// UI Version Configuration
-export const UI_VERSION_KEY = "chadbot_ui_version";
-
-export function getUIVersion(): "original" | "restyled" {
-  if (typeof window === "undefined") return "restyled"; // Default para SSR
-
-  const saved = localStorage.getItem(UI_VERSION_KEY);
-  return saved === "original" ? "original" : "restyled"; // Default: restyled
-}
-
-export function setUIVersion(version: "original" | "restyled"): void {
-  if (typeof window !== "undefined") {
-    localStorage.setItem(UI_VERSION_KEY, version);
-    window.location.reload(); // Recargar para aplicar cambios
-  }
-}

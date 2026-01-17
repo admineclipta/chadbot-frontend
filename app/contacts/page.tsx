@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
-import ContactManagement from "@/components/contact-management"
+import ContactManagement from "@/components/management/contact-management"
 import { apiService } from "@/lib/api"
 
 export default function ContactsPage() {

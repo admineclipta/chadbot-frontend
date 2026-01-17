@@ -3,10 +3,10 @@
 import { useState } from "react"
 import { Tabs, Tab, Card, CardBody } from "@heroui/react"
 import { User, Palette, MessageSquare, Key } from "lucide-react"
-import AboutMeSection from "./settings/about-me-section"
-import AppearanceSection from "./settings/appearance-section"
-import MessagesSection from "./settings/messages-section"
-import CredentialsSection from "./settings/credentials-section"
+import AboutMeSection from "@/components/settings/about-me-section"
+import AppearanceSection from "@/components/settings/appearance-section"
+import MessagesSection from "@/components/settings/messages-section"
+import CredentialsSection from "@/components/settings/credentials-section"
 
 interface SettingsViewProps {
   autoRefreshInterval?: number

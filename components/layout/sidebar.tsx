@@ -4,11 +4,11 @@ import { useState } from "react"
 import Image from "next/image"
 import { MessageCircle, Users, Contact, Bot, Settings, Send, LogOut, ChevronDown, Menu } from "lucide-react"
 import { Button as HeroButton, Dropdown, DropdownTrigger, DropdownMenu, DropdownItem } from "@heroui/react"
-import UserAvatar from "./user-avatar"
+import UserAvatar from "@/components/management/user-avatar"
 import type { User } from "@/lib/types"
-import BulkMessageModal from "./bulk-message-modal"
-import SettingsModal from "./settings-modal"
-import NewChatModal from "./new-chat-modal"
+import BulkMessageModal from "@/components/modals/bulk-message-modal"
+import SettingsModal from "@/components/modals/settings-modal"
+import NewChatModal from "@/components/modals/new-chat-modal"
 
 interface SidebarProps {
   user: User | null
@@ -96,46 +96,6 @@ export default function Sidebar({
           <div className="flex items-center justify-center">
             <Image src="/logo-chadbot-violeta.png" alt="Chadbot" width={100} height={33} className="object-contain" />
           </div>
-        </div>
-
-        {/* Nuevo Button con Dropdown */}
-        <div className="p-4 border-b border-slate-200">
-          <Dropdown>
-            <DropdownTrigger>
-              <HeroButton
-                color="default"
-                variant="flat"
-                fullWidth
-                startContent={<Send className="h-4 w-4" />}
-                endContent={<ChevronDown className="h-4 w-4" />}
-                className="justify-between"
-              >
-                Nuevo
-              </HeroButton>
-            </DropdownTrigger>
-            <DropdownMenu aria-label="Opciones de mensajes">
-              <DropdownItem
-                key="new-chat"
-                startContent={<MessageCircle className="h-4 w-4" />}
-                onPress={() => {
-                  setNewChatModalOpen(true)
-                  setMobileMenuOpen(false)
-                }}
-              >
-                Nuevo Chat
-              </DropdownItem>
-              <DropdownItem
-                key="bulk-message"
-                startContent={<Users className="h-4 w-4" />}
-                onPress={() => {
-                  setBulkModalOpen(true)
-                  setMobileMenuOpen(false)
-                }}
-              >
-                Mensaje Masivo
-              </DropdownItem>
-            </DropdownMenu>
-          </Dropdown>
         </div>
 
         {/* Navigation */}

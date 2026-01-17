@@ -3,34 +3,29 @@
 import { useEffect, useState, useCallback, useRef } from "react"
 import { useRouter } from "next/navigation"
 import { Select, SelectItem, Kbd } from "@heroui/react"
-import SidebarOriginal from "@/components/sidebar"
-import SidebarRestyled from "@/components/sidebar-restyled"
-import ConversationListOriginal from "@/components/conversation-list"
-import ConversationListRestyled from "@/components/conversation-list-restyled"
-import ConversationFilters from "@/components/conversation-filters"
-import ChatViewOriginal, { type ChatViewRef as ChatViewRefOriginal } from "@/components/chat-view"
-import ChatViewRestyled, { type ChatViewRef as ChatViewRefRestyled } from "@/components/chat-view-restyled"
-import UserProfile from "@/components/user-profile"
-import UserManagement from "@/components/user-management"
-import ContactManagement from "@/components/contact-management"
-import TeamManagement from "@/components/team-management"
-import AssistantManagement from "@/components/assistant-management"
-import SettingsView from "@/components/settings-view"
-import EnvironmentIndicator from "@/components/environment-indicator"
-import ContactInfoModal from "@/components/contact-info-modal"
-import UIVersionToggle from "@/components/ui-version-toggle"
+import Sidebar from "@/components/layout/sidebar"
+import ConversationList from "@/components/chat/conversation-list"
+import ConversationFilters from "@/components/chat/conversation-filters"
+import ChatView, { type ChatViewRef } from "@/components/chat/chat-view"
+import UserProfile from "@/components/management/user-profile"
+import UserManagement from "@/components/management/user-management"
+import ContactManagement from "@/components/management/contact-management"
+import TeamManagement from "@/components/management/team-management"
+import AssistantManagement from "@/components/management/assistant-management"
+import SettingsView from "@/components/settings/settings-view"
+import EnvironmentIndicator from "@/components/layout/environment-indicator"
+import ContactInfoModal from "@/components/modals/contact-info-modal"
 import type { Conversation, User, Message, Tag } from "@/lib/types"
 import type { ConversationStatus, MessagingServiceType, ConversationSortField, SortDirection } from "@/lib/api-types"
 import { mapApiConversacionToConversation, mapApiConversacionesResponseToConversation, mapApiMensajeToMessage } from "@/lib/types"
 import { apiService } from "@/lib/api"
-import { DEBOUNCE_SEARCH_MS, getUIVersion } from "@/lib/config"
+import { DEBOUNCE_SEARCH_MS } from "@/lib/config"
 import { useApi } from "@/hooks/use-api"
 
 export default function Home() {
   const router = useRouter()
-  const chatViewRef = useRef<ChatViewRefOriginal | ChatViewRefRestyled>(null)
+  const chatViewRef = useRef<ChatViewRef>(null)
   const [isAuthenticated, setIsAuthenticated] = useState(false)
-  const [uiVersion, setUiVersion] = useState<"original" | "restyled">("restyled")
   const [currentView, setCurrentView] = useState<"welcome" | "conversations" | "profile" | "users" | "contacts" | "teams" | "assistants" | "settings">("welcome")
   const [selectedConversation, setSelectedConversation] = useState<Conversation | null>(null)
   const [conversations, setConversations] = useState<Conversation[]>([])
@@ -77,13 +72,6 @@ export default function Home() {
       fetchTags();
     }
   }, [isAuthenticated]);
-
-  // Cargar versión UI desde localStorage
-  useEffect(() => {
-    if (typeof window !== "undefined") {
-      setUiVersion(getUIVersion())
-    }
-  }, [])
 
   // Hook para cargar conversaciones desde la API con todos los filtros
   const {
@@ -482,29 +470,17 @@ export default function Home() {
   return (
     <div className="flex h-screen overflow-hidden bg-background">
       <EnvironmentIndicator />
-      <UIVersionToggle />
 
-      {uiVersion === "restyled" ? (
-        <SidebarRestyled 
-          user={user} 
-          currentView={currentView} 
-          onViewChange={setCurrentView} 
-          onLogout={handleLogout} 
-          selectedChannel={selectedChannel}
-          onChannelChange={handleChannelChange}
-        />
-      ) : (
-        <SidebarOriginal 
-          user={user!} 
-          currentView={currentView} 
-          onViewChange={setCurrentView} 
-          onLogout={handleLogout} 
-          selectedChannel={selectedChannel}
-          onChannelChange={handleChannelChange}
-        />
-      )}
+      <Sidebar 
+        user={user} 
+        currentView={currentView} 
+        onViewChange={setCurrentView} 
+        onLogout={handleLogout} 
+        selectedChannel={selectedChannel}
+        onChannelChange={handleChannelChange}
+      />
 
-      <div className={uiVersion === "restyled" ? "flex-1 flex bg-gradient-to-br from-slate-50 via-blue-50/30 to-slate-50" : "flex-1 flex"}>
+      <div className="flex-1 flex bg-gradient-to-br from-slate-50 via-blue-50/30 to-slate-50">
         {currentView === "welcome" && (
           <div className="flex-1 overflow-auto">
             <div className="max-w-7xl mx-auto p-8">
@@ -710,97 +686,37 @@ export default function Home() {
 
         {currentView === "conversations" && (
           <div className="flex-1 flex h-full overflow-hidden bg-slate-50">
-            {/* Left panel - Filters + Conversation List */}
-            <div className="flex flex-col w-96 bg-white border-r border-slate-200">
-              {/* Filters */}
-              <div className="p-4 border-b border-slate-200 bg-slate-50">
-                <ConversationFilters
-                  searchTerm={searchTerm}
-                  selectedStatus={selectedStatusFilter}
-                  selectedChannel={selectedChannel}
-                  selectedTeam={selectedTeam}
-                  selectedAgent={selectedAgent}
-                  selectedTags={selectedTags}
-                  sortBy={sortBy}
-                  sortDirection={sortDirection}
-                  onSearchChange={setSearchTerm}
-                  onStatusChange={setSelectedStatusFilter}
-                  onChannelChange={setSelectedChannel}
-                  onTeamChange={setSelectedTeam}
-                  onAgentChange={setSelectedAgent}
-                  onTagsChange={setSelectedTags}
-                  onSortByChange={setSortBy}
-                  onSortDirectionChange={setSortDirection}
-                  onClearFilters={handleClearFilters}
-                />
-              </div>
-
-              {/* Conversation List */}
-              <div className="flex-1 overflow-hidden">
-                {uiVersion === "restyled" ? (
-                  <ConversationListRestyled
-                    conversations={conversations}
-                    selectedConversation={selectedConversation}
-                    onSelectConversation={handleSelectConversation}
-                    onUserClick={handleUserClick}
-                    loading={conversationsLoading}
-                    error={conversationsError}
-                    currentPage={currentPage}
-                    totalPages={totalPages}
-                    onPageChange={handlePageChange}
-                  />
-                ) : (
-                  <ConversationListOriginal
-                    conversations={conversations}
-                    selectedConversation={selectedConversation}
-                    onSelectConversation={handleSelectConversation}
-                    onUserClick={handleUserClick}
-                    loading={conversationsLoading}
-                    error={conversationsError}
-                    currentPage={currentPage}
-                    totalPages={totalPages}
-                    onPageChange={handlePageChange}
-                  />
-                )}
-              </div>
-            </div>
+            {/* Conversation List with integrated search/filter */}
+            <ConversationList
+              conversations={conversations}
+              selectedConversation={selectedConversation}
+              onSelectConversation={handleSelectConversation}
+              onUserClick={handleUserClick}
+              loading={conversationsLoading}
+              error={conversationsError}
+              currentPage={currentPage}
+              totalPages={totalPages}
+              onPageChange={handlePageChange}
+            />
 
             {/* Right panel - Chat View */}
             {selectedConversation ? (
               <div className="flex-1 flex flex-col overflow-hidden">
-                {uiVersion === "restyled" ? (
-                  <ChatViewRestyled
-                    ref={chatViewRef as any}
-                    conversation={selectedConversation}
-                    onSendMessage={handleSendMessage}
-                    onUserClick={handleUserClick}
-                    loading={messagesLoading}
-                    error={messagesError}
-                    onConversationUpdate={handleConversationUpdate}
-                    onCloseChat={handleCloseChat}
-                    onLoadOlderMessages={handleLoadOlderMessages}
-                    onRefreshMessages={handleRefreshMessages}
-                    initialPaginationInfo={null}
-                    refreshKey={messagesRefreshKey}
-                    currentUser={user}
-                  />
-                ) : (
-                  <ChatViewOriginal
-                    ref={chatViewRef as any}
-                    conversation={selectedConversation}
-                    onSendMessage={handleSendMessage}
-                    onUserClick={handleUserClick}
-                    loading={messagesLoading}
-                    error={messagesError}
-                    onConversationUpdate={handleConversationUpdate}
-                    onCloseChat={handleCloseChat}
-                    onLoadOlderMessages={handleLoadOlderMessages}
-                    onRefreshMessages={handleRefreshMessages}
-                    initialPaginationInfo={null}
-                    refreshKey={messagesRefreshKey}
-                    currentUser={user}
-                  />
-                )}
+                <ChatView
+                  ref={chatViewRef}
+                  conversation={selectedConversation}
+                  onSendMessage={handleSendMessage}
+                  onUserClick={handleUserClick}
+                  loading={messagesLoading}
+                  error={messagesError}
+                  onConversationUpdate={handleConversationUpdate}
+                  onCloseChat={handleCloseChat}
+                  onLoadOlderMessages={handleLoadOlderMessages}
+                  onRefreshMessages={handleRefreshMessages}
+                  initialPaginationInfo={null}
+                  refreshKey={messagesRefreshKey}
+                  currentUser={user}
+                />
               </div>
             ) : (
               <div className="flex-1 flex items-center justify-center bg-gradient-to-br from-slate-50 via-blue-50/20 to-slate-50">

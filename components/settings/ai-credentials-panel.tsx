@@ -22,7 +22,7 @@ import { DEBOUNCE_FILTER_MS } from "@/lib/config"
 import { toast } from "sonner"
 import { format } from "date-fns"
 import { es } from "date-fns/locale"
-import CredentialFormModal from "./credential-form-modal"
+import CredentialFormModal from "@/components/settings/credential-form-modal"
 
 export default function AiCredentialsPanel() {
   const [currentPage, setCurrentPage] = useState(0)
