@@ -47,7 +47,7 @@ export default function RootLayout({
           }}
         />
       </head>
-      <body className="font-sans">
+      <body className="font-sans overflow-x-hidden">
         <Providers>{children}</Providers>
       </body>
     </html>

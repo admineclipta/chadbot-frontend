@@ -47,7 +47,7 @@ export default function AboutMeSection() {
   }
 
   return (
-    <div className="py-6 space-y-6">
+    <div className="py-4 md:py-6 space-y-4 md:space-y-6">
       {/* User Info Card */}
       <Card>
         <CardHeader className="flex gap-3">
@@ -57,9 +57,9 @@ export default function AboutMeSection() {
           </div>
         </CardHeader>
         <Divider />
-        <CardBody className="space-y-6">
+        <CardBody className="p-4 md:p-6 space-y-4 md:space-y-6">
           {/* Avatar and Name */}
-          <div className="flex items-center gap-4">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4">
             <HeroUser
               name={currentUser.name}
               description={currentUser.displayName}

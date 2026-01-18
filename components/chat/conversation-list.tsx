@@ -253,9 +253,9 @@ export default function ConversationList({
 
   return (
     <>
-      <div className="w-96 border-r border-slate-200 bg-white flex flex-col h-full">
+      <div className="w-full md:w-96 border-r border-slate-200 bg-white flex flex-col h-full">
         {/* Header */}
-        <div className="p-4 border-b border-slate-200 bg-white sticky top-0 z-10">
+        <div className="p-4 border-b border-slate-200 bg-white sticky top-0 z-10 flex-shrink-0">
           <div className="flex items-center justify-between mb-3">
             <h2 className="text-lg font-bold text-slate-900 flex items-center gap-2">
               <MessageCircle className="h-5 w-5 text-blue-600" />

@@ -234,72 +234,11 @@ npm run build
 # Generates /dist folder with static files
 ```
 
-### Deploy Options
-
-#### Netlify
-
-```bash
-# Drag /dist folder to Netlify dashboard
-```
-
-#### Vercel
-
-```bash
-vercel --prod
-```
-
-#### AWS S3
-
-```bash
-aws s3 sync dist/ s3://your-bucket-name
-```
-
-#### Nginx
-
-```nginx
-server {
-    listen 80;
-    server_name your-domain.com;
-    root /var/www/chadbot-frontend/dist;
-
-    location / {
-        try_files $uri $uri/ /index.html;
-    }
-}
-```
-
-## 🧪 Testing
-
-### Manual Testing Checklist
-
-- [ ] Login with valid credentials
-- [ ] Verify JWT token saved in localStorage (`chadbot_token`)
-- [ ] Check `client_id` extracted from token
-- [ ] Load conversations (only from current client)
-- [ ] Open conversation and view messages
-- [ ] Send text message
-- [ ] Send image
-- [ ] Assign conversation to agent
-- [ ] Change conversation status
-- [ ] Logout and verify token cleared
-
-## 🔄 Migration from ChatVRM
-
-See [MIGRATION.md](MIGRATION.md) for detailed migration notes from ChatVRM to Chadbot with API v1.
-
-**Key changes**:
-
-- ✅ Renamed from ChatVRM to Chadbot
-- ✅ Migrated from API v2 → API v1
-- ✅ Multi-tenant architecture implemented
-- ✅ localStorage keys updated (`chatvrm_*` → `chadbot_*`)
-- ✅ Simplified API endpoints and types
-
 ## 📚 Documentation
 
-- [API Documentation](api-documentation.md) - Complete API v1 reference
-- [Migration Guide](MIGRATION.md) - ChatVRM → Chadbot migration notes
-- [Copilot Instructions](.github/copilot-instructions.md) - AI agent guidelines
+- [Backend API Reference](docs/AI_FRONTEND_API_REFERENCE.md) - Complete backend API v1 reference for frontend development
+- [API Documentation](api-documentation.md) - Frontend API integration guide
+- [Copilot Instructions](.github/copilot-instructions.md) - AI agent development guidelines
 
 ## 🤝 Contributing
 
@@ -317,19 +256,7 @@ See [MIGRATION.md](MIGRATION.md) for detailed migration notes from ChatVRM to Ch
 - **New component?** → Follow HeroUI design system
 - **New hook?** → Use `useApi` pattern for data fetching
 
-## 📄 License
-
-[Your License Here]
-
-## 🆘 Support
-
-For issues and questions:
-
-- Create an issue in GitHub
-- Contact: [your-email@example.com]
-
 ---
 
-**Built with** ❤️ **by Your Team**  
-**Version**: 1.0.0 (API v1)  
-**Last Updated**: December 2024
+**Built with** ❤️ **by Eclipta**  
+**Last Updated**: Enero 2025

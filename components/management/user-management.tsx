@@ -48,6 +48,8 @@ import { useUserManagement } from "@/hooks/use-user-management"
 import UserAvatar from "@/components/management/user-avatar"
 import { apiService } from "@/lib/api"
 import { toast } from "sonner"
+import { useIsMobile } from "@/hooks/use-mobile"
+import { cn } from "@/lib/utils"
 
 interface UserFormData {
   name: string
@@ -58,6 +60,7 @@ interface UserFormData {
 }
 
 export default function UserManagement() {
+  const isMobile = useIsMobile()
   const [searchTerm, setSearchTerm] = useState("")
   const [currentPage, setCurrentPage] = useState(0)
   const [pageSize] = useState(10)
@@ -313,18 +316,112 @@ export default function UserManagement() {
         />
       </div>
 
-      {/* Tabla de usuarios */}
-      <Table aria-label="Tabla de usuarios">
-        <TableHeader columns={columns}>
-          {(column) => (
-            <TableColumn key={column.key}>{column.label}</TableColumn>
+      {/* Vista móvil - Cards */}
+      {isMobile ? (
+        <div className="space-y-3">
+          {loading ? (
+            <div className="flex justify-center py-8">
+              <Spinner label="Cargando usuarios..." />
+            </div>
+          ) : filteredUsers.length === 0 ? (
+            <div className="text-center py-8 text-gray-500">
+              <User className="w-12 h-12 mx-auto mb-2 opacity-50" />
+              <p>No hay usuarios disponibles</p>
+            </div>
+          ) : (
+            <>
+              {filteredUsers.map((user) => (
+                <div key={user.id} className="bg-white dark:bg-gray-800 rounded-lg p-4 border border-gray-200 dark:border-gray-700 hover:shadow-md transition-shadow">
+                  <div className="flex items-start gap-3">
+                    <UserAvatar user={user} size={48} />
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-start justify-between gap-2 mb-2">
+                        <div className="flex-1 min-w-0">
+                          <h3 className="font-semibold text-base truncate">{user.name}</h3>
+                          <p className="text-sm text-gray-500 truncate">@{user.displayName}</p>
+                        </div>
+                        <Chip
+                          size="sm"
+                          variant="flat"
+                          color={user.active ? "success" : "danger"}
+                        >
+                          {user.active ? "Activo" : "Inactivo"}
+                        </Chip>
+                      </div>
+                      
+                      <div className="flex items-center gap-1 text-sm text-gray-600 dark:text-gray-400 mb-2">
+                        <Mail className="w-3 h-3" />
+                        <span className="truncate">{user.email}</span>
+                      </div>
+                      
+                      <div className="flex items-center gap-1 text-xs text-gray-400 mb-3">
+                        <Calendar className="w-3 h-3" />
+                        {new Date(user.createdAt).toLocaleDateString()}
+                      </div>
+                      
+                      <div className="flex gap-2">
+                        <Button
+                          size="sm"
+                          variant="flat"
+                          onPress={() => handleView(user)}
+                          startContent={<Eye className="w-4 h-4" />}
+                          className="flex-1"
+                        >
+                          Ver
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="flat"
+                          color="primary"
+                          onPress={() => handleEdit(user)}
+                          startContent={<Edit className="w-4 h-4" />}
+                          className="flex-1"
+                        >
+                          Editar
+                        </Button>
+                        <Dropdown>
+                          <DropdownTrigger>
+                            <Button isIconOnly size="sm" variant="flat">
+                              <MoreVertical className="h-4 w-4" />
+                            </Button>
+                          </DropdownTrigger>
+                          <DropdownMenu>
+                            <DropdownItem
+                              startContent={<Shield className="h-4 w-4" />}
+                              onPress={() => handleAssignRoles(user)}
+                            >
+                              Roles
+                            </DropdownItem>
+                            <DropdownItem
+                              color="danger"
+                              startContent={<Trash2 className="h-4 w-4" />}
+                              onPress={() => handleDeleteConfirm(user)}
+                            >
+                              Eliminar
+                            </DropdownItem>
+                          </DropdownMenu>
+                        </Dropdown>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </>
           )}
-        </TableHeader>
-        <TableBody
-          items={filteredUsers}
-          isLoading={loading}
-          loadingContent={<Spinner label="Cargando usuarios..." />}
-        >
+        </div>
+      ) : (
+        /* Vista desktop - Tabla */
+        <Table aria-label="Tabla de usuarios">
+          <TableHeader columns={columns}>
+            {(column) => (
+              <TableColumn key={column.key}>{column.label}</TableColumn>
+            )}
+          </TableHeader>
+          <TableBody
+            items={filteredUsers}
+            isLoading={loading}
+            loadingContent={<Spinner label="Cargando usuarios..." />}
+          >
           {(user) => (
             <TableRow key={`user-${user.id}`}>
               <TableCell>
@@ -390,6 +487,7 @@ export default function UserManagement() {
           )}
         </TableBody>
       </Table>
+      )}
 
       {/* Paginación */}
       <div className="flex justify-center mt-4">

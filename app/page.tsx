@@ -21,10 +21,13 @@ import { mapApiConversacionToConversation, mapApiConversacionesResponseToConvers
 import { apiService } from "@/lib/api"
 import { DEBOUNCE_SEARCH_MS } from "@/lib/config"
 import { useApi } from "@/hooks/use-api"
+import { useIsMobile } from "@/hooks/use-mobile"
+import { cn } from "@/lib/utils"
 
 export default function Home() {
   const router = useRouter()
   const chatViewRef = useRef<ChatViewRef>(null)
+  const isMobile = useIsMobile()
   const [isAuthenticated, setIsAuthenticated] = useState(false)
   const [currentView, setCurrentView] = useState<"welcome" | "conversations" | "profile" | "users" | "contacts" | "teams" | "assistants" | "settings">("welcome")
   const [selectedConversation, setSelectedConversation] = useState<Conversation | null>(null)
@@ -396,6 +399,12 @@ export default function Home() {
     setMessagesRefreshKey(prev => prev + 1)
   }, [])
 
+  const handleCloseChat = useCallback(() => {
+    if (isMobile) {
+      setSelectedConversation(null)
+    }
+  }, [isMobile])
+
   const handleConversationUpdate = useCallback((updatedConversation: Conversation) => {
     // Actualizar la conversación seleccionada
     setSelectedConversation(updatedConversation)
@@ -406,10 +415,6 @@ export default function Home() {
         conv.id === updatedConversation.id ? updatedConversation : conv
       )
     )
-  }, [])
-
-  const handleCloseChat = useCallback(() => {
-    setSelectedConversation(null)
   }, [])
 
   const handleUserClick = useCallback((contactId: string) => {
@@ -466,7 +471,7 @@ export default function Home() {
   }
 
   return (
-    <div className="flex h-screen overflow-hidden bg-background">
+    <div className="flex h-screen overflow-hidden bg-background max-w-full">
       <EnvironmentIndicator />
 
       <Sidebar 
@@ -476,10 +481,10 @@ export default function Home() {
         onLogout={handleLogout}
       />
 
-      <div className="flex-1 flex bg-gradient-to-br from-slate-50 via-blue-50/30 to-slate-50">
+      <div className="flex-1 flex flex-col h-screen bg-gradient-to-br from-slate-50 via-blue-50/30 to-slate-50 min-w-0 overflow-hidden">
         {currentView === "welcome" && (
           <div className="flex-1 overflow-auto">
-            <div className="max-w-7xl mx-auto p-8">
+            <div className="max-w-7xl mx-auto p-4 md:p-8">
               {/* Header */}
               <div className="mb-8">
                 <h1 className="text-4xl font-bold text-slate-900 mb-2">
@@ -681,23 +686,31 @@ export default function Home() {
         )}
 
         {currentView === "conversations" && (
-          <div className="flex-1 flex h-full overflow-hidden bg-slate-50">
-            {/* Conversation List with integrated search/filter */}
-            <ConversationList
-              conversations={conversations}
-              selectedConversation={selectedConversation}
-              onSelectConversation={handleSelectConversation}
-              onUserClick={handleUserClick}
-              loading={conversationsLoading}
-              error={conversationsError}
-              currentPage={currentPage}
-              totalPages={totalPages}
-              onPageChange={handlePageChange}
-            />
+          <div className="flex-1 flex h-full w-full overflow-hidden bg-slate-50 relative">
+            {/* Conversation List - Hide on mobile when chat is open */}
+            <div className={cn(
+              "h-full transition-all duration-300",
+              isMobile ? (selectedConversation ? "hidden" : "w-full") : "flex-shrink-0"
+            )}>
+              <ConversationList
+                conversations={conversations}
+                selectedConversation={selectedConversation}
+                onSelectConversation={handleSelectConversation}
+                onUserClick={handleUserClick}
+                loading={conversationsLoading}
+                error={conversationsError}
+                currentPage={currentPage}
+                totalPages={totalPages}
+                onPageChange={handlePageChange}
+              />
+            </div>
 
-            {/* Right panel - Chat View */}
-            {selectedConversation ? (
-              <div className="flex-1 flex flex-col overflow-hidden">
+            {/* Right panel - Chat View - Show only when conversation selected */}
+            {selectedConversation && (
+              <div className={cn(
+                "flex flex-col h-full overflow-hidden",
+                isMobile ? "w-full absolute inset-0 z-10 bg-white" : "flex-1"
+              )}>
                 <ChatView
                   ref={chatViewRef}
                   conversation={selectedConversation}
@@ -714,7 +727,10 @@ export default function Home() {
                   currentUser={user}
                 />
               </div>
-            ) : (
+            )}
+            
+            {/* Desktop placeholder - only show on desktop when no conversation selected */}
+            {!isMobile && !selectedConversation && (
               <div className="flex-1 flex items-center justify-center bg-gradient-to-br from-slate-50 via-blue-50/20 to-slate-50">
                 <div className="text-center">
                   <div className="w-24 h-24 bg-blue-100 rounded-3xl flex items-center justify-center mx-auto mb-6 shadow-lg">
@@ -731,31 +747,31 @@ export default function Home() {
         )}
 
         {currentView === "users" && (
-          <div className="flex-1 bg-slate-50 overflow-auto">
+          <div className="flex-1 bg-slate-50 overflow-x-hidden overflow-y-auto">
             <UserManagement />
           </div>
         )}
 
         {currentView === "contacts" && (
-          <div className="flex-1 bg-slate-50 overflow-auto">
+          <div className="flex-1 bg-slate-50 overflow-x-hidden overflow-y-auto">
             <ContactManagement />
           </div>
         )}
 
         {currentView === "teams" && (
-          <div className="flex-1 bg-slate-50 overflow-auto">
+          <div className="flex-1 bg-slate-50 overflow-x-hidden overflow-y-auto">
             <TeamManagement />
           </div>
         )}
 
         {currentView === "assistants" && (
-          <div className="flex-1 bg-slate-50 overflow-auto">
+          <div className="flex-1 bg-slate-50 overflow-x-hidden overflow-y-auto">
             <AssistantManagement />
           </div>
         )}
 
         {currentView === "settings" && (
-          <div className="flex-1 bg-slate-50 overflow-auto">
+          <div className="flex-1 bg-slate-50 overflow-x-hidden overflow-y-auto">
             <SettingsView />
           </div>
         )}

@@ -63,8 +63,8 @@ export default function MessagesSection({
     <div className="py-6 space-y-6">
       {/* Auto-refresh Section */}
       <Card>
-        <CardBody className="p-6">
-          <div className="flex items-start gap-4">
+        <CardBody className="p-4 md:p-6">
+          <div className="flex flex-col md:flex-row items-start gap-4">
             <div className="flex-shrink-0">
               <div className="w-12 h-12 rounded-full bg-primary-100 dark:bg-primary-900/30 flex items-center justify-center">
                 <RefreshCw className="h-6 w-6 text-primary" />
@@ -81,7 +81,7 @@ export default function MessagesSection({
                 selectedKeys={[currentRefreshInterval]}
                 onChange={(e) => handleRefreshIntervalChange(e.target.value)}
                 classNames={{
-                  base: "max-w-xs",
+                  base: "w-full md:max-w-xs",
                 }}
               >
                 {refreshIntervals.map((interval) => (
@@ -97,15 +97,15 @@ export default function MessagesSection({
 
       {/* Notifications Section */}
       <Card>
-        <CardBody className="p-6">
-          <div className="flex items-start gap-4">
+        <CardBody className="p-4 md:p-6">
+          <div className="flex flex-col md:flex-row items-start gap-4">
             <div className="flex-shrink-0">
               <div className="w-12 h-12 rounded-full bg-secondary-100 dark:bg-secondary-900/30 flex items-center justify-center">
                 <Bell className="h-6 w-6 text-secondary" />
               </div>
             </div>
             <div className="flex-1">
-              <div className="flex items-center justify-between">
+              <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
                 <div>
                   <h3 className="text-lg font-semibold mb-1">Notificaciones del Navegador</h3>
                   <p className="text-sm text-default-500">

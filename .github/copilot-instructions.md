@@ -14,11 +14,13 @@
 
 - **Framework**: Next.js 15.5+ (CSR mode - no SSR/SSG)
 - **UI**: HeroUI 2.8+ + Tailwind CSS 3.4+
+- **Typography**: Bricolage Grotesque (primary font)
 - **State**: React hooks (useState, useEffect, useCallback)
 - **HTTP**: Native Fetch API with centralized wrapper
 - **Forms**: React Hook Form + Zod validation
 - **Notifications**: Sonner
 - **Icons**: Lucide React
+- **Responsive**: Mobile-first design with `useIsMobile` hook (breakpoint: 768px)
 
 ## Architecture
 
@@ -26,18 +28,53 @@
 
 ```
 app/                    # Next.js App Router (CSR pages)
-components/             # React UI components
-lib/                    # Business logic & API client
-├── api.ts              # Centralized HTTP client
-├── api-types.ts        # Backend API contracts
-├── types.ts            # Frontend domain models
-├── config.ts           # Environment configuration
-└── utils.ts            # Utilities
-hooks/                  # Custom React hooks
-├── use-api.ts          # Data fetching hook
-└── use-theme.ts        # Theme management
-public/                 # Static assets
-scripts/                # Build scripts
+├── page.tsx           # Main dashboard
+├── login/             # Authentication
+├── contacts/          # Contact management
+├── teams/             # Team management
+└── layout.tsx         # Root layout
+components/            # React UI components (modular structure)
+├── chat/              # Chat & conversation components
+│   ├── chat-view.tsx
+│   ├── conversation-list.tsx
+│   ├── conversation-filters.tsx
+│   ├── message-input.tsx
+│   └── message-*.tsx
+├── layout/            # Navigation & layout
+│   ├── sidebar.tsx
+│   └── environment-indicator.tsx
+├── management/        # User/contact/team management
+│   ├── user-management.tsx
+│   ├── contact-management.tsx
+│   ├── team-management.tsx
+│   └── assistant-management.tsx
+├── modals/            # All modal dialogs
+│   ├── contact-info-modal.tsx
+│   ├── new-chat-modal.tsx
+│   └── *.modal.tsx
+├── settings/          # Settings & configuration
+│   ├── settings-view.tsx
+│   └── *-section.tsx
+├── shared/            # Shared utilities
+│   ├── api-error-alert.tsx
+│   ├── searchable-select.tsx
+│   └── theme-provider.tsx
+└── ui/                # Base UI components
+    ├── avatar.tsx
+    ├── button.tsx
+    └── ...
+lib/                   # Business logic & API client
+├── api.ts            # Centralized HTTP client (API v1)
+├── api-types.ts      # Backend API contracts
+├── types.ts          # Frontend domain models
+├── config.ts         # Environment configuration
+└── utils.ts          # Utilities
+hooks/                 # Custom React hooks
+├── use-api.ts        # Data fetching hook
+├── use-theme.ts      # Theme management
+└── use-mobile.tsx    # Mobile breakpoint detection
+public/               # Static assets
+scripts/              # Build scripts
 ```
 
 ## Critical Patterns
@@ -51,7 +88,81 @@ scripts/                # Build scripts
 - No SSR/SSG - data fetched client-side
 - Deploy to any static host (Netlify, Vercel, S3, CDN)
 
-### 2. Centralized API Service
+### 2. Design System & Color Palette
+
+**Brand Colors** (defined in [tailwind.config.js](tailwind.config.js)):
+
+```css
+brand: {
+  primary: '#3805F2',    // Relleno interior corazón (deep purple)
+  purple: '#7957F2',     // Bordes letras (medium purple)
+  lavender: '#977EF2',   // Contraste borde (light purple)
+  lime: '#BDF26D',       // Color isotipo (bright lime green)
+  light: '#F2F2F2',      // Fondo (light gray)
+}
+```
+
+**HeroUI Theme Colors**:
+
+- **Primary**: `#5413ee` (purple) - Main actions, buttons, links
+- **Secondary**: `#c1fe72` (lime) - Accents, highlights, success states
+- **Background (Light)**: `#ffffff`
+- **Background (Dark)**: `#0D1117`
+- **Foreground (Light)**: `#11181C`
+- **Foreground (Dark)**: `#ECEDEE`
+
+**Usage Guidelines**:
+
+- Use `brand.primary` for hero sections and brand identity
+- Use HeroUI's `primary` color for interactive elements (buttons, links)
+- Use `secondary` (lime) for CTAs, success states, and important highlights
+- Maintain WCAG AA contrast ratios for accessibility
+- Dark mode automatically adjusts colors via `next-themes`
+
+### 3. Mobile-First Responsive Design
+
+**CRITICAL**: All new components and features MUST be mobile-responsive by default.
+
+**Key Patterns**:
+
+1. **Use `useIsMobile` Hook** ([hooks/use-mobile.tsx](hooks/use-mobile.tsx)):
+
+   ```typescript
+   import { useIsMobile } from "@/hooks/use-mobile";
+
+   const isMobile = useIsMobile(); // true if viewport < 768px
+   ```
+
+2. **Mobile Breakpoint**: `768px` (matches Tailwind's `md:` breakpoint)
+
+3. **Responsive Layout Strategies**:
+   - Stack vertically on mobile, horizontal on desktop
+   - Hide/show elements conditionally: `{isMobile ? <MobileView /> : <DesktopView />}`
+   - Adjust spacing: smaller padding/margins on mobile
+   - Mobile menus: hamburger menu, slide-out sidebars with overlay
+   - Touch-friendly hit targets: minimum 44x44px for buttons
+
+4. **Tailwind Responsive Classes**:
+
+   ```tsx
+   // Mobile-first approach (base styles = mobile, then override for larger screens)
+   <div className="flex flex-col md:flex-row gap-2 md:gap-4">
+   <button className="w-full md:w-auto px-4 py-2 text-sm md:text-base">
+   ```
+
+5. **Common Mobile Patterns**:
+   - **Sidebar**: Fixed off-canvas, slides in on mobile, static on desktop
+   - **Chat View**: Full-screen on mobile with back button, split-pane on desktop
+   - **Modals**: Full-screen on mobile, centered dialog on desktop
+   - **Tables**: Convert to cards or horizontal scroll on mobile
+
+**Testing**: Always test at these breakpoints:
+
+- Mobile: 375px (iPhone SE), 414px (iPhone Plus)
+- Tablet: 768px (iPad)
+- Desktop: 1024px, 1440px, 1920px
+
+### 4. Centralized API Service
 
 All HTTP calls flow through `ApiService` class in [lib/api.ts](lib/api.ts):
 
@@ -71,7 +182,7 @@ const response = await fetch(`${url}/endpoint`); // DON'T
 - Multi-tenant client_id extraction from JWT
 - Environment-based URL configuration (API v1)
 
-### 3. Type Safety: API Types vs Domain Types
+### 5. Type Safety: API Types vs Domain Types
 
 **Two separate type systems**:
 
@@ -97,7 +208,7 @@ const model = mapApiResponseToDomain(apiResponse);
 
 **Why?** Decouples UI from backend changes, enables domain logic.
 
-### 4. Authentication & JWT
+### 6. Authentication & JWT
 
 **Flow**: Login → JWT → localStorage → Auto-attach to requests
 
@@ -113,20 +224,20 @@ headers: {
 
 **JWT contains**: `client_id`, user ID, email, roles, expiration. Backend validates all permissions and filters by `client_id`.
 
-### 5. Custom `useApi` Hook
+### 7. Custom `useApi` Hook
 
 [hooks/use-api.ts](hooks/use-api.ts) provides declarative data fetching:
 
 ```typescript
 const { data, loading, error, refetch } = useApi(
   () => apiService.getData(filters),
-  [filters] // Re-fetch when dependencies change
+  [filters], // Re-fetch when dependencies change
 );
 ```
 
 **Features**: Loading/error states, dependency tracking, manual refetch, cleanup on unmount.
 
-### 6. Environment Configuration
+### 8. Environment Configuration
 
 [lib/config.ts](lib/config.ts) determines API URL by hostname at runtime:
 
@@ -137,6 +248,27 @@ const { data, loading, error, refetch } = useApi(
 ```
 
 **No build-time env vars** - single build for all environments.
+
+### 9. Backend API Reference
+
+**CRITICAL**: Consult [docs/AI_FRONTEND_API_REFERENCE.md](../docs/AI_FRONTEND_API_REFERENCE.md) for complete backend API documentation.
+
+This reference includes:
+
+- **Architecture Overview**: Spring Boot WebFlux, Hexagonal Architecture, Multi-Tenant
+- **All API Endpoints**: Auth, Users, Roles, Teams, Clients, Credentials, Agents, Assistants, Contacts, Conversations, Messages, Tags
+- **Request/Response DTOs**: Complete type definitions for all operations
+- **Permissions Model**: Required permissions for each endpoint
+- **WebSocket Events**: Real-time updates for conversations and messages
+- **Query Parameters**: Pagination, filtering, sorting options
+- **Error Responses**: Standard error codes and messages
+
+**When to use**:
+
+- Before implementing any API call
+- When adding new features that require backend integration
+- When debugging API errors or unexpected responses
+- When understanding data models and relationships
 
 ## Development Workflows
 
@@ -224,11 +356,11 @@ try {
 
 ## When Adding Features
 
-1. **New API endpoint?** → Add method to `ApiService` in [lib/api.ts](lib/api.ts), define types in [lib/api-types.ts](lib/api-types.ts), create mapper in [lib/types.ts](lib/types.ts).
+1. **New API endpoint?** → Consult [docs/AI_FRONTEND_API_REFERENCE.md](../docs/AI_FRONTEND_API_REFERENCE.md) for endpoint specs, then add method to `ApiService` in [lib/api.ts](lib/api.ts), define types in [lib/api-types.ts](lib/api-types.ts), create mapper in [lib/types.ts](lib/types.ts).
 
 2. **New page/view?** → Create in `app/` folder, update navigation in [components/sidebar.tsx](components/sidebar.tsx).
 
-3. **New component?** → Place in `components/`, import in parent, follow HeroUI design system.
+3. **New component?** → Place in `components/`, import in parent, follow HeroUI design system and mobile-first approach.
 
 4. **New hook?** → Create in `hooks/`, use `useApi` pattern for data fetching.
 
@@ -265,19 +397,3 @@ location / {
   try_files $uri $uri/ /index.html; # SPA fallback
 }
 ```
-
-## Migration Notes (ChatVRM → Chadbot)
-
-**Key changes**:
-
-1. ✅ **API migrated to v1** - Multi-tenant endpoints with client_id isolation
-2. ✅ **Renamed to Chadbot** - All references updated from ChatVRM
-3. ✅ **Multi-tenant architecture** - JWT contains client_id for data isolation
-4. 🔄 **License validation** - Ready for implementation (future feature)
-5. 🔄 **White-labeling support** - Per-client themes/configuration (future feature)
-
-**Current state**: Fully migrated to new API v1 structure with multi-tenant support.
-
----
-
-**Last Updated**: December 2024 | **Framework**: Next.js 15.5 | **API Version**: v1 (Multi-Tenant)

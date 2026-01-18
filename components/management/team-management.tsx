@@ -49,6 +49,8 @@ import { apiService } from "@/lib/api"
 import { useApi } from "@/hooks/use-api"
 import { DEBOUNCE_SEARCH_MS } from "@/lib/config"
 import { toast } from "sonner"
+import { useIsMobile } from "@/hooks/use-mobile"
+import { cn } from "@/lib/utils"
 
 interface TeamFormData {
   name: string
@@ -56,6 +58,7 @@ interface TeamFormData {
 }
 
 export default function TeamManagement() {
+  const isMobile = useIsMobile()
   const [searchTerm, setSearchTerm] = useState("")
   const [currentPage, setCurrentPage] = useState(0)
   const [pageSize] = useState(10)
@@ -340,61 +343,166 @@ export default function TeamManagement() {
           </CardBody>
         </Card>
 
-        {/* Tabla de equipos */}
-        <Card>
-          <CardBody className="p-0">
-            <Table
-              aria-label="Tabla de equipos"
-              classNames={{
-                wrapper: "min-h-[400px]",
-              }}
-            >
-              <TableHeader>
-                <TableColumn>NOMBRE</TableColumn>
-                <TableColumn>DESCRIPCIÓN</TableColumn>
-                <TableColumn>ESTADO</TableColumn>
-                <TableColumn>CREADO</TableColumn>
-                <TableColumn align="center">ACCIONES</TableColumn>
-              </TableHeader>
-              <TableBody
-                emptyContent={
-                  loading ? (
-                    <div className="flex flex-col gap-3 py-8">
-                      {[...Array(5)].map((_, i) => (
-                        <div key={i} className="flex items-center gap-3 px-6">
-                          <Skeleton className="w-12 h-12 rounded-full" />
-                          <div className="flex-1 space-y-2">
-                            <Skeleton className="h-4 w-3/5 rounded-lg" />
-                            <Skeleton className="h-3 w-2/5 rounded-lg" />
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  ) : (
-                    "No hay equipos disponibles"
-                  )
-                }
-                isLoading={loading}
-                loadingContent={<Spinner label="Cargando..." />}
-              >
-                {filteredTeams.map((team) => (
-                  <TableRow key={team.id}>
-                    <TableCell>
-                      <div className="flex items-center gap-3">
-                        <div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary-100 text-primary">
-                          <Users className="w-5 h-5" />
-                        </div>
-                        <div>
-                          <p className="font-semibold">{team.name}</p>
+        {/* Vista móvil - Cards */}
+        {isMobile ? (
+          <div className="space-y-3">
+            {loading ? (
+              <>
+                {[...Array(5)].map((_, i) => (
+                  <Card key={i}>
+                    <CardBody className="p-4">
+                      <div className="flex items-start gap-3">
+                        <Skeleton className="w-12 h-12 rounded-full flex-shrink-0" />
+                        <div className="flex-1 space-y-2">
+                          <Skeleton className="h-4 w-3/4 rounded-lg" />
+                          <Skeleton className="h-3 w-full rounded-lg" />
+                          <Skeleton className="h-3 w-2/3 rounded-lg" />
                         </div>
                       </div>
-                    </TableCell>
-                    <TableCell>
-                      <p className="text-sm text-default-500 max-w-md truncate">
-                        {team.description || "Sin descripción"}
-                      </p>
-                    </TableCell>
-                    <TableCell>
+                    </CardBody>
+                  </Card>
+                ))}
+              </>
+            ) : filteredTeams.length === 0 ? (
+              <Card>
+                <CardBody className="p-8">
+                  <div className="text-center text-default-500">
+                    <Users className="w-12 h-12 mx-auto mb-2 opacity-50" />
+                    <p>No hay equipos disponibles</p>
+                  </div>
+                </CardBody>
+              </Card>
+            ) : (
+              <>
+                {filteredTeams.map((team) => (
+                  <Card key={team.id} className="hover:shadow-md transition-shadow">
+                    <CardBody className="p-4">
+                      <div className="flex items-start gap-3">
+                        <div className="flex h-12 w-12 items-center justify-center rounded-full bg-primary-100 text-primary flex-shrink-0">
+                          <Users className="w-6 h-6" />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-start justify-between gap-2 mb-2">
+                            <h3 className="font-semibold text-base truncate">{team.name}</h3>
+                            <Chip
+                              size="sm"
+                              variant="flat"
+                              color={team.active ? "success" : "danger"}
+                              startContent={
+                                team.active ? (
+                                  <CheckCircle className="w-3 h-3" />
+                                ) : (
+                                  <Ban className="w-3 h-3" />
+                                )
+                              }
+                            >
+                              {team.active ? "Activo" : "Inactivo"}
+                            </Chip>
+                          </div>
+                          
+                          <p className="text-sm text-default-500 mb-2 line-clamp-2">
+                            {team.description || "Sin descripción"}
+                          </p>
+                          
+                          <div className="flex items-center gap-1 text-xs text-default-400 mb-3">
+                            <Calendar className="w-3 h-3" />
+                            {formatDate(team.createdAt)}
+                          </div>
+                          
+                          <div className="flex gap-2">
+                            <Button
+                              size="sm"
+                              variant="flat"
+                              onPress={() => handleView(team)}
+                              startContent={<Eye className="w-4 h-4" />}
+                              className="flex-1"
+                            >
+                              Ver
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="flat"
+                              color="primary"
+                              onPress={() => handleEdit(team)}
+                              startContent={<Edit className="w-4 h-4" />}
+                              className="flex-1"
+                            >
+                              Editar
+                            </Button>
+                            <Button
+                              isIconOnly
+                              size="sm"
+                              variant="flat"
+                              color="danger"
+                              onPress={() => handleDeleteConfirm(team)}
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </Button>
+                          </div>
+                        </div>
+                      </div>
+                    </CardBody>
+                  </Card>
+                ))}
+              </>
+            )}
+          </div>
+        ) : (
+          /* Vista desktop - Tabla */
+          <Card>
+            <CardBody className="p-0">
+              <Table
+                aria-label="Tabla de equipos"
+                classNames={{
+                  wrapper: "min-h-[400px]",
+                }}
+              >
+                <TableHeader>
+                  <TableColumn>NOMBRE</TableColumn>
+                  <TableColumn>DESCRIPCIÓN</TableColumn>
+                  <TableColumn>ESTADO</TableColumn>
+                  <TableColumn>CREADO</TableColumn>
+                  <TableColumn align="center">ACCIONES</TableColumn>
+                </TableHeader>
+                <TableBody
+                  emptyContent={
+                    loading ? (
+                      <div className="flex flex-col gap-3 py-8">
+                        {[...Array(5)].map((_, i) => (
+                          <div key={i} className="flex items-center gap-3 px-6">
+                            <Skeleton className="w-12 h-12 rounded-full" />
+                            <div className="flex-1 space-y-2">
+                              <Skeleton className="h-4 w-3/5 rounded-lg" />
+                              <Skeleton className="h-3 w-2/5 rounded-lg" />
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      "No hay equipos disponibles"
+                    )
+                  }
+                  isLoading={loading}
+                  loadingContent={<Spinner label="Cargando..." />}
+                >
+                  {filteredTeams.map((team) => (
+                    <TableRow key={team.id}>
+                      <TableCell>
+                        <div className="flex items-center gap-3">
+                          <div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary-100 text-primary">
+                            <Users className="w-5 h-5" />
+                          </div>
+                          <div>
+                            <p className="font-semibold">{team.name}</p>
+                          </div>
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        <p className="text-sm text-default-500 max-w-md truncate">
+                          {team.description || "Sin descripción"}
+                        </p>
+                      </TableCell>
+                      <TableCell>
                       <Chip
                         size="sm"
                         variant="flat"
@@ -481,6 +589,7 @@ export default function TeamManagement() {
             </Table>
           </CardBody>
         </Card>
+        )}
 
         {/* Paginación */}
         {totalElements > pageSize && (
