@@ -149,8 +149,8 @@ export default function Home() {
     error: messagesError,
     refetch: refetchMessages,
   } = useApi(
-    (signal) =>
-      selectedConversation ? apiService.getMessages(selectedConversation.id, 0, 20, signal) : Promise.resolve(null),
+    (signal?: AbortSignal) =>
+      selectedConversation ? apiService.getMessages(selectedConversation.id, 0, 20) : Promise.resolve(null),
     [selectedConversation?.id, messagesRefreshKey], // Incluir refreshKey para forzar refresco
   )
 
@@ -362,10 +362,8 @@ export default function Home() {
 
         // Enviar a la API
         await apiService.sendMessage({
-          numero_telefono: selectedConversation.customer.phone || "",
-          conversacion_id: selectedConversation.id,
-          mensaje: content,
-          tipo_remitente: "Representante", // o el tipo apropiado
+          conversationId: selectedConversation.id,
+          content: content,
         })
 
         // Refrescar mensajes después de enviar y hacer scroll
@@ -475,9 +473,7 @@ export default function Home() {
         user={user} 
         currentView={currentView} 
         onViewChange={setCurrentView} 
-        onLogout={handleLogout} 
-        selectedChannel={selectedChannel}
-        onChannelChange={handleChannelChange}
+        onLogout={handleLogout}
       />
 
       <div className="flex-1 flex bg-gradient-to-br from-slate-50 via-blue-50/30 to-slate-50">
@@ -646,14 +642,14 @@ export default function Home() {
                         className="flex items-center gap-4 p-3 rounded-xl hover:bg-slate-50 cursor-pointer transition-colors group"
                       >
                         <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-400 to-violet-500 flex items-center justify-center text-white font-semibold shadow-md group-hover:scale-110 transition-transform">
-                          {(conv.contact?.name || 'C').charAt(0).toUpperCase()}
+                          {(conv.customer?.name || 'C').charAt(0).toUpperCase()}
                         </div>
                         <div className="flex-1 min-w-0">
                           <div className="font-semibold text-slate-900 truncate">
-                            {conv.contact?.name || conv.contact?.phone || 'Sin nombre'}
+                            {conv.customer?.name || conv.customer?.phone || 'Sin nombre'}
                           </div>
                           <div className="text-sm text-slate-500 truncate">
-                            {conv.lastMessage?.content || 'Sin mensajes'}
+                            {conv.lastMessage || 'Sin mensajes'}
                           </div>
                         </div>
                         <div className="flex items-center gap-2">

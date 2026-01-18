@@ -297,15 +297,15 @@ export default function Login() {
 
   return (
     <div className="min-h-screen relative overflow-hidden">
-      {/* Fondo con degradé animado */}
-      <div className="absolute inset-0 bg-gradient-to-br from-violet-600 via-purple-600 to-blue-700">
-        <div className="absolute inset-0 bg-[url('data:image/svg+xml,%3Csvg width=60 height=60 viewBox=0 0 60 60 xmlns=http://www.w3.org/2000/svg%3E%3Cg fill=none fillRule=evenodd%3E%3Cg fill=%239C92AC fillOpacity=0.1%3E%3Ccircle cx=30 cy=30 r=4/%3E%3C/g%3E%3C/g%3E%3C/svg%3E')] opacity-20"></div>
+      {/* Fondo con degradado usando la paleta de marca */}
+      <div className="absolute inset-0 bg-gradient-to-br from-blue-600 via-brand-primary to-blue-900">
+        <div className="absolute inset-0 bg-[url('data:image/svg+xml,%3Csvg width=60 height=60 viewBox=0 0 60 60 xmlns=http://www.w3.org/2000/svg%3E%3Cg fill=none fillRule=evenodd%3E%3Cg fill=%23BDF26D fillOpacity=0.08%3E%3Ccircle cx=30 cy=30 r=4/%3E%3C/g%3E%3C/g%3E%3C/svg%3E')] opacity-30"></div>
       </div>
 
-      {/* Elementos decorativos flotantes */}
-      <div className="absolute top-20 left-20 w-72 h-72 bg-white/10 rounded-full blur-3xl animate-pulse"></div>
-      <div className="absolute bottom-20 right-20 w-96 h-96 bg-purple-300/20 rounded-full blur-3xl animate-pulse delay-1000"></div>
-      <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-64 h-64 bg-blue-300/10 rounded-full blur-2xl animate-pulse delay-500"></div>
+      {/* Elementos decorativos flotantes con colores de marca */}
+      <div className="absolute top-20 left-20 w-72 h-72 bg-brand-lime/20 rounded-full blur-3xl animate-pulse"></div>
+      <div className="absolute bottom-20 right-20 w-96 h-96 bg-brand-lavender/30 rounded-full blur-3xl animate-pulse delay-1000"></div>
+      <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-64 h-64 bg-brand-lime/15 rounded-full blur-2xl animate-pulse delay-500"></div>
 
       {/* Contenido principal */}
       <div className="relative z-10 min-h-screen flex items-center justify-center p-4">
@@ -342,11 +342,11 @@ export default function Login() {
         <div className="w-full max-w-md">
           {/* Logo y título */}
           <div className="text-center mb-8">
-            <div className="inline-flex items-center justify-center w-20 h-20 mb-4">
-              <img src="/logo-chadbot-violeta.png" alt="Chadbot" className="w-full h-full object-contain" />
+            <div className="inline-flex items-center justify-center gap-3 mb-4">
+              <img src="/chadbot-isotipo.png" alt="Chadbot" className="w-16 h-16 object-contain" />
+              <h1 className="text-4xl font-bold text-white font-bricolage">chadbot</h1>
             </div>
-            <h1 className="text-3xl font-bold text-white mb-2">Chadbot</h1>
-            <p className="text-white/80 text-base">Plataforma de Mensajería Inteligente</p>
+            <p className="text-white/90 text-base">Plataforma de Mensajería Inteligente</p>
             
             {/* Indicador de ambiente discreto con popover */}
             <div className="absolute top-4 right-4">
@@ -355,15 +355,15 @@ export default function Login() {
                   <Chip 
                     size="sm" 
                     variant="flat" 
-                    className="bg-black/20 text-white/60 border border-white/10 text-xs cursor-pointer hover:bg-black/30 hover:text-white/80 transition-all duration-200"
+                    className="bg-white/30 text-slate-800 border border-slate-300/50 text-xs cursor-pointer hover:bg-white/40 hover:text-slate-900 transition-all duration-200"
                   >
                     {config.environmentName}
                   </Chip>
                 </PopoverTrigger>
                 <PopoverContent className="p-1">
-                  <div className="px-3 py-2 bg-black/80 backdrop-blur-lg rounded-lg border border-white/20">
-                    <p className="text-xs text-white/80">
-                      Conectado a: <span className="text-white font-mono">{config.apiUrl}</span>
+                  <div className="px-3 py-2 bg-white/90 backdrop-blur-lg rounded-lg border border-slate-300">
+                    <p className="text-xs text-slate-700">
+                      Conectado a: <span className="text-slate-900 font-mono">{config.apiUrl}</span>
                     </p>
                   </div>
                 </PopoverContent>
@@ -411,11 +411,11 @@ export default function Login() {
                     innerWrapper: "bg-transparent",
                     inputWrapper: [
                       "shadow-lg",
-                      "bg-white/5",
+                      "bg-white/20",
                       "backdrop-blur-md",
                       "backdrop-saturate-200",
-                      "hover:bg-white/10",
-                      "focus-within:!bg-white/10",
+                      "hover:bg-white/25",
+                      "focus-within:!bg-white/25",
                       "!cursor-text",
                       "border-2",
                       "border-white/20",
@@ -456,11 +456,11 @@ export default function Login() {
                     innerWrapper: "bg-transparent",
                     inputWrapper: [
                       "shadow-lg",
-                      "bg-white/5",
+                      "bg-white/20",
                       "backdrop-blur-md",
                       "backdrop-saturate-200",
-                      "hover:bg-white/10",
-                      "focus-within:!bg-white/10",
+                      "hover:bg-white/25",
+                      "focus-within:!bg-white/25",
                       "!cursor-text",
                       "border-2",
                       "border-white/20",
@@ -487,12 +487,11 @@ export default function Login() {
 
                 <Button
                   type="submit"
-                  className="w-full bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 text-white font-semibold shadow-lg hover:shadow-xl transform hover:scale-[1.02] transition-all duration-200"
+                  className="w-full bg-brand-lime hover:bg-brand-lime/90 text-slate-900 font-bold shadow-lg hover:shadow-xl transform hover:scale-[1.02] transition-all duration-200"
                   isLoading={isLoading}
                   size="lg"
                   radius="lg"
                   isDisabled={!!emailError || !usuario || !password}
-                  startContent={!isLoading && <SparklesIcon className="h-4 w-4" />}
                 >
                   {isLoading ? "Iniciando sesión..." : "Iniciar sesión"}
                 </Button>

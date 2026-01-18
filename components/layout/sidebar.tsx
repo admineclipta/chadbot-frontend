@@ -93,8 +93,9 @@ export default function Sidebar({
       <div className={`w-64 bg-white border-r border-slate-200 flex flex-col shadow-lg fixed lg:relative inset-y-0 left-0 z-40 transform transition-transform duration-300 ${mobileMenuOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}`}>
         {/* Logo */}
         <div className="p-6 border-b border-slate-200">
-          <div className="flex items-center justify-center">
-            <Image src="/logo-chadbot-violeta.png" alt="Chadbot" width={100} height={33} className="object-contain" />
+          <div className="flex items-center justify-center gap-3">
+            <Image src="/chadbot-isotipo.png" alt="Chadbot" width={40} height={40} className="object-contain" />
+            <span className="text-2xl font-bold font-bricolage" style={{ color: '#4d00ff' }}>chadbot</span>
           </div>
         </div>
 
