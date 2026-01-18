@@ -10,11 +10,14 @@ import {
   DropdownMenu, 
   DropdownItem,
   ButtonGroup,
-  Button as HeroButton
+  Button as HeroButton,
+  Tabs,
+  Tab
 } from "@heroui/react"
 import { Avatar } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
 import MessageInput from "./message-input"
+import ConversationNotes from "./conversation-notes"
 import AISummaryPanel from "@/components/shared/ai-summary-panel"
 import AssignConversationModal from "@/components/modals/assign-conversation-modal"
 import ContactInfoModal from "@/components/modals/contact-info-modal"
@@ -65,6 +68,7 @@ const ChatView = forwardRef<ChatViewRef, ChatViewProps>(
     const [showContactInfoModal, setShowContactInfoModal] = useState(false)
     const [intervenirLoading, setIntervenirLoading] = useState(false)
     const [changingStatus, setChangingStatus] = useState(false)
+    const [activeTab, setActiveTab] = useState<string>("responder")
 
     const scrollToBottom = useCallback((behavior: ScrollBehavior = "smooth") => {
       messagesEndRef.current?.scrollIntoView({ behavior })
@@ -273,10 +277,33 @@ const ChatView = forwardRef<ChatViewRef, ChatViewProps>(
 
     if (error) {
       return (
-        <div className="flex-1 flex items-center justify-center bg-slate-50 p-4">
-          <div className="text-center">
-            <p className="text-red-600 font-semibold mb-1">Error al cargar el chat</p>
-            <p className="text-slate-500 text-sm">{error}</p>
+        <div className="flex-1 flex flex-col items-center justify-center bg-slate-50 p-4">
+          <div className="text-center max-w-md">
+            {/* Error Icon */}
+            <div className="w-16 h-16 md:w-20 md:h-20 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4 shadow-lg">
+              <X className="w-8 h-8 md:w-10 md:h-10 text-red-600" />
+            </div>
+            
+            {/* Error Message */}
+            <h3 className="text-lg md:text-xl font-bold text-slate-900 mb-2">
+              Error al cargar la conversación
+            </h3>
+            <p className="text-slate-600 text-sm md:text-base mb-6">
+              {error}
+            </p>
+            
+            {/* Action Buttons */}
+            <div className="flex flex-col sm:flex-row gap-3 justify-center">
+              <HeroButton
+                color="danger"
+                variant="flat"
+                onPress={onCloseChat}
+                startContent={<ArrowLeft className="w-4 h-4" />}
+                className="w-full sm:w-auto"
+              >
+                Volver al listado
+              </HeroButton>
+            </div>
           </div>
         </div>
       )
@@ -506,7 +533,7 @@ const ChatView = forwardRef<ChatViewRef, ChatViewProps>(
             <div ref={messagesEndRef} />
           </div>
 
-          {/* Message Input */}
+          {/* Message Input Area with Tabs */}
           <div className="bg-white border-t border-slate-200 relative flex-shrink-0">
             {/* Overlay para conversaciones no intervenidas */}
             {canIntervene && (
@@ -535,20 +562,52 @@ const ChatView = forwardRef<ChatViewRef, ChatViewProps>(
               </div>
             )}
             
-            <MessageInput 
-              onSendMessage={onSendMessage} 
-              disabled={!canSendMessages} 
-              isBlurred={!!canIntervene}
-              messages={conversation.messages}
-              conversationId={conversation.id}
-              customerName={conversation.customer?.name || ''}
-              customerPhone={conversation.customer?.phone || ''}
-              onMessageSent={() => {
-                if (onRefreshMessages) {
-                  onRefreshMessages()
-                }
+            {/* Tabs Container */}
+            <Tabs
+              aria-label="Opciones de conversación"
+              selectedKey={activeTab}
+              onSelectionChange={(key) => setActiveTab(key as string)}
+              classNames={{
+                base: "w-full",
+                tabList: "w-full bg-slate-50/50 border-b border-slate-200",
+                cursor: "bg-white shadow-sm",
+                tab: "h-10 font-medium",
+                tabContent: "text-slate-600 group-data-[selected=true]:text-blue-600"
               }}
-            />
+            >
+              <Tab 
+                key="responder" 
+                title="Responder"
+              >
+                <div className="p-0">
+                  <MessageInput 
+                    onSendMessage={onSendMessage} 
+                    disabled={!canSendMessages} 
+                    isBlurred={!!canIntervene}
+                    messages={conversation.messages}
+                    conversationId={conversation.id}
+                    customerName={conversation.customer?.name || ''}
+                    customerPhone={conversation.customer?.phone || ''}
+                    onMessageSent={() => {
+                      if (onRefreshMessages) {
+                        onRefreshMessages()
+                      }
+                    }}
+                  />
+                </div>
+              </Tab>
+              <Tab 
+                key="notas" 
+                title="Notas del chat"
+              >
+                <div className="h-[300px] md:h-[400px]">
+                  <ConversationNotes 
+                    conversationId={conversation.id}
+                    className="h-full"
+                  />
+                </div>
+              </Tab>
+            </Tabs>
           </div>
         </div>
 

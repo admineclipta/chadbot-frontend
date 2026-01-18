@@ -311,16 +311,17 @@ export interface ApiConversationResponse {
   last: boolean;
 }
 
+// Tag Request/Response Types (matching backend API docs)
 export interface CreateTagRequest {
-  name: string;
-  color: string;
-  description?: string;
+  label: string; // Tag name/label
+  color: string; // HEX color code
+  isPrivate: boolean; // true = only visible to creator, false = visible to all in client
 }
 
 export interface UpdateTagRequest {
-  name?: string;
-  color?: string;
-  description?: string;
+  label?: string; // Tag name/label
+  color?: string; // HEX color code
+  isPrivate?: boolean; // Privacy setting
 }
 
 export interface TagListResponse {
@@ -661,7 +662,7 @@ export interface LegacyConversacionesResponse {
 
 // Mappers: Legacy v2 -> New v1
 export function mapLegacyConversationToNew(
-  legacy: LegacyConversacionesResponse
+  legacy: LegacyConversacionesResponse,
 ): Conversation {
   return {
     id: legacy.ConversacionId.toString(),
@@ -851,4 +852,40 @@ export interface UpdateTeamRequest {
 
 export interface AddTeamMembersRequest {
   agentIds: string[];
+}
+
+// Conversation Notes Types
+export interface NoteResponseDto {
+  id: string;
+  conversationId: string;
+  note: string;
+  agent?: {
+    agentId: string;
+    userId: string;
+    displayName: string;
+    active: boolean;
+  };
+  private: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CreateNoteRequest {
+  note: string;
+  isPrivate: boolean;
+}
+
+export interface UpdateNoteRequest {
+  note: string;
+  isPrivate?: boolean;
+}
+
+export interface NoteListResponse {
+  content: NoteResponseDto[];
+  page: number;
+  size: number;
+  totalElements: number;
+  totalPages: number;
+  first: boolean;
+  last: boolean;
 }

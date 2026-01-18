@@ -12,6 +12,7 @@ import UserManagement from "@/components/management/user-management"
 import ContactManagement from "@/components/management/contact-management"
 import TeamManagement from "@/components/management/team-management"
 import AssistantManagement from "@/components/management/assistant-management"
+import TagManagement from "@/components/management/tag-management"
 import SettingsView from "@/components/settings/settings-view"
 import EnvironmentIndicator from "@/components/layout/environment-indicator"
 import ContactInfoModal from "@/components/modals/contact-info-modal"
@@ -29,7 +30,7 @@ export default function Home() {
   const chatViewRef = useRef<ChatViewRef>(null)
   const isMobile = useIsMobile()
   const [isAuthenticated, setIsAuthenticated] = useState(false)
-  const [currentView, setCurrentView] = useState<"welcome" | "conversations" | "profile" | "users" | "contacts" | "teams" | "assistants" | "settings">("welcome")
+  const [currentView, setCurrentView] = useState<"welcome" | "conversations" | "profile" | "users" | "contacts" | "teams" | "assistants" | "tags" | "settings">("welcome")
   const [selectedConversation, setSelectedConversation] = useState<Conversation | null>(null)
   const [conversations, setConversations] = useState<Conversation[]>([])
   const [user, setUser] = useState<User | null>(null)
@@ -767,6 +768,12 @@ export default function Home() {
         {currentView === "assistants" && (
           <div className="flex-1 bg-slate-50 overflow-x-hidden overflow-y-auto">
             <AssistantManagement />
+          </div>
+        )}
+
+        {currentView === "tags" && (
+          <div className="flex-1 bg-slate-50 overflow-x-hidden overflow-y-auto">
+            <TagManagement />
           </div>
         )}
 

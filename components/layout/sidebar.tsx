@@ -2,7 +2,7 @@
 
 import { useState } from "react"
 import Image from "next/image"
-import { MessageCircle, Users, Contact, Bot, Settings, Send, LogOut, ChevronDown, Menu } from "lucide-react"
+import { MessageCircle, Users, Contact, Bot, Settings, Send, LogOut, ChevronDown, Menu, Tag } from "lucide-react"
 import { Button as HeroButton, Dropdown, DropdownTrigger, DropdownMenu, DropdownItem } from "@heroui/react"
 import UserAvatar from "@/components/management/user-avatar"
 import type { User } from "@/lib/types"
@@ -12,8 +12,8 @@ import NewChatModal from "@/components/modals/new-chat-modal"
 
 interface SidebarProps {
   user: User | null
-  currentView: "welcome" | "conversations" | "profile" | "users" | "contacts" | "teams" | "assistants" | "settings"
-  onViewChange: (view: "welcome" | "conversations" | "profile" | "users" | "contacts" | "teams" | "assistants" | "settings") => void
+  currentView: "welcome" | "conversations" | "profile" | "users" | "contacts" | "teams" | "assistants" | "tags" | "settings"
+  onViewChange: (view: "welcome" | "conversations" | "profile" | "users" | "contacts" | "teams" | "assistants" | "tags" | "settings") => void
   conversationsCount?: number
   onLogout?: () => void
 }
@@ -65,6 +65,7 @@ export default function Sidebar({
   const menuItems = [
     { id: 'conversations', label: 'Conversaciones', icon: MessageCircle, badge: conversationsCount, show: true },
     { id: 'contacts', label: 'Contactos', icon: Contact, show: true },
+    { id: 'tags', label: 'Tags', icon: Tag, show: true },
     { id: 'users', label: 'Usuarios', icon: Users, show: isAdmin },
     { id: 'teams', label: 'Equipos', icon: Users, show: isAdmin },
     { id: 'assistants', label: 'Asistentes', icon: Bot, show: true },
