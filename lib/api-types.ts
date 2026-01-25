@@ -889,3 +889,98 @@ export interface NoteListResponse {
   first: boolean;
   last: boolean;
 }
+
+// Template Types (WhatsApp Business Templates)
+export interface TemplateComponents {
+  Header: string[];
+  Body: string[];
+  Button: string[];
+}
+
+export interface TemplateHeaderComponent {
+  text: string | null;
+  parameters_count: number;
+  parameter_names: string[] | null;
+}
+
+export interface TemplateBodyComponent {
+  text: string | null;
+  parameters_count: number;
+  parameter_names: string[] | null;
+}
+
+export interface TemplateFooterComponent {
+  text: string | null;
+  parameters_count: number;
+  parameter_names: string[] | null;
+}
+
+export interface TemplateButtonComponent {
+  type: string;
+  text: string;
+}
+
+export interface PlantillaWhatsApp {
+  id: string;
+  name: string;
+  language: string;
+  status: string;
+  category: string;
+  parameter_format: string;
+  header_component: TemplateHeaderComponent;
+  body_component: TemplateBodyComponent;
+  footer_component: TemplateFooterComponent;
+  buttons_component: {
+    text: string | null;
+    parameters_count: number;
+    parameter_names: string[] | null;
+  };
+}
+
+export interface TemplateResponseDto {
+  id: string;
+  name: string;
+  language: string;
+  status: string;
+  category: string;
+  components: {
+    header?: TemplateHeaderComponent;
+    body: TemplateBodyComponent;
+    footer?: TemplateFooterComponent;
+    buttons?: TemplateButtonComponent[];
+  };
+}
+
+export interface TemplateListResponse {
+  content: PlantillaWhatsApp[];
+  page: number;
+  size: number;
+  totalElements: number;
+  totalPages: number;
+  first: boolean;
+  last: boolean;
+}
+
+export interface ContactoCSV {
+  name: string;
+  numero: string;
+}
+
+export interface EnviarMensajesPlantillaRequest {
+  Template: {
+    TemplateName: string;
+    TemplateLanguage: string;
+  };
+  Messages: Array<{
+    DestinationNumber: string;
+    FullName: string;
+    TemplateComponents: TemplateComponents;
+  }>;
+}
+
+export interface EnviarMensajesPlantillaResponse {
+  success: boolean;
+  message: string;
+  sentCount?: number;
+  failedCount?: number;
+}

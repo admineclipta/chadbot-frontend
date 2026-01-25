@@ -483,7 +483,7 @@ export default function Home() {
       <div className="flex-1 flex flex-col h-screen bg-gradient-to-br from-slate-50 via-blue-50/30 to-slate-50 dark:from-slate-900 dark:via-slate-900 dark:to-slate-950 min-w-0 overflow-hidden">
         {currentView === "welcome" && (
           <div className="flex-1 overflow-auto">
-            <div className="max-w-7xl mx-auto p-4 md:p-8">
+            <div className="max-w-7xl mx-auto p-4 md:p-8 pt-16 md:pt-8">
               {/* Header */}
               <div className="mb-8">
                 <h1 className="text-4xl font-bold text-slate-900 dark:text-slate-100 mb-2">
@@ -685,7 +685,7 @@ export default function Home() {
         )}
 
         {currentView === "conversations" && (
-          <div className="flex-1 flex h-full w-full overflow-hidden bg-slate-50 dark:bg-slate-900 relative">
+          <div className="flex-1 flex h-full w-full overflow-hidden bg-slate-50 dark:bg-slate-900 relative pt-16 md:pt-0">
             {/* Conversation List - Hide on mobile when chat is open */}
             <div className={cn(
               "h-full transition-all duration-300",
@@ -746,37 +746,37 @@ export default function Home() {
         )}
 
         {currentView === "users" && (
-          <div className="flex-1 bg-slate-50 dark:bg-slate-900 overflow-x-hidden overflow-y-auto">
+          <div className="flex-1 bg-slate-50 dark:bg-slate-900 overflow-x-hidden overflow-y-auto pt-16 md:pt-0">
             <UserManagement />
           </div>
         )}
 
         {currentView === "contacts" && (
-          <div className="flex-1 bg-slate-50 dark:bg-slate-900 overflow-x-hidden overflow-y-auto">
+          <div className="flex-1 bg-slate-50 dark:bg-slate-900 overflow-x-hidden overflow-y-auto pt-16 md:pt-0">
             <ContactManagement />
           </div>
         )}
 
         {currentView === "teams" && (
-          <div className="flex-1 bg-slate-50 dark:bg-slate-900 overflow-x-hidden overflow-y-auto">
+          <div className="flex-1 bg-slate-50 dark:bg-slate-900 overflow-x-hidden overflow-y-auto pt-16 md:pt-0">
             <TeamManagement />
           </div>
         )}
 
         {currentView === "assistants" && (
-          <div className="flex-1 bg-slate-50 dark:bg-slate-900 overflow-x-hidden overflow-y-auto">
+          <div className="flex-1 bg-slate-50 dark:bg-slate-900 overflow-x-hidden overflow-y-auto pt-16 md:pt-0">
             <AssistantManagement />
           </div>
         )}
 
         {currentView === "tags" && (
-          <div className="flex-1 bg-slate-50 dark:bg-slate-900 overflow-x-hidden overflow-y-auto">
+          <div className="flex-1 bg-slate-50 dark:bg-slate-900 overflow-x-hidden overflow-y-auto pt-16 md:pt-0">
             <TagManagement />
           </div>
         )}
 
         {currentView === "settings" && (
-          <div className="flex-1 bg-slate-50 dark:bg-slate-900 overflow-x-hidden overflow-y-auto">
+          <div className="flex-1 bg-slate-50 dark:bg-slate-900 overflow-x-hidden overflow-y-auto pt-16 md:pt-0">
             <SettingsView />
           </div>
         )}

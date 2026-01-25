@@ -60,6 +60,12 @@ import {
   type CreateNoteRequest,
   type UpdateNoteRequest,
   type NoteListResponse,
+  type PlantillaWhatsApp,
+  type TemplateComponents,
+  type TemplateListResponse,
+  type EnviarMensajesPlantillaRequest,
+  type EnviarMensajesPlantillaResponse,
+  type ContactoCSV,
   ApiError,
 } from "./api-types";
 import { mapApiConversationToDomain } from "./types";
@@ -1091,6 +1097,74 @@ class ApiService {
     return this.request<void>(`conversations/notes/${noteId}`, {
       method: "DELETE",
     });
+  }
+
+  // ============================================
+  // Templates (WhatsApp Business)
+  // ============================================
+
+  /**
+   * Get templates by messaging credential ID
+   * @param credentialId - The messaging credential ID to fetch templates for
+   * @param templateName - Optional filter by template name
+   * @param page - Page number (default: 0)
+   * @param size - Page size (default: 20)
+   * @param signal - Optional abort signal
+   */
+  async getTemplatesByCredential(
+    credentialId: string,
+    templateName?: string,
+    page: number = 0,
+    size: number = 20,
+    signal?: AbortSignal,
+  ): Promise<import("./api-types").TemplateListResponse> {
+    console.log(
+      `📋 [CHADBOT API] Fetching templates for credential ${credentialId}`,
+    );
+    let url = `templates/${credentialId}?page=${page}&size=${size}`;
+    if (templateName) {
+      url += `&templateName=${encodeURIComponent(templateName)}`;
+    }
+    return this.request<import("./api-types").TemplateListResponse>(
+      url,
+      {},
+      signal,
+    );
+  }
+
+  /**
+   * Legacy method - Get all templates (deprecated, use getTemplatesByCredential)
+   * This method fetches templates without a specific credential ID filter.
+   * For proper multi-tenant support, use getTemplatesByCredential instead.
+   */
+  async getPlantillas(
+    signal?: AbortSignal,
+  ): Promise<import("./api-types").PlantillaWhatsApp[]> {
+    console.log("⚠️ [CHADBOT API] Using deprecated getPlantillas method");
+    // This is a fallback that returns empty array
+    // The proper way is to select a credential first and use getTemplatesByCredential
+    return [];
+  }
+
+  /**
+   * Send template messages to multiple recipients
+   * @param payload - The template message payload
+   */
+  async enviarMensajesPlantilla(
+    payload: import("./api-types").EnviarMensajesPlantillaRequest,
+  ): Promise<import("./api-types").EnviarMensajesPlantillaResponse> {
+    console.log(
+      `📤 [CHADBOT API] Sending template messages: ${payload.Template.TemplateName}`,
+    );
+    // This endpoint may vary depending on your backend implementation
+    // Adjust the endpoint path as needed
+    return this.request<import("./api-types").EnviarMensajesPlantillaResponse>(
+      "messages/template/bulk",
+      {
+        method: "POST",
+        body: JSON.stringify(payload),
+      },
+    );
   }
 
   // ============================================

@@ -16,11 +16,13 @@ import {
   CardHeader,
   Chip,
   Progress,
+  RadioGroup,
+  Radio,
 } from "@heroui/react"
-import { Send, MessageCircle, Phone, User, Eye } from "lucide-react"
+import { Send, MessageCircle, Phone, User, Eye, Smartphone } from "lucide-react"
 import { toast } from "sonner"
 import { apiService } from "@/lib/api"
-import type { PlantillaWhatsApp, TemplateComponents } from "@/lib/api-types"
+import type { PlantillaWhatsApp, TemplateComponents, MessagingCredentialResponseDto, ServiceTypeDto } from "@/lib/api-types"
 import CountrySelector from "@/components/shared/country-selector"
 import { countries, type Country } from "@/lib/countries"
 
@@ -31,6 +33,9 @@ interface NewChatModalProps {
 
 export default function NewChatModal({ isOpen, onClose }: NewChatModalProps) {
   const [step, setStep] = useState(1)
+  const [messagingCredentials, setMessagingCredentials] = useState<MessagingCredentialResponseDto[]>([])
+  const [messagingServices, setMessagingServices] = useState<ServiceTypeDto[]>([])
+  const [selectedCredential, setSelectedCredential] = useState<MessagingCredentialResponseDto | null>(null)
   const [selectedCountry, setSelectedCountry] = useState<Country | null>(
     countries.find(c => c.code === "AR") || null
   )
@@ -44,25 +49,62 @@ export default function NewChatModal({ isOpen, onClose }: NewChatModalProps) {
     Button: [],
   })
   const [loading, setLoading] = useState(false)
+  const [loadingCredentials, setLoadingCredentials] = useState(false)
   const [sending, setSending] = useState(false)
 
-  // Cargar plantillas al abrir el modal
+  // Cargar credenciales al abrir el modal
   useEffect(() => {
     if (isOpen) {
-      loadPlantillas()
+      loadMessagingCredentials()
     }
   }, [isOpen])
 
+  // Cargar plantillas cuando se selecciona una credencial
+  useEffect(() => {
+    if (selectedCredential) {
+      loadPlantillas()
+    }
+  }, [selectedCredential])
+
+  const loadMessagingCredentials = async () => {
+    try {
+      setLoadingCredentials(true)
+      // Cargar servicios y credenciales en paralelo
+      const [servicesResponse, credentialsResponse] = await Promise.all([
+        apiService.getMessagingServices(),
+        apiService.getMessagingCredentials(0, 100, false)
+      ])
+      setMessagingServices(servicesResponse)
+      setMessagingCredentials(credentialsResponse.content)
+    } catch (error) {
+      console.error("Error loading messaging credentials:", error)
+      toast.error("Error al cargar credenciales", {
+        description: "No se pudieron cargar las credenciales de mensajería"
+      })
+    } finally {
+      setLoadingCredentials(false)
+    }
+  }
+
   const loadPlantillas = async () => {
+    if (!selectedCredential) return
+    
     try {
       setLoading(true)
-      const data = await apiService.getPlantillas()
-      setPlantillas(data)
+      const response = await apiService.getTemplatesByCredential(selectedCredential.id)
+      setPlantillas(response.content)
     } catch (error) {
       console.error("Error loading templates:", error)
+      toast.error("Error al cargar plantillas", {
+        description: "No se pudieron cargar las plantillas de WhatsApp"
+      })
     } finally {
       setLoading(false)
     }
+  }
+
+  const getServiceInfo = (serviceTypeId: string) => {
+    return messagingServices.find(s => s.id === serviceTypeId)
   }
 
   const parseTemplateBody = (body: string): string[] => {
@@ -72,9 +114,9 @@ export default function NewChatModal({ isOpen, onClose }: NewChatModalProps) {
   }
 
   const getPreviewMessage = (): string => {
-    if (!selectedPlantilla?.BodyComponent?.Text) return ""
+    if (!selectedPlantilla?.body_component?.text) return ""
 
-    let preview = selectedPlantilla.BodyComponent.Text
+    let preview = selectedPlantilla.body_component.text
     templateParams.Body.forEach((param, index) => {
       const placeholder = `{{${index + 1}}}`
       preview = preview.replace(
@@ -97,8 +139,8 @@ export default function NewChatModal({ isOpen, onClose }: NewChatModalProps) {
 
       const payload = {
         Template: {
-          TemplateName: selectedPlantilla.Name,
-          TemplateLanguage: selectedPlantilla.Language,
+          TemplateName: selectedPlantilla.name,
+          TemplateLanguage: selectedPlantilla.language,
         },
         Messages: [
           {
@@ -127,6 +169,7 @@ export default function NewChatModal({ isOpen, onClose }: NewChatModalProps) {
 
   const handleClose = () => {
     setStep(1)
+    setSelectedCredential(null)
     setSelectedCountry(countries.find(c => c.code === "AR") || null)
     setPhoneNumber("")
     setContactName("")
@@ -137,32 +180,118 @@ export default function NewChatModal({ isOpen, onClose }: NewChatModalProps) {
 
   const isPhoneValid = phoneNumber.length >= 7 && phoneNumber.length <= 15 && /^\d+$/.test(phoneNumber)
   const isNameValid = contactName.trim().length > 0
-  const bodyParams = selectedPlantilla?.BodyComponent?.Text ? parseTemplateBody(selectedPlantilla.BodyComponent.Text) : []
+  const bodyParams = selectedPlantilla?.body_component?.text ? parseTemplateBody(selectedPlantilla.body_component.text) : []
 
   return (
     <Modal isOpen={isOpen} onClose={handleClose} size="3xl" scrollBehavior="inside">
       <ModalContent>
         <ModalHeader className="flex flex-col gap-1">
           <h2 className="text-2xl font-bold">Nuevo Chat</h2>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap">
             <Chip key="step-1" color={step >= 1 ? "success" : "default"} variant={step === 1 ? "solid" : "bordered"} size="sm">
-              1. Contacto
+              1. Credencial
             </Chip>
             <Chip key="step-2" color={step >= 2 ? "success" : "default"} variant={step === 2 ? "solid" : "bordered"} size="sm">
-              2. Plantilla
+              2. Contacto
             </Chip>
             <Chip key="step-3" color={step >= 3 ? "success" : "default"} variant={step === 3 ? "solid" : "bordered"} size="sm">
-              3. Configurar
+              3. Plantilla
             </Chip>
             <Chip key="step-4" color={step >= 4 ? "success" : "default"} variant={step === 4 ? "solid" : "bordered"} size="sm">
-              4. Enviar
+              4. Configurar
+            </Chip>
+            <Chip key="step-5" color={step >= 5 ? "success" : "default"} variant={step === 5 ? "solid" : "bordered"} size="sm">
+              5. Enviar
             </Chip>
           </div>
         </ModalHeader>
 
         <ModalBody>
-          {/* Paso 1: Datos del Contacto */}
+          {/* Paso 1: Seleccionar Credencial de Mensajería */}
           {step === 1 && (
+            <div className="space-y-4">
+              <h3 className="text-lg font-semibold flex items-center gap-2">
+                <Smartphone className="h-5 w-5" />
+                Selecciona el Servicio de Mensajería
+              </h3>
+
+              <Card>
+                <CardBody>
+                  <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
+                    Elige la credencial de mensajería que utilizarás para enviar el mensaje
+                  </p>
+
+                  {loadingCredentials ? (
+                    <div className="flex justify-center py-8">
+                      <Progress size="sm" isIndeterminate aria-label="Cargando credenciales..." className="max-w-md" />
+                    </div>
+                  ) : messagingCredentials.length === 0 ? (
+                    <div className="text-center py-8 text-gray-500 dark:text-gray-400">
+                      <p>No hay credenciales de mensajería disponibles</p>
+                      <p className="text-sm mt-2">Contacta al administrador para configurar las credenciales</p>
+                    </div>
+                  ) : (
+                    <RadioGroup
+                      value={selectedCredential?.id || ""}
+                      onValueChange={(value) => {
+                        const credential = messagingCredentials.find(c => c.id === value)
+                        setSelectedCredential(credential || null)
+                      }}
+                    >
+                      <div className="space-y-3">
+                        {messagingCredentials.map((credential) => {
+                          const serviceInfo = getServiceInfo(credential.serviceTypeId)
+                          return (
+                            <Card
+                              key={credential.id}
+                              isPressable
+                              isHoverable
+                              className={`cursor-pointer transition-all ${
+                                selectedCredential?.id === credential.id ? "ring-2 ring-primary" : ""
+                              }`}
+                              onPress={() => setSelectedCredential(credential)}
+                            >
+                              <CardBody className="flex-row items-center gap-3">
+                                <Radio value={credential.id} />
+                                <div className="flex-1">
+                                  <h4 className="font-semibold">{credential.name}</h4>
+                                  <p className="text-sm text-gray-500 dark:text-gray-400">
+                                    {serviceInfo?.name || credential.serviceTypeName}
+                                  </p>
+                                  {serviceInfo?.description && (
+                                    <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">
+                                      {serviceInfo.description}
+                                    </p>
+                                  )}
+                                </div>
+                                {selectedCredential?.id === credential.id && (
+                                  <Chip color="success" size="sm">
+                                    Seleccionada
+                                  </Chip>
+                                )}
+                              </CardBody>
+                            </Card>
+                          )
+                        })}
+                      </div>
+                    </RadioGroup>
+                  )}
+                </CardBody>
+              </Card>
+
+              <div className="bg-blue-50 dark:bg-blue-950 p-4 rounded-lg">
+                <h5 className="font-medium mb-2">Información:</h5>
+                <ul className="text-sm text-gray-600 dark:text-gray-400 space-y-1">
+                  <li>• Las plantillas disponibles dependen de la credencial seleccionada</li>
+                  <li>• Solo se muestran credenciales activas</li>
+                  <li>• Cada credencial corresponde a una cuenta de WhatsApp Business o Telegram</li>
+                </ul>
+              </div>
+            </div>
+          )}
+
+          {/* Paso 2: Datos del Contacto */}
+          {step === 2 && (
             <div className="space-y-4">
               <h3 className="text-lg font-semibold flex items-center gap-2">
                 <User className="h-5 w-5" />
@@ -235,8 +364,8 @@ export default function NewChatModal({ isOpen, onClose }: NewChatModalProps) {
             </div>
           )}
 
-          {/* Paso 2: Seleccionar Plantilla */}
-          {step === 2 && (
+          {/* Paso 3: Seleccionar Plantilla */}
+          {step === 3 && (
             <div className="space-y-4">
               <h3 className="text-lg font-semibold flex items-center gap-2">
                 <MessageCircle className="h-5 w-5" />
@@ -251,23 +380,23 @@ export default function NewChatModal({ isOpen, onClose }: NewChatModalProps) {
                 <div className="grid gap-3 max-h-96 overflow-y-auto">
                   {plantillas.map((plantilla) => (
                     <Card
-                      key={plantilla.Id}
+                      key={plantilla.id}
                       isPressable
                       isHoverable
                       className={`cursor-pointer transition-all ${
-                        selectedPlantilla?.Id === plantilla.Id ? "ring-2 ring-primary" : ""
+                        selectedPlantilla?.id === plantilla.id ? "ring-2 ring-primary" : ""
                       }`}
                       onPress={() => setSelectedPlantilla(plantilla)}
                     >
                       <CardHeader className="pb-2">
                         <div className="flex justify-between items-start w-full">
                           <div>
-                            <h4 className="font-semibold">{plantilla.Name}</h4>
-                            <p className="text-sm text-gray-500">
-                              {plantilla.Language} • {plantilla.Status}
+                            <h4 className="font-semibold">{plantilla.name}</h4>
+                            <p className="text-sm text-gray-500 dark:text-gray-400">
+                              {plantilla.language} • {plantilla.status}
                             </p>
                           </div>
-                          {selectedPlantilla?.Id === plantilla.Id && (
+                          {selectedPlantilla?.id === plantilla.id && (
                             <Chip color="success" size="sm">
                               Seleccionada
                             </Chip>
@@ -275,20 +404,20 @@ export default function NewChatModal({ isOpen, onClose }: NewChatModalProps) {
                         </div>
                       </CardHeader>
                       <CardBody className="pt-0">
-                        {plantilla.HeaderComponent.Text && (
+                        {plantilla.header_component?.text && (
                           <div className="mb-2">
-                            <p className="text-xs font-medium text-gray-600 mb-1">HEADER:</p>
-                            <p className="text-sm font-medium">{plantilla.HeaderComponent.Text}</p>
+                            <p className="text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">HEADER:</p>
+                            <p className="text-sm font-medium">{plantilla.header_component.text}</p>
                           </div>
                         )}
                         <div>
-                          <p className="text-xs font-medium text-gray-600 mb-1">BODY:</p>
-                          <p className="text-sm">{plantilla.BodyComponent.Text}</p>
+                          <p className="text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">BODY:</p>
+                          <p className="text-sm">{plantilla.body_component?.text || 'Sin contenido'}</p>
                         </div>
-                        {plantilla.FooterComponent.Text && (
+                        {plantilla.footer_component?.text && (
                           <div className="mt-2">
-                            <p className="text-xs font-medium text-gray-600 mb-1">FOOTER:</p>
-                            <p className="text-sm text-gray-500">{plantilla.FooterComponent.Text}</p>
+                            <p className="text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">FOOTER:</p>
+                            <p className="text-sm text-gray-500 dark:text-gray-400">{plantilla.footer_component.text}</p>
                           </div>
                         )}
                       </CardBody>
@@ -299,8 +428,8 @@ export default function NewChatModal({ isOpen, onClose }: NewChatModalProps) {
             </div>
           )}
 
-          {/* Paso 3: Configurar Parámetros */}
-          {step === 3 && selectedPlantilla && (
+          {/* Paso 4: Configurar Parámetros */}
+          {step === 4 && selectedPlantilla && (
             <div className="space-y-4">
               <h3 className="text-lg font-semibold flex items-center gap-2">
                 <Eye className="h-5 w-5" />
@@ -374,8 +503,8 @@ export default function NewChatModal({ isOpen, onClose }: NewChatModalProps) {
             </div>
           )}
 
-          {/* Paso 4: Confirmar y Enviar */}
-          {step === 4 && (
+          {/* Paso 5: Confirmar y Enviar */}
+          {step === 5 && (
             <div className="space-y-4">
               <h3 className="text-lg font-semibold flex items-center gap-2">
                 <Send className="h-5 w-5" />
@@ -426,31 +555,37 @@ export default function NewChatModal({ isOpen, onClose }: NewChatModalProps) {
             Cancelar
           </Button>
 
-          {step > 1 && step < 4 && (
+          {step > 1 && step < 5 && (
             <Button variant="flat" onPress={() => setStep(step - 1)} isDisabled={sending}>
               Anterior
             </Button>
           )}
 
           {step === 1 && (
-            <Button color="primary" onPress={() => setStep(2)} isDisabled={!isPhoneValid || !isNameValid || !selectedCountry}>
+            <Button color="primary" onPress={() => setStep(2)} isDisabled={!selectedCredential}>
               Siguiente
             </Button>
           )}
 
           {step === 2 && (
-            <Button color="primary" onPress={() => setStep(3)} isDisabled={!selectedPlantilla}>
+            <Button color="primary" onPress={() => setStep(3)} isDisabled={!isPhoneValid || !isNameValid || !selectedCountry}>
               Siguiente
             </Button>
           )}
 
           {step === 3 && (
-            <Button color="primary" onPress={() => setStep(4)}>
-              Continuar
+            <Button color="primary" onPress={() => setStep(4)} isDisabled={!selectedPlantilla}>
+              Siguiente
             </Button>
           )}
 
           {step === 4 && (
+            <Button color="primary" onPress={() => setStep(5)}>
+              Continuar
+            </Button>
+          )}
+
+          {step === 5 && (
             <Button
               color="success"
               onPress={handleSendMessage}

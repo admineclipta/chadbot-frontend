@@ -478,7 +478,7 @@ const ChatView = forwardRef<ChatViewRef, ChatViewProps>(
                       <div className={`rounded-2xl px-3 py-2 md:px-4 md:py-3 ${
                         isSent 
                           ? isBot
-                            ? 'bg-violet-100 border border-violet-200 rounded-tr-sm'
+                            ? 'bg-violet-100 dark:bg-violet-900/30 border border-violet-200 dark:border-violet-800 rounded-tr-sm'
                             : 'bg-gradient-to-r from-blue-600 to-violet-700 text-white shadow-lg shadow-blue-500/20 rounded-tr-sm'
                           : 'bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 shadow-sm rounded-tl-sm'
                       }`}>
