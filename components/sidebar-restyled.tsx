@@ -76,9 +76,9 @@ export default function Sidebar({
       {/* Mobile Menu Button */}
       <button
         onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-        className="lg:hidden fixed top-4 left-4 z-50 p-2 bg-white rounded-lg shadow-lg border border-slate-200"
+        className="lg:hidden fixed top-4 left-4 z-50 p-2 bg-white dark:bg-slate-800 rounded-lg shadow-lg border border-slate-200 dark:border-slate-700"
       >
-        <Menu className="w-6 h-6 text-slate-700" />
+        <Menu className="w-6 h-6 text-slate-700 dark:text-slate-300" />
       </button>
 
       {/* Overlay for mobile */}
@@ -90,9 +90,9 @@ export default function Sidebar({
       )}
 
       {/* Sidebar */}
-      <div className={`w-64 bg-white border-r border-slate-200 flex flex-col shadow-lg fixed lg:relative inset-y-0 left-0 z-40 transform transition-transform duration-300 ${mobileMenuOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}`}>
+      <div className={`w-64 bg-white dark:bg-slate-900 border-r border-slate-200 dark:border-slate-700 flex flex-col shadow-lg fixed lg:relative inset-y-0 left-0 z-40 transform transition-transform duration-300 ${mobileMenuOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}`}>
         {/* Logo */}
-        <div className="p-6 border-b border-slate-200">
+        <div className="p-6 border-b border-slate-200 dark:border-slate-700">
           <div className="flex items-center justify-center">
             <Image src="/logo-chadbot-violeta.png" alt="Chadbot" width={100} height={33} className="object-contain" />
           </div>
@@ -100,7 +100,7 @@ export default function Sidebar({
 
         {/* Navigation */}
         <nav className="flex-1 px-4 py-2 space-y-1 overflow-y-auto">
-          <div className="text-xs font-semibold text-slate-500 px-3 py-2 uppercase tracking-wider">
+          <div className="text-xs font-semibold text-slate-500 dark:text-slate-400 px-3 py-2 uppercase tracking-wider">
             Navegación
           </div>
           
@@ -109,7 +109,7 @@ export default function Sidebar({
             const isActive = currentView === item.id
             const baseClasses = "w-full flex items-center justify-between gap-3 px-3 py-2.5 rounded-lg font-medium transition-all duration-200"
             const activeClasses = "bg-gradient-to-r from-blue-600 to-violet-700 text-white shadow-lg scale-[1.02]"
-            const inactiveClasses = "text-slate-600 hover:bg-slate-100 hover:scale-[1.02] active:scale-[0.98]"
+            const inactiveClasses = "text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 hover:scale-[1.02] active:scale-[0.98]"
             
             return (
               <button
@@ -125,7 +125,7 @@ export default function Sidebar({
                   <span className={isActive ? '' : 'group-hover:text-slate-900'}>{item.label}</span>
                 </div>
                 {item.badge !== undefined && item.badge > 0 && (
-                  <span className={`px-2 py-0.5 text-xs font-semibold rounded-full ${isActive ? 'bg-white/20 text-white' : 'bg-blue-100 text-blue-700'}`}>
+                  <span className={`px-2 py-0.5 text-xs font-semibold rounded-full ${isActive ? 'bg-white/20 text-white' : 'bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300'}`}>
                     {item.badge}
                   </span>
                 )}
@@ -136,12 +136,12 @@ export default function Sidebar({
 
         {/* User Menu con HeroUI Dropdown */}
         {user && (
-          <div className="p-4 border-t border-slate-200">
+          <div className="p-4 border-t border-slate-200 dark:border-slate-700">
             <Dropdown placement="top-start">
               <DropdownTrigger>
                 <HeroButton
                   variant="light"
-                  className="w-full justify-start h-auto p-3 hover:bg-slate-100"
+                  className="w-full justify-start h-auto p-3 hover:bg-slate-100 dark:hover:bg-slate-800"
                 >
                   <div className="flex items-center gap-3 w-full">
                     <UserAvatar
@@ -150,14 +150,14 @@ export default function Sidebar({
                       className="flex-shrink-0"
                     />
                     <div className="flex-1 text-left min-w-0">
-                      <p className="font-medium text-slate-900 truncate text-sm">
+                      <p className="font-medium text-slate-900 dark:text-slate-100 truncate text-sm">
                         {user.name}
                       </p>
-                      <p className="text-xs text-slate-500 truncate">
+                      <p className="text-xs text-slate-500 dark:text-slate-400 truncate">
                         {user.email}
                       </p>
                     </div>
-                    <ChevronDown className="h-4 w-4 text-slate-400 flex-shrink-0" />
+                    <ChevronDown className="h-4 w-4 text-slate-400 dark:text-slate-500 flex-shrink-0" />
                   </div>
                 </HeroButton>
               </DropdownTrigger>

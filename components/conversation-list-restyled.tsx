@@ -234,7 +234,7 @@ export default function ConversationList({
 
   if (loading) {
     return (
-      <div className="w-96 border-r border-slate-200 bg-white flex items-center justify-center">
+      <div className="w-96 border-r border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 flex items-center justify-center">
         <div className="w-8 h-8 border-4 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
       </div>
     )
@@ -242,10 +242,10 @@ export default function ConversationList({
 
   if (error) {
     return (
-      <div className="w-96 border-r border-slate-200 bg-white flex items-center justify-center p-4">
+      <div className="w-96 border-r border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 flex items-center justify-center p-4">
         <div className="text-center">
-          <p className="text-red-600 text-sm font-semibold">Error al cargar</p>
-          <p className="text-slate-500 text-xs mt-1">{error}</p>
+          <p className="text-red-600 dark:text-red-400 text-sm font-semibold">Error al cargar</p>
+          <p className="text-slate-500 dark:text-slate-400 text-xs mt-1">{error}</p>
         </div>
       </div>
     )
@@ -253,11 +253,11 @@ export default function ConversationList({
 
   return (
     <>
-      <div className="w-full md:w-96 border-r border-slate-200 bg-white flex flex-col h-full">
+      <div className="w-full md:w-96 border-r border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 flex flex-col h-full">
         {/* Header */}
-        <div className="p-4 border-b border-slate-200 bg-white sticky top-0 z-10">
+        <div className="p-4 border-b border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 sticky top-0 z-10">
           <div className="flex items-center justify-between mb-3">
-            <h2 className="text-lg font-bold text-slate-900 flex items-center gap-2">
+            <h2 className="text-lg font-bold text-slate-900 dark:text-slate-100 flex items-center gap-2">
               <MessageCircle className="h-5 w-5 text-blue-600" />
               Conversaciones
             </h2>
@@ -316,7 +316,7 @@ export default function ConversationList({
                 placeholder="Buscar conversaciones..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                className="w-full pl-10 pr-16 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                className="w-full pl-10 pr-16 py-2 text-sm border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               />
               <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none hidden sm:flex items-center gap-1">
                 <Kbd keys={["command"]}>K</Kbd>
@@ -324,9 +324,9 @@ export default function ConversationList({
             </div>
             <button 
               onClick={onFiltersOpen}
-              className="p-2 hover:bg-slate-100 rounded-lg transition-colors"
+              className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-colors"
             >
-              <SlidersHorizontal className="h-5 w-5 text-slate-600" />
+              <SlidersHorizontal className="h-5 w-5 text-slate-600 dark:text-slate-300" />
             </button>
           </div>
         </div>
@@ -336,8 +336,8 @@ export default function ConversationList({
         {conversations.length === 0 ? (
           <div className="flex items-center justify-center h-full p-4">
             <div className="text-center">
-              <MessageCircle className="h-12 w-12 text-slate-300 mx-auto mb-3" />
-              <p className="text-slate-500 font-medium">No hay conversaciones</p>
+              <MessageCircle className="h-12 w-12 text-slate-300 dark:text-slate-600 mx-auto mb-3" />
+              <p className="text-slate-500 dark:text-slate-400 font-medium">No hay conversaciones</p>
             </div>
           </div>
         ) : (
@@ -354,10 +354,10 @@ export default function ConversationList({
               return (
                 <div
                   key={conversation.id}
-                  className={`group relative border-b border-slate-100 last:border-0 transition-all duration-200 ${
+                  className={`group relative border-b border-slate-100 dark:border-slate-800 last:border-0 transition-all duration-200 ${
                     isSelected 
-                      ? 'bg-blue-50 border-l-4 border-l-blue-600' 
-                      : 'hover:bg-slate-50 cursor-pointer'
+                      ? 'bg-blue-50 dark:bg-blue-950 border-l-4 border-l-blue-600' 
+                      : 'hover:bg-slate-50 dark:hover:bg-slate-800 cursor-pointer'
                   }`}
                   onMouseEnter={() => setHoveredConversation(conversation.id)}
                   onMouseLeave={() => setHoveredConversation(null)}
@@ -391,11 +391,11 @@ export default function ConversationList({
                         {/* Name and Time */}
                         <div className="flex items-center justify-between mb-1">
                           <h3 className={`font-semibold truncate ${
-                            isSelected ? 'text-blue-900' : 'text-slate-900'
+                            isSelected ? 'text-blue-900 dark:text-blue-200' : 'text-slate-900 dark:text-slate-100'
                           }`}>
                             {contactName}
                           </h3>
-                          <span className="text-xs text-slate-500 ml-2 flex-shrink-0">
+                          <span className="text-xs text-slate-500 dark:text-slate-400 ml-2 flex-shrink-0">
                             {time}
                           </span>
                         </div>
@@ -409,8 +409,8 @@ export default function ConversationList({
                           )}
                           <p className={`text-sm truncate ${
                             conversation.unreadCount > 0 
-                              ? 'text-slate-900 font-medium' 
-                              : 'text-slate-600'
+                              ? 'text-slate-900 dark:text-slate-100 font-medium' 
+                              : 'text-slate-600 dark:text-slate-400'
                           }`}>
                             {lastMessage}
                           </p>
@@ -431,7 +431,7 @@ export default function ConversationList({
 
                           {/* Channel */}
                           {conversation.integration && (
-                            <span className="text-xs text-slate-500 flex items-center gap-1">
+                            <span className="text-xs text-slate-500 dark:text-slate-400 flex items-center gap-1">
                               <Image 
                                 src={getChannelIcon(conversation.integration)}
                                 alt={getChannelDisplayName(conversation.integration)}
@@ -449,13 +449,13 @@ export default function ConversationList({
                               {conversation.tags.slice(0, 2).map((tag) => (
                                 <span
                                   key={tag.id}
-                                  className="px-2 py-0.5 bg-violet-100 text-violet-700 text-xs font-medium rounded-md"
+                                  className="px-2 py-0.5 bg-violet-100 dark:bg-violet-900 text-violet-700 dark:text-violet-200 text-xs font-medium rounded-md"
                                 >
                                   {tag.label}
                                 </span>
                               ))}
                               {conversation.tags.length > 2 && (
-                                <span className="text-xs text-slate-500">
+                                <span className="text-xs text-slate-500 dark:text-slate-400">
                                   +{conversation.tags.length - 2}
                                 </span>
                               )}
@@ -471,9 +471,9 @@ export default function ConversationList({
                             <DropdownTrigger>
                               <button
                                 onClick={(e) => e.stopPropagation()}
-                                className="p-1.5 hover:bg-slate-200 rounded-lg transition-colors"
+                                className="p-1.5 hover:bg-slate-200 dark:hover:bg-slate-700 rounded-lg transition-colors"
                               >
-                                <MoreVertical className="w-4 h-4 text-slate-600" />
+                                <MoreVertical className="w-4 h-4 text-slate-600 dark:text-slate-300" />
                               </button>
                             </DropdownTrigger>
                             <DropdownMenu aria-label="Opciones de conversación">
@@ -512,22 +512,22 @@ export default function ConversationList({
 
       {/* Pagination */}
       {totalPages > 1 && onPageChange && (
-        <div className="p-4 border-t border-slate-200 bg-white">
+        <div className="p-4 border-t border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900">
           <div className="flex items-center justify-between">
             <button
               onClick={() => onPageChange(currentPage)}
               disabled={currentPage === 0}
-              className="px-3 py-1.5 text-sm font-medium text-slate-700 bg-slate-100 rounded-lg hover:bg-slate-200 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              className="px-3 py-1.5 text-sm font-medium text-slate-700 dark:text-slate-300 bg-slate-100 dark:bg-slate-800 rounded-lg hover:bg-slate-200 dark:hover:bg-slate-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
             >
               Anterior
             </button>
-            <span className="text-sm text-slate-600">
+            <span className="text-sm text-slate-600 dark:text-slate-400">
               Página {currentPage + 1} de {totalPages}
             </span>
             <button
               onClick={() => onPageChange(currentPage + 2)}
               disabled={currentPage >= totalPages - 1}
-              className="px-3 py-1.5 text-sm font-medium text-slate-700 bg-slate-100 rounded-lg hover:bg-slate-200 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              className="px-3 py-1.5 text-sm font-medium text-slate-700 dark:text-slate-300 bg-slate-100 dark:bg-slate-800 rounded-lg hover:bg-slate-200 dark:hover:bg-slate-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
             >
               Siguiente
             </button>

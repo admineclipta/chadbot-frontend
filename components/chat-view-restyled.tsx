@@ -265,7 +265,7 @@ const ChatView = forwardRef<ChatViewRef, ChatViewProps>(
 
     if (loading) {
       return (
-        <div className="flex-1 flex items-center justify-center bg-slate-50">
+        <div className="flex-1 flex items-center justify-center bg-slate-50 dark:bg-slate-900">
           <div className="w-12 h-12 border-4 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
         </div>
       )
@@ -273,10 +273,10 @@ const ChatView = forwardRef<ChatViewRef, ChatViewProps>(
 
     if (error) {
       return (
-        <div className="flex-1 flex items-center justify-center bg-slate-50 p-4">
+        <div className="flex-1 flex items-center justify-center bg-slate-50 dark:bg-slate-900 p-4">
           <div className="text-center">
-            <p className="text-red-600 font-semibold mb-1">Error al cargar el chat</p>
-            <p className="text-slate-500 text-sm">{error}</p>
+            <p className="text-red-600 dark:text-red-400 font-semibold mb-1">Error al cargar el chat</p>
+            <p className="text-slate-500 dark:text-slate-400 text-sm">{error}</p>
           </div>
         </div>
       )
@@ -284,13 +284,13 @@ const ChatView = forwardRef<ChatViewRef, ChatViewProps>(
 
     return (
       <>
-        <div className="flex-1 flex flex-col bg-slate-50 h-full overflow-hidden">
+        <div className="flex-1 flex flex-col bg-slate-50 dark:bg-slate-900 h-full overflow-hidden">
           {/* Chat Header */}
-          <div className="bg-white border-b border-slate-200 px-6 py-4 shadow-sm">
+          <div className="bg-white dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700 px-6 py-4 shadow-sm">
             <div className="flex items-center justify-between">
               {/* Info del contacto */}
               <div 
-                className="flex items-center gap-4 cursor-pointer hover:bg-slate-50 rounded-lg p-2 -ml-2 transition-colors"
+                className="flex items-center gap-4 cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-700 rounded-lg p-2 -ml-2 transition-colors"
                 onClick={() => setShowContactInfoModal(true)}
               >
                 {onCloseChat && (
@@ -299,9 +299,9 @@ const ChatView = forwardRef<ChatViewRef, ChatViewProps>(
                       e.stopPropagation()
                       onCloseChat()
                     }}
-                    className="p-2 hover:bg-slate-100 rounded-lg transition-colors lg:hidden"
+                    className="p-2 hover:bg-slate-100 dark:hover:bg-slate-600 rounded-lg transition-colors lg:hidden"
                   >
-                    <ArrowLeft className="w-5 h-5 text-slate-600" />
+                    <ArrowLeft className="w-5 h-5 text-slate-600 dark:text-slate-300" />
                   </button>
                 )}
                 
@@ -313,13 +313,13 @@ const ChatView = forwardRef<ChatViewRef, ChatViewProps>(
                 />
                 
                 <div>
-                  <h2 className="font-semibold text-slate-900 flex items-center gap-2 mb-1">
+                  <h2 className="font-semibold text-slate-900 dark:text-slate-100 flex items-center gap-2 mb-1">
                     {contactName}
                     <Badge status={getStatusBadgeType(conversation.status)} showDot={true}>
                       {getStatusLabel(conversation.status)}
                     </Badge>
                   </h2>
-                  <div className="flex items-center gap-2 text-sm text-slate-500">
+                  <div className="flex items-center gap-2 text-sm text-slate-500 dark:text-slate-400">
                     <Phone className="w-3 h-3" />
                     <span>{contactPhone}</span>
                     {conversation.integration && (
@@ -343,10 +343,10 @@ const ChatView = forwardRef<ChatViewRef, ChatViewProps>(
               <div className="flex items-center gap-2">
                 <button 
                   onClick={() => setShowSummaryPanel(true)}
-                  className="p-2.5 hover:bg-slate-100 rounded-lg transition-colors group"
+                  className="p-2.5 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg transition-colors group"
                   title="Resumen IA"
                 >
-                  <Sparkles className="w-5 h-5 text-slate-600 group-hover:text-violet-600" />
+                  <Sparkles className="w-5 h-5 text-slate-600 dark:text-slate-300 group-hover:text-violet-600 dark:group-hover:text-violet-400" />
                 </button>
 
                 {/* Botón de estado con dropdown */}
@@ -387,8 +387,8 @@ const ChatView = forwardRef<ChatViewRef, ChatViewProps>(
                 {/* Dropdown de opciones */}
                 <Dropdown placement="bottom-end">
                   <DropdownTrigger>
-                    <button className="p-2.5 hover:bg-slate-100 rounded-lg transition-colors">
-                      <MoreVertical className="w-5 h-5 text-slate-600" />
+                    <button className="p-2.5 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg transition-colors">
+                      <MoreVertical className="w-5 h-5 text-slate-600 dark:text-slate-300" />
                     </button>
                   </DropdownTrigger>
                   <DropdownMenu aria-label="Opciones de conversación">
@@ -430,7 +430,7 @@ const ChatView = forwardRef<ChatViewRef, ChatViewProps>(
 
                     <div className={`max-w-[70%] ${isSent ? 'items-end' : 'items-start'} flex flex-col`}>
                       {/* Sender Label */}
-                      <div className={`text-xs text-slate-500 mb-1 px-1 flex items-center gap-1`}>
+                      <div className={`text-xs text-slate-500 dark:text-slate-400 mb-1 px-1 flex items-center gap-1`}>
                         {isBot && <Bot className="w-3 h-3" />}
                         {isAgent && <User className="w-3 h-3" />}
                         <span>{getSenderLabel(message.sender)}</span>
@@ -440,12 +440,12 @@ const ChatView = forwardRef<ChatViewRef, ChatViewProps>(
                       <div className={`rounded-2xl px-4 py-3 ${
                         isSent 
                           ? isBot
-                            ? 'bg-violet-100 border border-violet-200 rounded-tr-sm'
-                            : 'bg-gradient-to-r from-blue-600 to-violet-700 text-white shadow-lg shadow-blue-500/20 rounded-tr-sm'
-                          : 'bg-white border border-slate-200 shadow-sm rounded-tl-sm'
+                            ? 'bg-violet-100 dark:bg-violet-900 border border-violet-200 dark:border-violet-800 rounded-tr-sm'
+                            : 'bg-gradient-to-r from-blue-600 to-violet-700 text-white shadow-lg shadow-blue-500/20 dark:shadow-blue-500/10 rounded-tr-sm'
+                          : 'bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 shadow-sm rounded-tl-sm'
                       }`}>
                         <p className={`text-sm leading-relaxed whitespace-pre-wrap ${
-                          isSent && !isBot ? 'text-white' : 'text-slate-900'
+                          isSent && !isBot ? 'text-white' : 'text-slate-900 dark:text-slate-100'
                         }`}>
                           {message.content}
                         </p>
@@ -456,7 +456,7 @@ const ChatView = forwardRef<ChatViewRef, ChatViewProps>(
                               <div 
                                 key={attachment.id} 
                                 className={`text-xs rounded p-2 flex items-center gap-1 ${
-                                  isSent && !isBot ? 'bg-white/20' : 'bg-slate-100'
+                                  isSent && !isBot ? 'bg-white/20' : 'bg-slate-100 dark:bg-slate-700'
                                 }`}
                               >
                                 📎 {attachment.name}
@@ -467,7 +467,7 @@ const ChatView = forwardRef<ChatViewRef, ChatViewProps>(
                       </div>
 
                       {/* Time and Status */}
-                      <div className={`flex items-center gap-2 mt-1 px-2 text-xs text-slate-500`}>
+                      <div className={`flex items-center gap-2 mt-1 px-2 text-xs text-slate-500 dark:text-slate-400`}>
                         <Clock className="w-3 h-3" />
                         <span>{formatMessageTime(message.timestamp)}</span>
                       </div>
@@ -477,8 +477,8 @@ const ChatView = forwardRef<ChatViewRef, ChatViewProps>(
                     {isSent && (
                       <div className="flex-shrink-0">
                         {isBot ? (
-                          <div className="w-8 h-8 rounded-full bg-violet-100 border border-violet-200 flex items-center justify-center">
-                            <Bot className="w-4 h-4 text-violet-600" />
+                          <div className="w-8 h-8 rounded-full bg-violet-100 dark:bg-violet-900 border border-violet-200 dark:border-violet-800 flex items-center justify-center">
+                            <Bot className="w-4 h-4 text-violet-600 dark:text-violet-400" />
                           </div>
                         ) : (
                           <Avatar
@@ -494,8 +494,8 @@ const ChatView = forwardRef<ChatViewRef, ChatViewProps>(
               })
             ) : (
               <div className="flex items-center justify-center h-full">
-                <div className="text-center text-slate-500">
-                  <Send className="w-12 h-12 mx-auto mb-3 text-slate-300" />
+                <div className="text-center text-slate-500 dark:text-slate-400">
+                  <Send className="w-12 h-12 mx-auto mb-3 text-slate-300 dark:text-slate-600" />
                   <p>No hay mensajes en esta conversación</p>
                 </div>
               </div>
@@ -505,24 +505,24 @@ const ChatView = forwardRef<ChatViewRef, ChatViewProps>(
           </div>
 
           {/* Message Input */}
-          <div className="bg-white border-t border-slate-200 relative">
+          <div className="bg-white dark:bg-slate-800 border-t border-slate-200 dark:border-slate-700 relative">
             {/* Overlay para conversaciones no intervenidas */}
             {canIntervene && (
               <div 
-                className="absolute inset-0 z-10 bg-gradient-to-b from-blue-50/95 to-violet-50/95 backdrop-blur-sm flex items-center justify-center cursor-pointer group hover:from-blue-50/90 hover:to-violet-50/90 transition-all"
+                className="absolute inset-0 z-10 bg-gradient-to-b from-blue-50/95 to-violet-50/95 dark:from-slate-800/95 dark:to-slate-900/95 backdrop-blur-sm flex items-center justify-center cursor-pointer group hover:from-blue-50/90 hover:to-violet-50/90 dark:hover:from-slate-800/90 dark:hover:to-slate-900/90 transition-all"
                 onClick={handleIntervenirConversacion}
               >
                 <div className="flex items-center gap-4 px-6 max-w-lg">
                   <div className="flex-shrink-0">
-                    <div className="w-12 h-12 bg-blue-100 rounded-xl flex items-center justify-center group-hover:scale-110 transition-transform">
-                      <Bot className="w-6 h-6 text-blue-600 animate-pulse" />
+                    <div className="w-12 h-12 bg-blue-100 dark:bg-blue-900 rounded-xl flex items-center justify-center group-hover:scale-110 transition-transform">
+                      <Bot className="w-6 h-6 text-blue-600 dark:text-blue-400 animate-pulse" />
                     </div>
                   </div>
                   <div className="flex-1 text-left">
-                    <p className="text-sm font-semibold text-slate-900 mb-1">
+                    <p className="text-sm font-semibold text-slate-900 dark:text-slate-100 mb-1">
                       IA controlando la conversación
                     </p>
-                    <p className="text-xs text-slate-600">
+                    <p className="text-xs text-slate-600 dark:text-slate-400">
                       {intervenirLoading ? "Interviniendo..." : "Haz clic para intervenir y tomar control"}
                     </p>
                   </div>

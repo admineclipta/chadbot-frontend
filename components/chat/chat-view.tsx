@@ -269,7 +269,7 @@ const ChatView = forwardRef<ChatViewRef, ChatViewProps>(
 
     if (loading) {
       return (
-        <div className="flex-1 flex items-center justify-center bg-slate-50">
+        <div className="flex-1 flex items-center justify-center bg-slate-50 dark:bg-slate-900">
           <div className="w-12 h-12 border-4 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
         </div>
       )
@@ -277,7 +277,7 @@ const ChatView = forwardRef<ChatViewRef, ChatViewProps>(
 
     if (error) {
       return (
-        <div className="flex-1 flex flex-col items-center justify-center bg-slate-50 p-4">
+        <div className="flex-1 flex flex-col items-center justify-center bg-slate-50 dark:bg-slate-900 p-4">
           <div className="text-center max-w-md">
             {/* Error Icon */}
             <div className="w-16 h-16 md:w-20 md:h-20 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4 shadow-lg">
@@ -311,15 +311,15 @@ const ChatView = forwardRef<ChatViewRef, ChatViewProps>(
 
     return (
       <>
-        <div className="flex-1 flex flex-col bg-slate-50 h-full max-h-full overflow-hidden w-full">
+        <div className="flex-1 flex flex-col bg-slate-50 dark:bg-slate-900 h-full max-h-full overflow-hidden w-full">
           {/* Chat Header */}
-          <div className="bg-white border-b border-slate-200 px-4 md:px-6 py-3 md:py-4 shadow-sm flex-shrink-0">
+          <div className="bg-white dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700 px-4 md:px-6 py-3 md:py-4 shadow-sm flex-shrink-0">
             <div className="flex items-center justify-between gap-2">
               {/* Back button - Mobile only, separate from contact info */}
               {onCloseChat && (
                 <button 
                   onClick={onCloseChat}
-                  className="p-2 hover:bg-slate-100 rounded-lg transition-colors lg:hidden flex-shrink-0"
+                  className="p-2 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg transition-colors lg:hidden flex-shrink-0"
                   aria-label="Volver a conversaciones"
                 >
                   <ArrowLeft className="w-5 h-5 text-slate-600" />
@@ -328,7 +328,7 @@ const ChatView = forwardRef<ChatViewRef, ChatViewProps>(
               
               {/* Info del contacto */}
               <div 
-                className="flex items-center gap-3 cursor-pointer hover:bg-slate-50 rounded-lg p-2 transition-colors flex-1 min-w-0"
+                className="flex items-center gap-3 cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-700 rounded-lg p-2 transition-colors flex-1 min-w-0"
                 onClick={() => setShowContactInfoModal(true)}
               >
                 <Avatar
@@ -340,13 +340,13 @@ const ChatView = forwardRef<ChatViewRef, ChatViewProps>(
                 />
                 
                 <div className="flex-1 min-w-0">
-                  <h2 className="font-semibold text-slate-900 flex items-center gap-2 mb-1 flex-wrap">
+                  <h2 className="font-semibold text-slate-900 dark:text-slate-100 flex items-center gap-2 mb-1 flex-wrap">
                     <span className="truncate">{contactName}</span>
                     <Badge status={getStatusBadgeType(conversation.status)} showDot={true}>
                       {getStatusLabel(conversation.status)}
                     </Badge>
                   </h2>
-                  <div className="flex items-center gap-2 text-sm text-slate-500 flex-wrap">
+                  <div className="flex items-center gap-2 text-sm text-slate-500 dark:text-slate-400 flex-wrap">
                     <div className="flex items-center gap-1">
                       <Phone className="w-3 h-3 flex-shrink-0" />
                       <span className="truncate">{contactPhone}</span>
@@ -372,7 +372,7 @@ const ChatView = forwardRef<ChatViewRef, ChatViewProps>(
               <div className="flex items-center gap-1 md:gap-2 flex-shrink-0">
                 <button 
                   onClick={() => setShowSummaryPanel(true)}
-                  className="p-2 md:p-2.5 hover:bg-slate-100 rounded-lg transition-colors group hidden sm:flex"
+                  className="p-2 md:p-2.5 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg transition-colors group hidden sm:flex"
                   title="Resumen IA"
                 >
                   <Sparkles className="w-4 h-4 md:w-5 md:h-5 text-slate-600 group-hover:text-violet-600" />
@@ -416,7 +416,7 @@ const ChatView = forwardRef<ChatViewRef, ChatViewProps>(
                 {/* Dropdown de opciones */}
                 <Dropdown placement="bottom-end">
                   <DropdownTrigger>
-                    <button className="p-2.5 hover:bg-slate-100 rounded-lg transition-colors">
+                    <button className="p-2.5 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg transition-colors">
                       <MoreVertical className="w-5 h-5 text-slate-600" />
                     </button>
                   </DropdownTrigger>
@@ -459,7 +459,7 @@ const ChatView = forwardRef<ChatViewRef, ChatViewProps>(
 
                     <div className={`w-full max-w-full md:max-w-[70%] ${isSent ? 'items-end' : 'items-start'} flex flex-col`}>
                       {/* Sender Label */}
-                      <div className={`text-xs text-slate-500 mb-1 px-1 flex items-center gap-1`}>
+                      <div className={`text-xs text-slate-500 dark:text-slate-400 mb-1 px-1 flex items-center gap-1`}>
                         {isBot && <Bot className="w-3 h-3" />}
                         {isAgent && <User className="w-3 h-3" />}
                         <span>{getSenderLabel(message.sender)}</span>
@@ -471,10 +471,10 @@ const ChatView = forwardRef<ChatViewRef, ChatViewProps>(
                           ? isBot
                             ? 'bg-violet-100 border border-violet-200 rounded-tr-sm'
                             : 'bg-gradient-to-r from-blue-600 to-violet-700 text-white shadow-lg shadow-blue-500/20 rounded-tr-sm'
-                          : 'bg-white border border-slate-200 shadow-sm rounded-tl-sm'
+                          : 'bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 shadow-sm rounded-tl-sm'
                       }`}>
                         <p className={`text-sm leading-relaxed whitespace-pre-wrap break-words ${
-                          isSent && !isBot ? 'text-white' : 'text-slate-900'
+                          isSent && !isBot ? 'text-white' : 'text-slate-900 dark:text-slate-100'
                         }`}>
                           {message.content}
                         </p>
@@ -485,7 +485,7 @@ const ChatView = forwardRef<ChatViewRef, ChatViewProps>(
                               <div 
                                 key={attachment.id} 
                                 className={`text-xs rounded p-2 flex items-center gap-1 ${
-                                  isSent && !isBot ? 'bg-white/20' : 'bg-slate-100'
+                                  isSent && !isBot ? 'bg-white/20' : 'bg-slate-100 dark:bg-slate-700'
                                 }`}
                               >
                                 📎 {attachment.name}
@@ -534,7 +534,7 @@ const ChatView = forwardRef<ChatViewRef, ChatViewProps>(
           </div>
 
           {/* Message Input Area with Tabs */}
-          <div className="bg-white border-t border-slate-200 relative flex-shrink-0">
+          <div className="bg-white dark:bg-slate-800 border-t border-slate-200 dark:border-slate-700 relative flex-shrink-0">
             {/* Overlay para conversaciones no intervenidas */}
             {canIntervene && (
               <div 
@@ -569,8 +569,8 @@ const ChatView = forwardRef<ChatViewRef, ChatViewProps>(
               onSelectionChange={(key) => setActiveTab(key as string)}
               classNames={{
                 base: "w-full",
-                tabList: "w-full bg-slate-50/50 border-b border-slate-200",
-                cursor: "bg-white shadow-sm",
+                tabList: "w-full bg-slate-50/50 dark:bg-slate-800/50 border-b border-slate-200 dark:border-slate-700",
+                cursor: "bg-white dark:bg-slate-700 shadow-sm",
                 tab: "h-10 font-medium",
                 tabContent: "text-slate-600 group-data-[selected=true]:text-blue-600"
               }}

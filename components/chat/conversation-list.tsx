@@ -234,7 +234,7 @@ export default function ConversationList({
 
   if (loading) {
     return (
-      <div className="w-96 border-r border-slate-200 bg-white flex items-center justify-center">
+      <div className="w-96 border-r border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 flex items-center justify-center">
         <div className="w-8 h-8 border-4 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
       </div>
     )
@@ -242,7 +242,7 @@ export default function ConversationList({
 
   if (error) {
     return (
-      <div className="w-96 border-r border-slate-200 bg-white flex items-center justify-center p-4">
+      <div className="w-96 border-r border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 flex items-center justify-center p-4">
         <div className="text-center">
           <p className="text-red-600 text-sm font-semibold">Error al cargar</p>
           <p className="text-slate-500 text-xs mt-1">{error}</p>
@@ -253,12 +253,12 @@ export default function ConversationList({
 
   return (
     <>
-      <div className="w-full md:w-96 border-r border-slate-200 bg-white flex flex-col h-full">
+      <div className="w-full md:w-96 border-r border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 flex flex-col h-full">
         {/* Header */}
-        <div className="p-4 border-b border-slate-200 bg-white sticky top-0 z-10 flex-shrink-0">
+        <div className="p-4 border-b border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 sticky top-0 z-10 flex-shrink-0">
           <div className="flex items-center justify-between mb-3">
-            <h2 className="text-lg font-bold text-slate-900 flex items-center gap-2">
-              <MessageCircle className="h-5 w-5 text-blue-600" />
+            <h2 className="text-lg font-bold text-slate-900 dark:text-slate-100 flex items-center gap-2">
+              <MessageCircle className="h-5 w-5 text-blue-600 dark:text-blue-400" />
               Conversaciones
             </h2>
             <Dropdown>
@@ -354,10 +354,10 @@ export default function ConversationList({
               return (
                 <div
                   key={conversation.id}
-                  className={`group relative border-b border-slate-100 last:border-0 transition-all duration-200 ${
+                  className={`group relative border-b border-slate-100 dark:border-slate-800 last:border-0 transition-all duration-200 ${
                     isSelected 
-                      ? 'bg-blue-50 border-l-4 border-l-blue-600' 
-                      : 'hover:bg-slate-50 cursor-pointer'
+                      ? 'bg-blue-50 dark:bg-blue-950 border-l-4 border-l-blue-600' 
+                      : 'hover:bg-slate-50 dark:hover:bg-slate-800 cursor-pointer'
                   }`}
                   onMouseEnter={() => setHoveredConversation(conversation.id)}
                   onMouseLeave={() => setHoveredConversation(null)}
@@ -391,11 +391,11 @@ export default function ConversationList({
                         {/* Name and Time */}
                         <div className="flex items-center justify-between mb-1">
                           <h3 className={`font-semibold truncate ${
-                            isSelected ? 'text-blue-900' : 'text-slate-900'
+                            isSelected ? 'text-blue-900 dark:text-blue-200' : 'text-slate-900 dark:text-slate-100'
                           }`}>
                             {contactName}
                           </h3>
-                          <span className="text-xs text-slate-500 ml-2 flex-shrink-0">
+                          <span className="text-xs text-slate-500 dark:text-slate-400 ml-2 flex-shrink-0">
                             {time}
                           </span>
                         </div>
@@ -512,7 +512,7 @@ export default function ConversationList({
 
       {/* Pagination */}
       {totalPages > 1 && onPageChange && (
-        <div className="p-4 border-t border-slate-200 bg-white">
+        <div className="p-4 border-t border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900">
           <div className="flex items-center justify-between">
             <button
               onClick={() => onPageChange(currentPage)}

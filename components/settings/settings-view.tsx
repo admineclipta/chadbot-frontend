@@ -20,9 +20,9 @@ export default function SettingsView({
   const [selectedTab, setSelectedTab] = useState<string>("about")
 
   return (
-    <div className="flex-1 flex flex-col h-full overflow-hidden bg-gray-50 dark:bg-gray-950">
+    <div className="flex-1 flex flex-col h-full overflow-hidden bg-slate-50 dark:bg-slate-900">
       {/* Header */}
-      <div className="p-4 md:p-6 border-b border-divider bg-white dark:bg-gray-900 flex-shrink-0">
+      <div className="p-4 md:p-6 border-b border-divider bg-white dark:bg-slate-800 flex-shrink-0">
         <h1 className="text-xl md:text-2xl font-bold text-foreground">Configuración</h1>
         <p className="text-xs md:text-sm text-default-500 mt-1">
           Administra tu perfil, preferencias y credenciales de servicios
