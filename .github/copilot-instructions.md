@@ -117,11 +117,62 @@ brand: {
 - Use HeroUI's `primary` color for interactive elements (buttons, links)
 - Use `secondary` (lime) for CTAs, success states, and important highlights
 - Maintain WCAG AA contrast ratios for accessibility
-- Dark mode automatically adjusts colors via `next-themes`
+- **Dark mode automatically adjusts colors via `next-themes`**
+
+### Dark Mode Support
+
+**CRITICAL**: All new components and features MUST support dark mode by default.
+
+**Implementation**:
+
+1. **Use Tailwind Dark Mode Classes**:
+
+   ```tsx
+   // Light mode first, then dark: prefix
+   <div className="bg-white dark:bg-slate-900 text-slate-900 dark:text-white">
+   <button className="bg-blue-600 hover:bg-blue-700 dark:bg-blue-500 dark:hover:bg-blue-600">
+   ```
+
+2. **Theme Provider**: The app uses `next-themes` ([components/shared/theme-provider.tsx](components/shared/theme-provider.tsx))
+   - Automatic system preference detection
+   - Persisted user preference in localStorage
+   - No FOUC (Flash of Unstyled Content)
+
+3. **Color Patterns**:
+   - **Backgrounds**: `bg-white dark:bg-slate-900` (main), `bg-slate-50 dark:bg-slate-800` (secondary)
+   - **Text**: `text-slate-900 dark:text-white` (primary), `text-slate-600 dark:text-slate-300` (secondary)
+   - **Borders**: `border-slate-200 dark:border-slate-700`
+   - **Hover States**: Always provide dark mode variants for hover/active states
+
+4. **HeroUI Components**: Automatically adapt to theme, but check custom styles
+   - Test both themes when adding custom classes
+   - Use HeroUI's color tokens when possible (`text-foreground`, `bg-background`)
+
+5. **Testing Dark Mode**:
+   - Toggle theme using the settings menu
+   - Verify all states: default, hover, active, disabled, focus
+   - Check contrast ratios in both themes
+   - Test with custom backgrounds and overlays
+
+**Common Patterns**:
+
+```tsx
+// Cards
+<div className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700">
+
+// Hover effects
+<button className="hover:bg-slate-100 dark:hover:bg-slate-700">
+
+// Subtle backgrounds
+<div className="bg-slate-50 dark:bg-slate-800/50">
+
+// Icon colors
+<Icon className="text-slate-600 dark:text-slate-400" />
+```
 
 ### 3. Mobile-First Responsive Design
 
-**CRITICAL**: All new components and features MUST be mobile-responsive by default.
+**CRITICAL**: All new components and features MUST be mobile-responsive AND support dark mode by default.
 
 **Key Patterns**:
 
@@ -360,9 +411,11 @@ try {
 
 2. **New page/view?** → Create in `app/` folder, update navigation in [components/sidebar.tsx](components/sidebar.tsx).
 
-3. **New component?** → Place in `components/`, import in parent, follow HeroUI design system and mobile-first approach.
+3. **New component?** → Place in `components/`, import in parent, follow HeroUI design system, mobile-first approach, and dark mode support.
 
 4. **New hook?** → Create in `hooks/`, use `useApi` pattern for data fetching.
+
+5. **Dark mode compliance?** → Always add `dark:` variants for colors, backgrounds, borders, and hover states.
 
 ## Common Gotchas
 

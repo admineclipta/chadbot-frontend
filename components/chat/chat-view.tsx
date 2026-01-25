@@ -82,6 +82,27 @@ const ChatView = forwardRef<ChatViewRef, ChatViewProps>(
       scrollToBottom("auto")
     }, [conversation.id, scrollToBottom])
 
+    // Event listener para cerrar con tecla ESC
+    useEffect(() => {
+      const handleEscape = (event: KeyboardEvent) => {
+        // Solo cerrar si ESC es presionado y no hay modales abiertos
+        if (event.key === 'Escape' && onCloseChat) {
+          // Verificar si hay modales abiertos
+          const hasOpenModal = document.querySelector('[role="dialog"]') !== null
+          if (!hasOpenModal) {
+            event.preventDefault()
+            event.stopPropagation()
+            onCloseChat()
+          }
+        }
+      }
+
+      document.addEventListener('keydown', handleEscape, true)
+      return () => {
+        document.removeEventListener('keydown', handleEscape, true)
+      }
+    }, [onCloseChat])
+
     const contactName = conversation.customer?.name || conversation.customer?.phone || 'Sin nombre'
     const contactPhone = conversation.customer?.phone || 'Sin teléfono'
     const isActive = conversation.status === 'ACTIVE'

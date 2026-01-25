@@ -401,10 +401,8 @@ export default function Home() {
   }, [])
 
   const handleCloseChat = useCallback(() => {
-    if (isMobile) {
-      setSelectedConversation(null)
-    }
-  }, [isMobile])
+    setSelectedConversation(null)
+  }, [])
 
   const handleConversationUpdate = useCallback((updatedConversation: Conversation) => {
     // Actualizar la conversación seleccionada
