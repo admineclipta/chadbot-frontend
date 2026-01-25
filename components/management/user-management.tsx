@@ -293,7 +293,7 @@ export default function UserManagement() {
             Administración de Usuarios
           </h1>
           <p className="text-gray-500 dark:text-gray-400">
-            Gestiona usuarios del sistema (ABMC)
+            Gestiona usuarios del sistema
           </p>
         </div>
         <Button

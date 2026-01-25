@@ -68,7 +68,6 @@ export default function Sidebar({
     { id: 'users', label: 'Usuarios', icon: Users, show: isAdmin },
     { id: 'teams', label: 'Equipos', icon: Users, show: isAdmin },
     { id: 'assistants', label: 'Asistentes', icon: Bot, show: true },
-    { id: 'settings', label: 'Configuración', icon: Settings, show: true },
   ]
 
   return (
@@ -93,9 +92,15 @@ export default function Sidebar({
       <div className={`w-64 bg-white dark:bg-slate-900 border-r border-slate-200 dark:border-slate-700 flex flex-col shadow-lg fixed lg:relative inset-y-0 left-0 z-40 transform transition-transform duration-300 ${mobileMenuOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}`}>
         {/* Logo */}
         <div className="p-6 border-b border-slate-200 dark:border-slate-700">
-          <div className="flex items-center justify-center">
+          <button
+            onClick={() => {
+              onViewChange('welcome')
+              setMobileMenuOpen(false)
+            }}
+            className="flex items-center justify-center w-full hover:opacity-70 transition-opacity duration-200 cursor-pointer active:scale-[0.98]"
+          >
             <Image src="/logo-chadbot-violeta.png" alt="Chadbot" width={100} height={33} className="object-contain" />
-          </div>
+          </button>
         </div>
 
         {/* Navigation */}

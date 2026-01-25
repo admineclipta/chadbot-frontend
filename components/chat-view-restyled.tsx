@@ -1,7 +1,7 @@
 "use client"
 
 import { forwardRef, useImperativeHandle, useRef, useEffect, useState, useCallback } from "react"
-import { Phone, Video, MoreVertical, ArrowLeft, Clock, Bot, User, X, Sparkles, UserPlus, CheckCheck, Check, Send, ChevronDown } from "lucide-react"
+import { Phone, Video, MoreVertical, ArrowLeft, Clock, Bot, User, X, Sparkles, UserPlus, CheckCheck, Check, Send, ChevronDown, Orbit } from "lucide-react"
 import { toast } from "sonner"
 import Image from "next/image"
 import { 
@@ -349,40 +349,28 @@ const ChatView = forwardRef<ChatViewRef, ChatViewProps>(
                   <Sparkles className="w-5 h-5 text-slate-600 dark:text-slate-300 group-hover:text-violet-600 dark:group-hover:text-violet-400" />
                 </button>
 
-                {/* Botón de estado con dropdown */}
-                <ButtonGroup size="sm" className="shadow-sm">
-                  <HeroButton
-                    color={getCurrentStateConfig().color}
-                    variant="flat"
-                    isLoading={changingStatus}
-                    onPress={() => handleStatusChange(getMainButtonTargetState(getCurrentState()))}
-                    className="font-medium"
-                  >
-                    {getMainButtonText(getCurrentState())}
-                  </HeroButton>
-                  <Dropdown placement="bottom-end">
-                    <DropdownTrigger>
-                      <HeroButton
-                        color={getCurrentStateConfig().color}
-                        variant="flat"
-                        isIconOnly
-                        isDisabled={changingStatus}
-                      >
-                        <ChevronDown className="h-4 w-4" />
-                      </HeroButton>
-                    </DropdownTrigger>
-                    <DropdownMenu
-                      aria-label="Estados de conversación"
-                      onAction={(key) => handleStatusChange(key as ConversationStatus)}
+                {/* Dropdown de cambiar estado */}
+                <Dropdown placement="bottom-end">
+                  <DropdownTrigger>
+                    <button 
+                      disabled={changingStatus}
+                      className="p-2.5 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg transition-colors group disabled:opacity-50 disabled:cursor-not-allowed"
+                      title="Cambiar estado"
                     >
-                      {getDropdownStates(getCurrentState()).map((status) => (
-                        <DropdownItem key={status}>
-                          {CONVERSATION_STATUS_CONFIG[status].label}
-                        </DropdownItem>
-                      ))}
-                    </DropdownMenu>
-                  </Dropdown>
-                </ButtonGroup>
+                      <Orbit className="w-5 h-5 text-slate-600 dark:text-slate-300 group-hover:text-blue-600 dark:group-hover:text-blue-400" />
+                    </button>
+                  </DropdownTrigger>
+                  <DropdownMenu
+                    aria-label="Estados de conversación"
+                    onAction={(key) => handleStatusChange(key as ConversationStatus)}
+                  >
+                    {getDropdownStates(getCurrentState()).map((status) => (
+                      <DropdownItem key={status}>
+                        {CONVERSATION_STATUS_CONFIG[status].label}
+                      </DropdownItem>
+                    ))}
+                  </DropdownMenu>
+                </Dropdown>
 
                 {/* Dropdown de opciones */}
                 <Dropdown placement="bottom-end">
