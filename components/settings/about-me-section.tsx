@@ -1,9 +1,11 @@
 "use client"
 
-import { Card, CardBody, CardHeader, Divider, Chip, Accordion, AccordionItem, Skeleton, User as HeroUser, Popover, PopoverTrigger, PopoverContent } from "@heroui/react"
-import { Mail, Hash, Calendar, Shield, CheckCircle, XCircle, Info } from "lucide-react"
+import { useState } from "react"
+import { Card, CardBody, CardHeader, Divider, Chip, Accordion, AccordionItem, Skeleton, User as HeroUser, Popover, PopoverTrigger, PopoverContent, Input, Button } from "@heroui/react"
+import { Mail, Hash, Calendar, Shield, CheckCircle, XCircle, Info, Lock } from "lucide-react"
 import { useApi } from "@/hooks/use-api"
-import { apiService } from "@/lib/api"
+import { apiService, ApiError } from "@/lib/api"
+import { toast } from "sonner"
 import { format } from "date-fns"
 import { es } from "date-fns/locale"
 
@@ -12,6 +14,17 @@ export default function AboutMeSection() {
     () => apiService.getCurrentUser(),
     []
   )
+
+  const [currentPassword, setCurrentPassword] = useState("")
+  const [newPassword, setNewPassword] = useState("")
+  const [confirmPassword, setConfirmPassword] = useState("")
+  const [passwordErrors, setPasswordErrors] = useState<{
+    current?: string
+    newPass?: string
+    confirm?: string
+    general?: string
+  }>({})
+  const [isUpdatingPassword, setIsUpdatingPassword] = useState(false)
 
   if (loading) {
     return (
@@ -43,6 +56,61 @@ export default function AboutMeSection() {
       return format(new Date(dateString), "PPP 'a las' p", { locale: es })
     } catch {
       return dateString
+    }
+  }
+
+  const validatePasswordForm = () => {
+    const errors: { current?: string; newPass?: string; confirm?: string } = {}
+
+    if (!currentPassword.trim()) {
+      errors.current = "Ingresa tu contraseña actual"
+    }
+
+    if (!newPassword.trim()) {
+      errors.newPass = "Ingresa tu nueva contraseña"
+    } else if (newPassword.length < 8) {
+      errors.newPass = "La nueva contraseña debe tener al menos 8 caracteres"
+    } else if (newPassword === currentPassword) {
+      errors.newPass = "La nueva contraseña debe ser diferente a la actual"
+    }
+
+    if (!confirmPassword.trim()) {
+      errors.confirm = "Confirma tu nueva contraseña"
+    } else if (confirmPassword !== newPassword) {
+      errors.confirm = "Las contraseñas no coinciden"
+    }
+
+    setPasswordErrors(errors)
+    return Object.keys(errors).length === 0
+  }
+
+  const handlePasswordChange = async () => {
+    if (!validatePasswordForm()) return
+
+    try {
+      setIsUpdatingPassword(true)
+      setPasswordErrors({})
+
+      await apiService.changePassword({
+        currentPassword,
+        newPassword,
+      })
+
+      toast.success("Contraseña actualizada correctamente")
+      setCurrentPassword("")
+      setNewPassword("")
+      setConfirmPassword("")
+    } catch (error) {
+      console.error("Error updating password:", error)
+      const message =
+        error instanceof ApiError
+          ? error.message
+          : "No se pudo actualizar la contraseña"
+
+      setPasswordErrors((prev) => ({ ...prev, general: message }))
+      toast.error(message)
+    } finally {
+      setIsUpdatingPassword(false)
     }
   }
 
@@ -131,6 +199,78 @@ export default function AboutMeSection() {
                 </div>
               </div>
             )}
+          </div>
+        </CardBody>
+      </Card>
+
+      {/* Security Card */}
+      <Card>
+        <CardHeader className="flex gap-3">
+          <Lock className="h-5 w-5" />
+          <div className="flex flex-col">
+            <p className="text-md font-semibold">Seguridad</p>
+            <p className="text-small text-default-500">Actualiza tu contraseña para mantener tu cuenta protegida</p>
+          </div>
+        </CardHeader>
+        <Divider />
+        <CardBody className="p-4 md:p-6 space-y-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <Input
+              label="Contraseña actual"
+              type="password"
+              placeholder="Ingresa tu contraseña actual"
+              value={currentPassword}
+              onChange={(e) => setCurrentPassword(e.target.value)}
+              isInvalid={!!passwordErrors.current}
+              errorMessage={passwordErrors.current}
+              isDisabled={isUpdatingPassword}
+            />
+            <Input
+              label="Nueva contraseña"
+              type="password"
+              placeholder="Mínimo 8 caracteres"
+              value={newPassword}
+              onChange={(e) => setNewPassword(e.target.value)}
+              isInvalid={!!passwordErrors.newPass}
+              errorMessage={passwordErrors.newPass}
+              isDisabled={isUpdatingPassword}
+            />
+          </div>
+          <Input
+            label="Confirmar nueva contraseña"
+            type="password"
+            placeholder="Repite la nueva contraseña"
+            value={confirmPassword}
+            onChange={(e) => setConfirmPassword(e.target.value)}
+            isInvalid={!!passwordErrors.confirm}
+            errorMessage={passwordErrors.confirm}
+            isDisabled={isUpdatingPassword}
+          />
+
+          {passwordErrors.general && (
+            <p className="text-sm text-danger">{passwordErrors.general}</p>
+          )}
+
+          <div className="flex flex-col sm:flex-row sm:justify-end gap-3">
+            <Button
+              variant="flat"
+              onPress={() => {
+                setCurrentPassword("")
+                setNewPassword("")
+                setConfirmPassword("")
+                setPasswordErrors({})
+              }}
+              isDisabled={isUpdatingPassword}
+            >
+              Limpiar
+            </Button>
+            <Button
+              color="primary"
+              onPress={handlePasswordChange}
+              isLoading={isUpdatingPassword}
+            >
+              Cambiar contraseña
+            </Button>
           </div>
         </CardBody>
       </Card>

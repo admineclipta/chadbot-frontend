@@ -725,6 +725,20 @@ export interface CurrentUserResponse {
   permissions: PermissionDto[];
 }
 
+export interface ChangePasswordRequest {
+  currentPassword: string;
+  newPassword: string;
+}
+
+export interface ResetPasswordTokenResponse {
+  id: string;
+  userId: string;
+  tokenHash: string;
+  createdAt: string;
+  expiresAt: string;
+  usedAt: string | null;
+}
+
 // ============================================
 // Credentials Types
 // ============================================

@@ -42,11 +42,20 @@ import {
   Eye,
   Shield,
   Info,
+  KeyRound,
+  Copy,
 } from "lucide-react"
-import type { UserDto, Role, RoleDto, UserRequest, UserUpdateRequest } from "@/lib/api-types"
+import type {
+  UserDto,
+  Role,
+  RoleDto,
+  UserRequest,
+  UserUpdateRequest,
+  ResetPasswordTokenResponse,
+} from "@/lib/api-types"
 import { useUserManagement } from "@/hooks/use-user-management"
 import UserAvatar from "@/components/management/user-avatar"
-import { apiService } from "@/lib/api"
+import { apiService, ApiError } from "@/lib/api"
 import { toast } from "sonner"
 import { useIsMobile } from "@/hooks/use-mobile"
 import { cn } from "@/lib/utils"
@@ -68,6 +77,9 @@ export default function UserManagement() {
   const [selectedUserDetails, setSelectedUserDetails] = useState<any | null>(null)
   const [loadingUserDetails, setLoadingUserDetails] = useState(false)
   const [isEditing, setIsEditing] = useState(false)
+  const [isCreatingResetToken, setIsCreatingResetToken] = useState(false)
+  const [resetTokenData, setResetTokenData] = useState<ResetPasswordTokenResponse | null>(null)
+  const [resetUrl, setResetUrl] = useState("")
   const [formData, setFormData] = useState<UserFormData>({
     name: "",
     displayName: "",
@@ -106,6 +118,11 @@ export default function UserManagement() {
     isOpen: isRolesOpen,
     onOpen: onRolesOpen,
     onOpenChange: onRolesOpenChange,
+  } = useDisclosure()
+  const {
+    isOpen: isResetOpen,
+    onOpen: onResetOpen,
+    onOpenChange: onResetOpenChange,
   } = useDisclosure()
 
   useEffect(() => {
@@ -203,6 +220,47 @@ export default function UserManagement() {
     setSelectedRoles(userRoleIds)
     
     onRolesOpen()
+  }
+
+  const buildResetUrl = (tokenHash: string) => {
+    if (typeof window === "undefined") return `/reset-password?h=${tokenHash}`
+    const { origin } = window.location
+    return `${origin}/reset-password?h=${tokenHash}`
+  }
+
+  const handleResetPasswordToken = async (user: UserDto) => {
+    setSelectedUser(user)
+    setResetTokenData(null)
+    setResetUrl("")
+    onResetOpen()
+
+    try {
+      setIsCreatingResetToken(true)
+      const token = await apiService.createResetPasswordToken(user.id)
+      setResetTokenData(token)
+      setResetUrl(buildResetUrl(token.tokenHash))
+      toast.success("Enlace de restablecimiento generado")
+    } catch (error) {
+      console.error("Error creating reset token", error)
+      const message =
+        error instanceof ApiError
+          ? error.message
+          : "No se pudo generar el enlace"
+      toast.error(message)
+    } finally {
+      setIsCreatingResetToken(false)
+    }
+  }
+
+  const handleCopyResetUrl = async () => {
+    if (!resetUrl) return
+    try {
+      await navigator.clipboard.writeText(resetUrl)
+      toast.success("URL copiada al portapapeles")
+    } catch (error) {
+      console.error("Error copying url", error)
+      toast.error("No se pudo copiar la URL")
+    }
   }
 
   // Cargar todos los roles disponibles
@@ -393,6 +451,12 @@ export default function UserManagement() {
                               Roles
                             </DropdownItem>
                             <DropdownItem
+                              startContent={<KeyRound className="h-4 w-4" />}
+                              onPress={() => handleResetPasswordToken(user)}
+                            >
+                              Restablecer
+                            </DropdownItem>
+                            <DropdownItem
                               color="danger"
                               startContent={<Trash2 className="h-4 w-4" />}
                               onPress={() => handleDeleteConfirm(user)}
@@ -471,6 +535,13 @@ export default function UserManagement() {
                       onPress={() => handleAssignRoles(user)}
                     >
                       Asignar roles
+                    </DropdownItem>
+                    <DropdownItem
+                      key={`reset-${user.id}`}
+                      startContent={<KeyRound className="h-4 w-4" />}
+                      onPress={() => handleResetPasswordToken(user)}
+                    >
+                      Restablecer contraseña
                     </DropdownItem>
                     <DropdownItem
                       key={`delete-${user.id}`}
@@ -900,6 +971,76 @@ export default function UserManagement() {
                   startContent={<Shield className="h-4 w-4" />}
                 >
                   {loadingRoles ? "Guardando..." : "Guardar cambios"}
+                </Button>
+              </ModalFooter>
+            </>
+          )}
+        </ModalContent>
+      </Modal>
+
+      {/* Modal de restablecimiento de contraseña */}
+      <Modal isOpen={isResetOpen} onOpenChange={onResetOpenChange}>
+        <ModalContent>
+          {(onClose) => (
+            <>
+              <ModalHeader className="flex flex-col gap-1">
+                <div className="flex items-center gap-2">
+                  <KeyRound className="h-5 w-5" />
+                  <div>
+                    <p className="text-base font-semibold">Restablecer contraseña</p>
+                    <p className="text-sm text-default-500">Genera y comparte el enlace seguro</p>
+                  </div>
+                </div>
+              </ModalHeader>
+              <ModalBody className="space-y-4">
+                {isCreatingResetToken && (
+                  <div className="flex justify-center py-4">
+                    <Spinner label="Generando enlace..." />
+                  </div>
+                )}
+
+                {!isCreatingResetToken && resetTokenData && (
+                  <div className="space-y-3">
+                    <div className="rounded-lg border border-default-200 dark:border-default-700 p-3 bg-default-50 dark:bg-default-100/10">
+                      <p className="text-xs text-default-500 mb-1">Hash</p>
+                      <p className="font-mono text-sm break-all">{resetTokenData.tokenHash}</p>
+                    </div>
+
+                    <div className="flex flex-col gap-1 text-sm text-default-500">
+                      <span>
+                        Expira: {new Date(resetTokenData.expiresAt).toLocaleString()}
+                      </span>
+                      {resetTokenData.usedAt && (
+                        <span>Usado: {new Date(resetTokenData.usedAt).toLocaleString()}</span>
+                      )}
+                    </div>
+
+                    <Input
+                      label="URL para el usuario (?h=HASH)"
+                      value={resetUrl}
+                      isReadOnly
+                      description="Comparte este enlace (incluye ?h=) para que el usuario establezca su nueva contraseña"
+                    />
+                  </div>
+                )}
+
+                {!isCreatingResetToken && !resetTokenData && (
+                  <p className="text-sm text-default-500">
+                    No se pudo generar el enlace. Inténtalo nuevamente.
+                  </p>
+                )}
+              </ModalBody>
+              <ModalFooter>
+                <Button variant="light" onPress={onClose}>
+                  Cerrar
+                </Button>
+                <Button
+                  color="primary"
+                  startContent={<Copy className="h-4 w-4" />}
+                  onPress={handleCopyResetUrl}
+                  isDisabled={!resetUrl || isCreatingResetToken}
+                >
+                  Copiar URL
                 </Button>
               </ModalFooter>
             </>

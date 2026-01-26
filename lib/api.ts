@@ -39,6 +39,8 @@ import {
   type UserDto,
   type UserRequest,
   type UserUpdateRequest,
+  type ChangePasswordRequest,
+  type ResetPasswordTokenResponse,
   type UserListResponse,
   type Role,
   type AssignRolesRequest,
@@ -826,6 +828,37 @@ class ApiService {
       {},
       signal,
     );
+  }
+
+  async changePassword(data: ChangePasswordRequest): Promise<void> {
+    console.log("🔒 [CHADBOT API] Changing password");
+    await this.request<void>("users/change-password", {
+      method: "PUT",
+      body: JSON.stringify(data),
+    });
+  }
+
+  async createResetPasswordToken(
+    userId: string,
+  ): Promise<ResetPasswordTokenResponse> {
+    console.log(`🔑 [CHADBOT API] Creating reset token for user ${userId}`);
+    return this.request<ResetPasswordTokenResponse>(
+      `users/${userId}/reset-password`,
+      {
+        method: "POST",
+      },
+    );
+  }
+
+  async resetPasswordWithToken(
+    tokenHash: string,
+    newPassword: string,
+  ): Promise<void> {
+    console.log("🔁 [CHADBOT API] Resetting password with token");
+    await this.request<void>(`auth/reset-password/${tokenHash}`, {
+      method: "POST",
+      body: JSON.stringify({ newPassword }),
+    });
   }
 
   // ============================================

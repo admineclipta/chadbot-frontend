@@ -28,6 +28,7 @@ export default function Login() {
   const [showConfetti, setShowConfetti] = useState(false)
   const [showEasterEggMessage, setShowEasterEggMessage] = useState(false)
   const confettiRef = useRef<HTMLDivElement>(null)
+  const currentYear = new Date().getFullYear()
 
   // Función para validar email
   const validateEmail = (email: string) => {
@@ -516,7 +517,7 @@ export default function Login() {
           {/* Footer */}
           <div className="text-center mt-8">
             <p className="text-white/60 text-sm">
-              © 2025 ChatVRM. Desarrollado por{" "}
+              © {currentYear} ChatVRM. Desarrollado por{" "}
               <motion.span
                 onClick={handleEasterEgg}
                 className={`text-white/80 hover:text-white cursor-pointer font-medium transition-all duration-300 hover:drop-shadow-[0_0_8px_rgba(255,255,255,0.8)] select-none ${showConfetti ? 'easter-egg-text' : ''}`}
