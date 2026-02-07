@@ -181,8 +181,8 @@ export interface MessageListResponse {
 
 export interface SendMessageRequest {
   conversationId: string;
-  content: string;
   type?: MessageType;
+  text?: string;
 }
 
 export interface SendImageRequest {

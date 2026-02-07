@@ -126,9 +126,12 @@ class ApiService {
   ): Promise<T> {
     const url = `${this.baseUrl}${endpoint}`;
 
-    const defaultHeaders: HeadersInit = {
-      "Content-Type": "application/json",
-    };
+    const isFormData = options.body instanceof FormData;
+    const defaultHeaders: HeadersInit = {};
+
+    if (!isFormData) {
+      defaultHeaders["Content-Type"] = "application/json";
+    }
 
     if (this.token) {
       defaultHeaders.Authorization = `Bearer ${this.token}`;
@@ -465,9 +468,17 @@ class ApiService {
     console.log(
       `📤 [CHADBOT API] Sending message to conversation ${data.conversationId}`,
     );
+    const metadata = {
+      conversationId: data.conversationId,
+      type: data.type ?? "text",
+      text: data.text ?? "",
+    };
+    const formData = new FormData();
+    formData.append("metadata", JSON.stringify(metadata));
+
     return this.request<SendMessageResponse>("messages/send", {
       method: "POST",
-      body: JSON.stringify(data),
+      body: formData,
     });
   }
 

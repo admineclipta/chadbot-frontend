@@ -367,7 +367,8 @@ export default function Home() {
         // Enviar a la API
         await apiService.sendMessage({
           conversationId: selectedConversation.id,
-          content: content,
+          type: "text",
+          text: content,
         })
 
         // Refrescar mensajes después de enviar y hacer scroll
