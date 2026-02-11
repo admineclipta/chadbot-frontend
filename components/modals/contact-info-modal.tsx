@@ -19,7 +19,7 @@ import {
 } from "@heroui/react"
 import { User, Phone, Mail, Calendar, Tag as TagIcon, MessageSquare, Plus, X, Save } from "lucide-react"
 import { toast } from "sonner"
-import UserAvatar from "./user-avatar"
+import UserAvatar from "@/components/management/user-avatar"
 import { apiService } from "@/lib/api"
 import type { Contact, Conversation } from "@/lib/api-types"
 import { formatConversationTime } from "@/lib/utils"
@@ -58,11 +58,33 @@ export default function ContactInfoModal({
     try {
       setLoading(true)
       const contactData = await apiService.getContactById(contactId)
-      setContact(contactData)
+      
+      // Extract phone from messagingChannels
+      const phone = contactData.messagingChannels?.[0]?.externalContactId || contactData.phone || ""
+      
+      // Extract email from metadata
+      const email = contactData.metadata?.email || contactData.email || ""
+      
+      // Extract other metadata fields
+      const location = contactData.metadata?.location || ""
+      const source = contactData.metadata?.source || ""
+      
+      // Merge all data
+      const enrichedContact = {
+        ...contactData,
+        phone,
+        email,
+        customFields: {
+          ...contactData.metadata,
+          ...contactData.customFields,
+        }
+      }
+      
+      setContact(enrichedContact)
       setEditedContact({
-        fullName: contactData.fullName,
-        email: contactData.email,
-        customFields: contactData.customFields || {},
+        fullName: enrichedContact.fullName,
+        email: enrichedContact.email,
+        customFields: enrichedContact.customFields || {},
       })
 
       // Cargar conversaciones del contacto

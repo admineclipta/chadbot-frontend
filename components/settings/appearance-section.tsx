@@ -46,9 +46,9 @@ export default function AppearanceSection() {
   }
 
   return (
-    <div className="py-6">
+    <div className="py-4 md:py-6">
       <Card>
-        <CardBody className="p-6">
+        <CardBody className="p-4 md:p-6">
           <div className="mb-4">
             <h3 className="text-lg font-semibold">Tema de la aplicación</h3>
             <p className="text-sm text-default-500 mt-1">

@@ -34,7 +34,7 @@ import {
 import { apiService } from "@/lib/api"
 import type { Assistant, Team } from "@/lib/api-types"
 import { toast } from "sonner"
-import AssistantForm from "./assistant-form"
+import AssistantForm from "@/components/management/assistant-form"
 
 type AssistantView = "list" | "create" | "edit"
 

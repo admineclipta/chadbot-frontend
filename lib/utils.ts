@@ -5,6 +5,30 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
 
+/**
+ * Genera un color pastel consistente basado en un string (ID, nombre, etc.)
+ * Usa un hash simple para generar valores HSL consistentes
+ * @param seed - String para generar el color (ID del agente, nombre, etc.)
+ * @returns Color HSL en formato string "hsl(h, s%, l%)"
+ */
+export function generatePastelColor(seed: string): string {
+  // Hash simple del string
+  let hash = 0;
+  for (let i = 0; i < seed.length; i++) {
+    hash = seed.charCodeAt(i) + ((hash << 5) - hash);
+    hash = hash & hash; // Convert to 32bit integer
+  }
+
+  // Generar hue (0-360) basado en el hash
+  const hue = Math.abs(hash % 360);
+
+  // Valores fijos para pastel: saturación moderada y luminosidad alta
+  const saturation = 70;
+  const lightness = 85;
+
+  return `hsl(${hue}, ${saturation}%, ${lightness}%)`;
+}
+
 // Funciones de formateo de fecha centralizadas para Argentina
 const ARGENTINA_TIMEZONE = "America/Argentina/Buenos_Aires";
 

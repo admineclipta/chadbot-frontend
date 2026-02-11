@@ -6,7 +6,7 @@ import { useState, useRef } from "react"
 import { Button, Textarea, Dropdown, DropdownTrigger, DropdownMenu, DropdownItem, Card, CardBody } from "@heroui/react"
 import { SendIcon, PaperclipIcon, SmileIcon, BoldIcon, ItalicIcon, ListIcon, ImageIcon, FileIcon, MessageSquare, Clock, AlertTriangle } from "lucide-react"
 import { isOutside24HourWindow, getRemainingTimeIn24HourWindow } from "@/lib/utils"
-import TemplateMessageModal from "./template-message-modal"
+import TemplateMessageModal from "@/components/modals/template-message-modal"
 import type { Message } from "@/lib/types"
 
 interface MessageInputProps {
@@ -105,15 +105,15 @@ export default function MessageInput({
     <div className={`p-4 ${isBlurred ? 'filter blur-[1px] opacity-80' : ''} transition-all duration-300`}>
       {/* 24 Hour Window Warning - Solo mostrar si está fuera de la ventana */}
       {isOutsideWindow && (
-        <Card className="mb-3 bg-orange-50 border-orange-200">
+        <Card className="mb-3 bg-orange-50 dark:bg-orange-950 border-orange-200 dark:border-orange-800">
           <CardBody className="p-3">
             <div className="flex items-start gap-2">
-              <AlertTriangle className="h-4 w-4 text-orange-500 mt-0.5 flex-shrink-0" />
+              <AlertTriangle className="h-4 w-4 text-orange-500 dark:text-orange-400 mt-0.5 flex-shrink-0" />
               <div className="flex-1">
-                <p className="text-sm font-medium text-orange-800">
+                <p className="text-sm font-medium text-orange-800 dark:text-orange-200">
                   Ventana de 24 horas expirada
                 </p>
-                <p className="text-xs text-orange-700 mt-1">
+                <p className="text-xs text-orange-700 dark:text-orange-300 mt-1">
                   Solo puedes enviar mensajes de plantilla de WhatsApp Business. Los mensajes de texto libre están bloqueados.
                 </p>
               </div>
@@ -134,11 +134,11 @@ export default function MessageInput({
 
       {/* 24 Hour Window Timer - Solo mostrar si está dentro de la ventana */}
       {!isOutsideWindow && remainingTime && (
-        <Card className="mb-3 bg-green-50 border-green-200">
+        <Card className="mb-3 bg-green-50 dark:bg-green-950 border-green-200 dark:border-green-800">
           <CardBody className="p-2">
             <div className="flex items-center gap-2 text-sm">
-              <Clock className="h-3 w-3 text-green-600" />
-              <span className="text-green-800">
+              <Clock className="h-3 w-3 text-green-600 dark:text-green-400" />
+              <span className="text-green-800 dark:text-green-200">
                 Ventana libre: {remainingTime} restantes
               </span>
             </div>

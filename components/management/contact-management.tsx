@@ -46,6 +46,8 @@ import { apiService } from "@/lib/api"
 import { useApi } from "@/hooks/use-api"
 import { DEBOUNCE_SEARCH_MS } from "@/lib/config"
 import { toast } from "sonner"
+import { useIsMobile } from "@/hooks/use-mobile"
+import { cn } from "@/lib/utils"
 
 interface ContactFormData {
   fullName: string
@@ -53,6 +55,7 @@ interface ContactFormData {
 }
 
 export default function ContactManagement() {
+  const isMobile = useIsMobile()
   const [searchTerm, setSearchTerm] = useState("")
   const [currentPage, setCurrentPage] = useState(0)
   const [pageSize] = useState(10)
@@ -294,107 +297,228 @@ export default function ContactManagement() {
         </CardBody>
       </Card>
 
-      {/* Tabla de contactos */}
-      <Card>
-        <CardBody className="p-0">
-          <Table
-            aria-label="Tabla de contactos"
-            classNames={{
-              wrapper: "min-h-[400px]",
-            }}
-          >
-            <TableHeader>
-              <TableColumn>NOMBRE</TableColumn>
-              <TableColumn>CANAL PRINCIPAL</TableColumn>
-              <TableColumn>ESTADO</TableColumn>
-              <TableColumn>CREADO</TableColumn>
-              <TableColumn align="center">ACCIONES</TableColumn>
-            </TableHeader>
-            <TableBody
-              emptyContent={
-                loading ? (
-                  <div className="flex flex-col gap-3 py-8">
-                    {[...Array(5)].map((_, i) => (
-                      <div key={i} className="flex items-center gap-3 px-6">
-                        <Skeleton className="w-12 h-12 rounded-full" />
-                        <div className="flex-1 space-y-2">
-                          <Skeleton className="h-4 w-3/5 rounded-lg" />
-                          <Skeleton className="h-3 w-2/5 rounded-lg" />
-                        </div>
+      {/* Vista móvil - Cards */}
+      {isMobile ? (
+        <div className="space-y-3">
+          {loading ? (
+            <>
+              {[...Array(5)].map((_, i) => (
+                <Card key={i}>
+                  <CardBody className="p-4">
+                    <div className="flex items-start gap-3">
+                      <Skeleton className="w-12 h-12 rounded-full flex-shrink-0" />
+                      <div className="flex-1 space-y-2">
+                        <Skeleton className="h-4 w-3/4 rounded-lg" />
+                        <Skeleton className="h-3 w-1/2 rounded-lg" />
+                        <Skeleton className="h-3 w-2/3 rounded-lg" />
                       </div>
-                    ))}
-                  </div>
-                ) : (
-                  "No hay contactos disponibles"
-                )
-              }
-              isLoading={loading}
-              loadingContent={<Spinner label="Cargando..." />}
-            >
+                    </div>
+                  </CardBody>
+                </Card>
+              ))}
+            </>
+          ) : contacts.length === 0 ? (
+            <Card>
+              <CardBody className="p-8">
+                <div className="text-center text-default-500">
+                  <User className="w-12 h-12 mx-auto mb-2 opacity-50" />
+                  <p>No hay contactos disponibles</p>
+                </div>
+              </CardBody>
+            </Card>
+          ) : (
+            <>
               {contacts.map((contact) => {
                 const primaryChannel = getPrimaryChannel(contact)
                 return (
-                  <TableRow key={contact.id}>
-                    <TableCell>
-                      <div className="flex items-center gap-3">
-                        <div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary-100 text-primary">
-                          <User className="w-5 h-5" />
+                  <Card key={contact.id} className="hover:shadow-md transition-shadow">
+                    <CardBody className="p-4">
+                      <div className="flex items-start gap-3">
+                        <div className="flex h-12 w-12 items-center justify-center rounded-full bg-primary-100 text-primary flex-shrink-0">
+                          <User className="w-6 h-6" />
                         </div>
-                        <div>
-                          <p className="font-semibold">{contact.fullName}</p>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-start justify-between gap-2 mb-2">
+                            <h3 className="font-semibold text-base truncate">{contact.fullName}</h3>
+                            <Chip
+                              size="sm"
+                              variant="flat"
+                              color={contact.blocked ? "danger" : "success"}
+                              startContent={
+                                contact.blocked ? (
+                                  <Ban className="w-3 h-3" />
+                                ) : (
+                                  <CheckCircle className="w-3 h-3" />
+                                )
+                              }
+                            >
+                              {contact.blocked ? "Bloqueado" : "Activo"}
+                            </Chip>
+                          </div>
+                          
                           {contact.metadata?.phone && (
-                            <p className="text-xs text-default-500 flex items-center gap-1">
+                            <p className="text-sm text-default-600 flex items-center gap-1 mb-1">
                               <Phone className="w-3 h-3" />
                               {contact.metadata.phone}
                             </p>
                           )}
-                        </div>
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      {primaryChannel ? (
-                        <div className="flex flex-col">
-                          <span className="text-sm font-medium">
-                            {primaryChannel.serviceTypeName}
-                          </span>
-                          <span className="text-xs text-default-500">
-                            {primaryChannel.externalContactId}
-                          </span>
-                        </div>
-                      ) : (
-                        <span className="text-xs text-default-400">Sin canal</span>
-                      )}
-                    </TableCell>
-                    <TableCell>
-                      <Chip
-                        size="sm"
-                        variant="flat"
-                        color={contact.blocked ? "danger" : "success"}
-                        startContent={
-                          contact.blocked ? (
-                            <Ban className="w-3 h-3" />
+                          
+                          {primaryChannel ? (
+                            <div className="text-sm text-default-500 mb-2">
+                              <span className="font-medium">{primaryChannel.serviceTypeName}</span>
+                              <span className="mx-1">•</span>
+                              <span className="text-xs">{primaryChannel.externalContactId}</span>
+                            </div>
                           ) : (
-                            <CheckCircle className="w-3 h-3" />
-                          )
-                        }
-                      >
-                        {contact.blocked ? "Bloqueado" : "Activo"}
-                      </Chip>
-                    </TableCell>
-                    <TableCell>
-                      <div className="flex items-center gap-1 text-sm text-default-500">
-                        <Calendar className="w-4 h-4" />
-                        {formatDate(contact.createdAt)}
+                            <p className="text-sm text-default-400 mb-2">Sin canal</p>
+                          )}
+                          
+                          <div className="flex items-center gap-1 text-xs text-default-400 mb-3">
+                            <Calendar className="w-3 h-3" />
+                            {formatDate(contact.createdAt)}
+                          </div>
+                          
+                          <div className="flex gap-2">
+                            <Button
+                              size="sm"
+                              variant="flat"
+                              onPress={() => handleView(contact)}
+                              startContent={<Eye className="w-4 h-4" />}
+                              className="flex-1"
+                            >
+                              Ver
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="flat"
+                              color="primary"
+                              onPress={() => handleEdit(contact)}
+                              startContent={<Edit className="w-4 h-4" />}
+                              className="flex-1"
+                            >
+                              Editar
+                            </Button>
+                            <Button
+                              isIconOnly
+                              size="sm"
+                              variant="flat"
+                              color="danger"
+                              onPress={() => handleDeleteConfirm(contact)}
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </Button>
+                          </div>
+                        </div>
                       </div>
-                    </TableCell>
-                    <TableCell>
-                      <div className="flex items-center justify-center gap-2">
-                        <Button
-                          isIconOnly
+                    </CardBody>
+                  </Card>
+                )
+              })}
+            </>
+          )}
+        </div>
+      ) : (
+        /* Vista desktop - Tabla */
+        <Card>
+          <CardBody className="p-0">
+            <Table
+              aria-label="Tabla de contactos"
+              classNames={{
+                wrapper: "min-h-[400px]",
+              }}
+            >
+              <TableHeader>
+                <TableColumn>NOMBRE</TableColumn>
+                <TableColumn>CANAL PRINCIPAL</TableColumn>
+                <TableColumn>ESTADO</TableColumn>
+                <TableColumn>CREADO</TableColumn>
+                <TableColumn align="center">ACCIONES</TableColumn>
+              </TableHeader>
+              <TableBody
+                emptyContent={
+                  loading ? (
+                    <div className="flex flex-col gap-3 py-8">
+                      {[...Array(5)].map((_, i) => (
+                        <div key={i} className="flex items-center gap-3 px-6">
+                          <Skeleton className="w-12 h-12 rounded-full" />
+                          <div className="flex-1 space-y-2">
+                            <Skeleton className="h-4 w-3/5 rounded-lg" />
+                            <Skeleton className="h-3 w-2/5 rounded-lg" />
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    "No hay contactos disponibles"
+                  )
+                }
+                isLoading={loading}
+                loadingContent={<Spinner label="Cargando..." />}
+              >
+                {contacts.map((contact) => {
+                  const primaryChannel = getPrimaryChannel(contact)
+                  return (
+                    <TableRow key={contact.id}>
+                      <TableCell>
+                        <div className="flex items-center gap-3">
+                          <div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary-100 text-primary">
+                            <User className="w-5 h-5" />
+                          </div>
+                          <div>
+                            <p className="font-semibold">{contact.fullName}</p>
+                            {contact.metadata?.phone && (
+                              <p className="text-xs text-default-500 flex items-center gap-1">
+                                <Phone className="w-3 h-3" />
+                                {contact.metadata.phone}
+                              </p>
+                            )}
+                          </div>
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        {primaryChannel ? (
+                          <div className="flex flex-col">
+                            <span className="text-sm font-medium">
+                              {primaryChannel.serviceTypeName}
+                            </span>
+                            <span className="text-xs text-default-500">
+                              {primaryChannel.externalContactId}
+                            </span>
+                          </div>
+                        ) : (
+                          <span className="text-xs text-default-400">Sin canal</span>
+                        )}
+                      </TableCell>
+                      <TableCell>
+                        <Chip
                           size="sm"
-                          variant="light"
-                          onPress={() => handleView(contact)}
+                          variant="flat"
+                          color={contact.blocked ? "danger" : "success"}
+                          startContent={
+                            contact.blocked ? (
+                              <Ban className="w-3 h-3" />
+                            ) : (
+                              <CheckCircle className="w-3 h-3" />
+                            )
+                          }
                         >
+                          {contact.blocked ? "Bloqueado" : "Activo"}
+                        </Chip>
+                      </TableCell>
+                      <TableCell>
+                        <div className="flex items-center gap-1 text-sm text-default-500">
+                          <Calendar className="w-4 h-4" />
+                          {formatDate(contact.createdAt)}
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        <div className="flex items-center justify-center gap-2">
+                          <Button
+                            isIconOnly
+                            size="sm"
+                            variant="light"
+                            onPress={() => handleView(contact)}
+                          >
                           <Eye className="w-4 h-4" />
                         </Button>
                         <Dropdown>
@@ -431,6 +555,7 @@ export default function ContactManagement() {
           </Table>
         </CardBody>
       </Card>
+      )}
 
       {/* Paginación */}
       {totalElements > pageSize && (

@@ -42,12 +42,23 @@ import {
   Eye,
   Shield,
   Info,
+  KeyRound,
+  Copy,
 } from "lucide-react"
-import type { UserDto, Role, RoleDto, UserRequest, UserUpdateRequest } from "@/lib/api-types"
+import type {
+  UserDto,
+  Role,
+  RoleDto,
+  UserRequest,
+  UserUpdateRequest,
+  ResetPasswordTokenResponse,
+} from "@/lib/api-types"
 import { useUserManagement } from "@/hooks/use-user-management"
-import UserAvatar from "./user-avatar"
-import { apiService } from "@/lib/api"
+import UserAvatar from "@/components/management/user-avatar"
+import { apiService, ApiError } from "@/lib/api"
 import { toast } from "sonner"
+import { useIsMobile } from "@/hooks/use-mobile"
+import { cn } from "@/lib/utils"
 
 interface UserFormData {
   name: string
@@ -58,6 +69,7 @@ interface UserFormData {
 }
 
 export default function UserManagement() {
+  const isMobile = useIsMobile()
   const [searchTerm, setSearchTerm] = useState("")
   const [currentPage, setCurrentPage] = useState(0)
   const [pageSize] = useState(10)
@@ -65,6 +77,9 @@ export default function UserManagement() {
   const [selectedUserDetails, setSelectedUserDetails] = useState<any | null>(null)
   const [loadingUserDetails, setLoadingUserDetails] = useState(false)
   const [isEditing, setIsEditing] = useState(false)
+  const [isCreatingResetToken, setIsCreatingResetToken] = useState(false)
+  const [resetTokenData, setResetTokenData] = useState<ResetPasswordTokenResponse | null>(null)
+  const [resetUrl, setResetUrl] = useState("")
   const [formData, setFormData] = useState<UserFormData>({
     name: "",
     displayName: "",
@@ -103,6 +118,11 @@ export default function UserManagement() {
     isOpen: isRolesOpen,
     onOpen: onRolesOpen,
     onOpenChange: onRolesOpenChange,
+  } = useDisclosure()
+  const {
+    isOpen: isResetOpen,
+    onOpen: onResetOpen,
+    onOpenChange: onResetOpenChange,
   } = useDisclosure()
 
   useEffect(() => {
@@ -202,6 +222,47 @@ export default function UserManagement() {
     onRolesOpen()
   }
 
+  const buildResetUrl = (tokenHash: string) => {
+    if (typeof window === "undefined") return `/reset-password?h=${tokenHash}`
+    const { origin } = window.location
+    return `${origin}/reset-password?h=${tokenHash}`
+  }
+
+  const handleResetPasswordToken = async (user: UserDto) => {
+    setSelectedUser(user)
+    setResetTokenData(null)
+    setResetUrl("")
+    onResetOpen()
+
+    try {
+      setIsCreatingResetToken(true)
+      const token = await apiService.createResetPasswordToken(user.id)
+      setResetTokenData(token)
+      setResetUrl(buildResetUrl(token.tokenHash))
+      toast.success("Enlace de restablecimiento generado")
+    } catch (error) {
+      console.error("Error creating reset token", error)
+      const message =
+        error instanceof ApiError
+          ? error.message
+          : "No se pudo generar el enlace"
+      toast.error(message)
+    } finally {
+      setIsCreatingResetToken(false)
+    }
+  }
+
+  const handleCopyResetUrl = async () => {
+    if (!resetUrl) return
+    try {
+      await navigator.clipboard.writeText(resetUrl)
+      toast.success("URL copiada al portapapeles")
+    } catch (error) {
+      console.error("Error copying url", error)
+      toast.error("No se pudo copiar la URL")
+    }
+  }
+
   // Cargar todos los roles disponibles
   const handleLoadRoles = async () => {
     setLoadingRoles(true)
@@ -290,7 +351,7 @@ export default function UserManagement() {
             Administración de Usuarios
           </h1>
           <p className="text-gray-500 dark:text-gray-400">
-            Gestiona usuarios del sistema (ABMC)
+            Gestiona usuarios del sistema
           </p>
         </div>
         <Button
@@ -313,18 +374,118 @@ export default function UserManagement() {
         />
       </div>
 
-      {/* Tabla de usuarios */}
-      <Table aria-label="Tabla de usuarios">
-        <TableHeader columns={columns}>
-          {(column) => (
-            <TableColumn key={column.key}>{column.label}</TableColumn>
+      {/* Vista móvil - Cards */}
+      {isMobile ? (
+        <div className="space-y-3">
+          {loading ? (
+            <div className="flex justify-center py-8">
+              <Spinner label="Cargando usuarios..." />
+            </div>
+          ) : filteredUsers.length === 0 ? (
+            <div className="text-center py-8 text-gray-500">
+              <User className="w-12 h-12 mx-auto mb-2 opacity-50" />
+              <p>No hay usuarios disponibles</p>
+            </div>
+          ) : (
+            <>
+              {filteredUsers.map((user) => (
+                <div key={user.id} className="bg-white dark:bg-gray-800 rounded-lg p-4 border border-gray-200 dark:border-gray-700 hover:shadow-md transition-shadow">
+                  <div className="flex items-start gap-3">
+                    <UserAvatar user={user} size={48} />
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-start justify-between gap-2 mb-2">
+                        <div className="flex-1 min-w-0">
+                          <h3 className="font-semibold text-base truncate">{user.name}</h3>
+                          <p className="text-sm text-gray-500 truncate">@{user.displayName}</p>
+                        </div>
+                        <Chip
+                          size="sm"
+                          variant="flat"
+                          color={user.active ? "success" : "danger"}
+                        >
+                          {user.active ? "Activo" : "Inactivo"}
+                        </Chip>
+                      </div>
+                      
+                      <div className="flex items-center gap-1 text-sm text-gray-600 dark:text-gray-400 mb-2">
+                        <Mail className="w-3 h-3" />
+                        <span className="truncate">{user.email}</span>
+                      </div>
+                      
+                      <div className="flex items-center gap-1 text-xs text-gray-400 mb-3">
+                        <Calendar className="w-3 h-3" />
+                        {new Date(user.createdAt).toLocaleDateString()}
+                      </div>
+                      
+                      <div className="flex gap-2">
+                        <Button
+                          size="sm"
+                          variant="flat"
+                          onPress={() => handleView(user)}
+                          startContent={<Eye className="w-4 h-4" />}
+                          className="flex-1"
+                        >
+                          Ver
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="flat"
+                          color="primary"
+                          onPress={() => handleEdit(user)}
+                          startContent={<Edit className="w-4 h-4" />}
+                          className="flex-1"
+                        >
+                          Editar
+                        </Button>
+                        <Dropdown>
+                          <DropdownTrigger>
+                            <Button isIconOnly size="sm" variant="flat">
+                              <MoreVertical className="h-4 w-4" />
+                            </Button>
+                          </DropdownTrigger>
+                          <DropdownMenu>
+                            <DropdownItem
+                              startContent={<Shield className="h-4 w-4" />}
+                              onPress={() => handleAssignRoles(user)}
+                            >
+                              Roles
+                            </DropdownItem>
+                            <DropdownItem
+                              startContent={<KeyRound className="h-4 w-4" />}
+                              onPress={() => handleResetPasswordToken(user)}
+                            >
+                              Restablecer
+                            </DropdownItem>
+                            <DropdownItem
+                              color="danger"
+                              startContent={<Trash2 className="h-4 w-4" />}
+                              onPress={() => handleDeleteConfirm(user)}
+                            >
+                              Eliminar
+                            </DropdownItem>
+                          </DropdownMenu>
+                        </Dropdown>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </>
           )}
-        </TableHeader>
-        <TableBody
-          items={filteredUsers}
-          isLoading={loading}
-          loadingContent={<Spinner label="Cargando usuarios..." />}
-        >
+        </div>
+      ) : (
+        /* Vista desktop - Tabla */
+        <Table aria-label="Tabla de usuarios">
+          <TableHeader columns={columns}>
+            {(column) => (
+              <TableColumn key={column.key}>{column.label}</TableColumn>
+            )}
+          </TableHeader>
+          <TableBody
+            items={filteredUsers}
+            isLoading={loading}
+            loadingContent={<Spinner label="Cargando usuarios..." />}
+          >
           {(user) => (
             <TableRow key={`user-${user.id}`}>
               <TableCell>
@@ -376,6 +537,13 @@ export default function UserManagement() {
                       Asignar roles
                     </DropdownItem>
                     <DropdownItem
+                      key={`reset-${user.id}`}
+                      startContent={<KeyRound className="h-4 w-4" />}
+                      onPress={() => handleResetPasswordToken(user)}
+                    >
+                      Restablecer contraseña
+                    </DropdownItem>
+                    <DropdownItem
                       key={`delete-${user.id}`}
                       color="danger"
                       startContent={<Trash2 className="h-4 w-4" />}
@@ -390,6 +558,7 @@ export default function UserManagement() {
           )}
         </TableBody>
       </Table>
+      )}
 
       {/* Paginación */}
       <div className="flex justify-center mt-4">
@@ -802,6 +971,76 @@ export default function UserManagement() {
                   startContent={<Shield className="h-4 w-4" />}
                 >
                   {loadingRoles ? "Guardando..." : "Guardar cambios"}
+                </Button>
+              </ModalFooter>
+            </>
+          )}
+        </ModalContent>
+      </Modal>
+
+      {/* Modal de restablecimiento de contraseña */}
+      <Modal isOpen={isResetOpen} onOpenChange={onResetOpenChange}>
+        <ModalContent>
+          {(onClose) => (
+            <>
+              <ModalHeader className="flex flex-col gap-1">
+                <div className="flex items-center gap-2">
+                  <KeyRound className="h-5 w-5" />
+                  <div>
+                    <p className="text-base font-semibold">Restablecer contraseña</p>
+                    <p className="text-sm text-default-500">Genera y comparte el enlace seguro</p>
+                  </div>
+                </div>
+              </ModalHeader>
+              <ModalBody className="space-y-4">
+                {isCreatingResetToken && (
+                  <div className="flex justify-center py-4">
+                    <Spinner label="Generando enlace..." />
+                  </div>
+                )}
+
+                {!isCreatingResetToken && resetTokenData && (
+                  <div className="space-y-3">
+                    <div className="rounded-lg border border-default-200 dark:border-default-700 p-3 bg-default-50 dark:bg-default-100/10">
+                      <p className="text-xs text-default-500 mb-1">Hash</p>
+                      <p className="font-mono text-sm break-all">{resetTokenData.tokenHash}</p>
+                    </div>
+
+                    <div className="flex flex-col gap-1 text-sm text-default-500">
+                      <span>
+                        Expira: {new Date(resetTokenData.expiresAt).toLocaleString()}
+                      </span>
+                      {resetTokenData.usedAt && (
+                        <span>Usado: {new Date(resetTokenData.usedAt).toLocaleString()}</span>
+                      )}
+                    </div>
+
+                    <Input
+                      label="URL para el usuario (?h=HASH)"
+                      value={resetUrl}
+                      isReadOnly
+                      description="Comparte este enlace (incluye ?h=) para que el usuario establezca su nueva contraseña"
+                    />
+                  </div>
+                )}
+
+                {!isCreatingResetToken && !resetTokenData && (
+                  <p className="text-sm text-default-500">
+                    No se pudo generar el enlace. Inténtalo nuevamente.
+                  </p>
+                )}
+              </ModalBody>
+              <ModalFooter>
+                <Button variant="light" onPress={onClose}>
+                  Cerrar
+                </Button>
+                <Button
+                  color="primary"
+                  startContent={<Copy className="h-4 w-4" />}
+                  onPress={handleCopyResetUrl}
+                  isDisabled={!resetUrl || isCreatingResetToken}
+                >
+                  Copiar URL
                 </Button>
               </ModalFooter>
             </>
