@@ -17,13 +17,12 @@ import SettingsView from "@/components/settings/settings-view"
 import EnvironmentIndicator from "@/components/layout/environment-indicator"
 import ContactInfoModal from "@/components/modals/contact-info-modal"
 import type { Conversation, User, Message, Tag } from "@/lib/types"
-import type { ConversationStatus, MessagingServiceType, ConversationSortField, SortDirection } from "@/lib/api-types"
-import { mapApiConversacionToConversation, mapApiConversacionesResponseToConversation, mapApiMensajeToMessage } from "@/lib/types"
+import type { ConversationStatus, MessagingServiceType, ConversationSortField, SortDirection, Message as ApiMessage } from "@/lib/api-types"
 import { apiService } from "@/lib/api"
 import { DEBOUNCE_SEARCH_MS } from "@/lib/config"
 import { useApi } from "@/hooks/use-api"
 import { useIsMobile } from "@/hooks/use-mobile"
-import { cn } from "@/lib/utils"
+import { cn, parseApiTimestamp } from "@/lib/utils"
 
 export default function Home() {
   const router = useRouter()
@@ -158,6 +157,54 @@ export default function Home() {
     [selectedConversation?.id, messagesRefreshKey], // Incluir refreshKey para forzar refresco
   )
 
+  const getMessageFileUrl = useCallback((file?: any): string | null => {
+    if (!file) return null
+    return file.fileUrl || null
+  }, [])
+
+  const mapApiMessageToDomain = useCallback((msg: ApiMessage): Message => {
+    const messageContent = msg.content?.text || msg.content?.caption || ""
+    const senderType: "client" | "agent" | "bot" = msg.sender?.type === "agent"
+      ? "agent"
+      : msg.sender?.type === "bot"
+        ? "bot"
+        : "client"
+    const fileUrl = getMessageFileUrl(msg.file)
+
+    return {
+      id: msg.id,
+      content: messageContent,
+      sender: senderType,
+      senderId: msg.sender?.id,
+      senderName: msg.sender?.name,
+      timestamp: parseApiTimestamp(msg.createdAt),
+      status: msg.status,
+      type: msg.type,
+      file: msg.file
+        ? {
+            id: msg.file.id,
+            url: fileUrl,
+            status: msg.file.status,
+            mimeType: msg.file.metadata?.mime_type,
+            filename: msg.file.metadata?.filename,
+            sizeBytes: msg.file.metadata?.size_bytes,
+            width: msg.file.metadata?.width,
+            height: msg.file.metadata?.height,
+          }
+        : undefined,
+      attachments: fileUrl
+        ? [
+            {
+              id: msg.file.id,
+              name: msg.file.metadata?.filename || "Media",
+              type: msg.type,
+              url: fileUrl,
+            },
+          ]
+        : undefined,
+    }
+  }, [getMessageFileUrl, parseApiTimestamp])
+
   useEffect(() => {
     const token = localStorage.getItem("chadbot_token")
     const userData = localStorage.getItem("chadbot_user")
@@ -188,38 +235,7 @@ export default function Home() {
   useEffect(() => {
     if (apiMensajesResponse && selectedConversation) {
       // API v1 retorna MessageListResponse con nueva estructura
-      const mappedMessages = apiMensajesResponse.content.map(msg => {
-        // Determinar el contenido del mensaje
-        const messageContent = msg.content?.text || msg.content?.caption || "";
-        
-        // Determinar el tipo de sender
-        let senderType: "client" | "agent" | "bot" = "client";
-        if (msg.sender.type === "agent") {
-          senderType = "agent";
-        } else if (msg.sender.type === "bot") {
-          senderType = "bot";
-        }
-
-        // Construir URL del archivo si existe
-        let mediaUrl: string | undefined;
-        if (msg.file && msg.file.status === "available") {
-          // Construir URL desde storageUri (ajustar según tu configuración)
-          mediaUrl = `/api/files/${msg.file.id}`;
-        }
-
-        return {
-          id: msg.id,
-          content: messageContent,
-          sender: senderType,
-          timestamp: new Date(msg.createdAt),
-          attachments: mediaUrl ? [{
-            id: msg.file!.id,
-            name: msg.file!.metadata?.filename || "Media",
-            type: msg.type,
-            url: mediaUrl,
-          }] : undefined,
-        };
-      });
+      const mappedMessages = apiMensajesResponse.content.map(mapApiMessageToDomain)
       
       // Como vienen ordenados DESC (más reciente primero), invertimos para orden cronológico
       const sortedMessages = mappedMessages.reverse();
@@ -234,7 +250,7 @@ export default function Home() {
           : null,
       )
     }
-  }, [apiMensajesResponse]) // Remover selectedConversation de las dependencias para evitar el loop infinito
+  }, [apiMensajesResponse, mapApiMessageToDomain]) // Remover selectedConversation de las dependencias para evitar el loop infinito
 
   // Función para manejar la carga de mensajes más antiguos
   const handleLoadOlderMessages = useCallback((olderMessages: Message[]) => {
@@ -256,33 +272,7 @@ export default function Home() {
       const response = await apiService.getMessages(selectedConversation.id, 0, 20)
 
       if (response && response.content.length > 0) {
-        const mappedMessages = response.content.map(msg => {
-          const messageContent = msg.content?.text || msg.content?.caption || "";
-          let senderType: "client" | "agent" | "bot" = "client";
-          if (msg.sender.type === "agent") {
-            senderType = "agent";
-          } else if (msg.sender.type === "bot") {
-            senderType = "bot";
-          }
-
-          let mediaUrl: string | undefined;
-          if (msg.file && msg.file.status === "available") {
-            mediaUrl = `/api/files/${msg.file.id}`;
-          }
-
-          return {
-            id: msg.id,
-            content: messageContent,
-            sender: senderType,
-            timestamp: new Date(msg.createdAt),
-            attachments: mediaUrl ? [{
-              id: msg.file!.id,
-              name: msg.file!.metadata?.filename || "Media",
-              type: msg.type,
-              url: mediaUrl,
-            }] : undefined,
-          };
-        }).reverse(); // Invertir porque vienen DESC
+        const mappedMessages = response.content.map(mapApiMessageToDomain).reverse()
         
         setSelectedConversation((prev) => {
           if (!prev) return null
@@ -318,7 +308,7 @@ export default function Home() {
       console.error("Error refreshing messages:", error)
       // No mostrar toast para evitar spam, solo log silencioso
     }
-  }, [selectedConversation])
+  }, [mapApiMessageToDomain, selectedConversation])
 
   const handleLogout = async () => {
     try {
@@ -343,7 +333,11 @@ export default function Home() {
         id: Date.now().toString(),
         content,
         sender: "agent" as const,
+        senderId: user.id,
+        senderName: user.name,
         timestamp: new Date(),
+        status: "sent" as const,
+        type: "text" as const,
         attachments: attachments?.map((file) => ({
           id: Date.now().toString(),
           name: file.name,

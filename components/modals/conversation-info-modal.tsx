@@ -25,6 +25,7 @@ import {
 import type { Conversation } from "@/lib/types"
 import { CONVERSATION_STATUS_CONFIG } from "@/lib/types"
 import { formatDateTime, formatDate } from "@/lib/utils"
+import { getChannelDisplayName } from "@/lib/messaging-channels"
 
 interface ConversationInfoModalProps {
   isOpen: boolean
@@ -101,18 +102,21 @@ export default function ConversationInfoModal({
                       <Chip
                         size="sm"
                         variant="flat"
-                        color={
-                          conversation.integration === "whatsapp"
-                            ? "success"
-                            : conversation.integration === "telegram"
-                            ? "primary"
-                            : conversation.integration === "facebook"
-                            ? "secondary"
-                            : "default"
-                        }
-                        className="capitalize"
+                        color={(() => {
+                          const channel = (conversation.integration || "").toLowerCase()
+                          if (channel.includes("whatsapp") || channel.includes("evolution")) {
+                            return "success"
+                          }
+                          if (channel.includes("telegram")) {
+                            return "primary"
+                          }
+                          if (channel.includes("facebook") || channel.includes("messenger")) {
+                            return "secondary"
+                          }
+                          return "default"
+                        })()}
                       >
-                        {conversation.integration}
+                        {getChannelDisplayName(conversation.integration || "")}
                       </Chip>
                     </div>
                   </div>

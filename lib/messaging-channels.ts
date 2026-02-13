@@ -41,6 +41,14 @@ export const MESSAGING_CHANNELS: Record<string, MessagingChannelConfig> = {
     color: "#25D366",
     enabled: true,
   },
+  "evolution api": {
+    type: "evolution api",
+    displayName: "Evolution API",
+    icon: "/whatsapp.svg",
+    iconPng: "/WhatsApp.png",
+    color: "#25D366",
+    enabled: true,
+  },
   telegram: {
     type: "telegram",
     displayName: "Telegram",
@@ -77,7 +85,7 @@ export const MESSAGING_CHANNELS: Record<string, MessagingChannelConfig> = {
  * Returns default config if not found
  */
 export function getMessagingChannelConfig(
-  serviceType: string | undefined
+  serviceType: string | undefined,
 ): MessagingChannelConfig {
   if (!serviceType) {
     return {
@@ -120,7 +128,7 @@ export function getChannelDisplayName(serviceType: string | undefined): string {
  */
 export function getChannelIcon(
   serviceType: string | undefined,
-  preferSvg: boolean = true
+  preferSvg: boolean = true,
 ): string {
   const config = getMessagingChannelConfig(serviceType);
   if (preferSvg) {

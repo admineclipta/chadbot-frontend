@@ -86,7 +86,11 @@ export type ConversationStatus =
   | "ACTIVE"
   | "INTERVENED"
   | "NO_ANSWER"
-  | "CLOSED";
+  | "CLOSED"
+  | "active"
+  | "intervened"
+  | "no_answer"
+  | "closed";
 
 export type ConversationSortField =
   | "createdAt"
@@ -334,7 +338,7 @@ export interface TagListResponse {
 
 // Conversation Actions
 export interface AssignConversationRequest {
-  agentId: string;
+  agentIds: string[];
 }
 
 export interface ChangeConversationStatusRequest {
@@ -501,10 +505,11 @@ export interface TeamListResponse {
 export interface Assistant {
   id: string;
   clientId: string;
-  aiCredentialId: string;
+  credentialId: string;
+  teamId?: string | null;
   name: string;
   description: string;
-  systemPrompt: string;
+  metadata?: Record<string, any>;
   isDefault: boolean;
   isActive: boolean;
   createdAt: string;

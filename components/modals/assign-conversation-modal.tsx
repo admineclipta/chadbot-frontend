@@ -17,14 +17,14 @@ import {
 import { UserPlus, Search } from "lucide-react"
 import { toast } from "sonner"
 import { apiService } from "@/lib/api"
-import type { UserByNameResponse } from "@/lib/api-types"
+import type { UserDto } from "@/lib/api-types"
 
 interface AssignConversationModalProps {
   isOpen: boolean
   onClose: () => void
   conversationId: string
   customerName: string
-  currentAssignedUserId?: number | null // ID del usuario actualmente asignado
+  currentAssignedUserId?: string | number | null // ID del usuario actualmente asignado
   currentUser?: { id: string; name?: string; [key: string]: any } // Usuario logueado actual
   onAssignSuccess: (userName: string) => void
 }
@@ -40,12 +40,17 @@ export default function AssignConversationModal({
 }: AssignConversationModalProps) {
   const [searchTerm, setSearchTerm] = useState("")
   const [selectedUserId, setSelectedUserId] = useState<string>("")
-  const [users, setUsers] = useState<UserByNameResponse[]>([])
+  const [users, setUsers] = useState<UserDto[]>([])
   const [loading, setLoading] = useState(false)
   const [assigning, setAssigning] = useState(false)
   const [searchLoading, setSearchLoading] = useState(false)
-  const [currentAssignedUser, setCurrentAssignedUser] = useState<UserByNameResponse | null>(null)
+  const [currentAssignedUser, setCurrentAssignedUser] = useState<UserDto | null>(null)
   const [initialLoadDone, setInitialLoadDone] = useState(false)
+  const isUnassigned = currentAssignedUserId === null || currentAssignedUserId === undefined || currentAssignedUserId === -1 || currentAssignedUserId === "-1"
+
+  const getUserDisplayName = (user: UserDto) => user.displayName || user.name || user.email
+  const getSearchableText = (user: UserDto) =>
+    `${user.displayName || ""} ${user.name || ""} ${user.email || ""}`.toLowerCase()
 
   // Buscar usuarios cuando cambie el término de búsqueda
   useEffect(() => {
@@ -54,28 +59,37 @@ export default function AssignConversationModal({
 
       try {
         setSearchLoading(true)
-        const response = await apiService.getAgentsByName(searchTerm)
+        const response = await apiService.getUsers(0, 100, true)
         // Filtrar solo usuarios activos
-        let activeUsers = response.filter(user => user.activo === 1)
+        let activeUsers = response.content.filter(user => user.active)
+
+        if (searchTerm) {
+          const term = searchTerm.toLowerCase()
+          activeUsers = activeUsers.filter((user) => getSearchableText(user).includes(term))
+        }
         
         // Asegurar que el usuario logueado siempre esté en la lista si no está ya
         if (currentUser) {
-          const currentUserId = Number.parseInt(currentUser.id)
+          const currentUserId = currentUser.id
           const userInList = activeUsers.find(user => user.id === currentUserId)
           
           if (!userInList) {
             // Crear el objeto del usuario logueado si no está en la lista
             const loggedUserObj = {
               id: currentUserId,
-              nombre: currentUser.name?.split(' ')[0] || currentUser.name || 'Usuario',
-              apellido: currentUser.name?.split(' ').slice(1).join(' ') || '',
-              mail: currentUser.email || '',
-              activo: 1
+              clientId: "",
+              email: currentUser.email || "",
+              name: currentUser.name || "Usuario",
+              displayName: currentUser.name || "Usuario",
+              agentId: currentUserId,
+              active: true,
+              lastLoginAt: null,
+              createdAt: new Date().toISOString(),
+              roles: [],
             }
             
             // Solo agregar si coincide con el término de búsqueda o si no hay término
-            const userName = `${loggedUserObj.nombre} ${loggedUserObj.apellido}`.toLowerCase()
-            if (!searchTerm || userName.includes(searchTerm.toLowerCase())) {
+            if (!searchTerm || getSearchableText(loggedUserObj).includes(searchTerm.toLowerCase())) {
               activeUsers.unshift(loggedUserObj)
             }
           }
@@ -102,36 +116,41 @@ export default function AssignConversationModal({
   useEffect(() => {
     const loadCurrentAssignedUser = async () => {
       try {
-        if (currentAssignedUserId && currentAssignedUserId !== -1) {
+        if (!isUnassigned && currentAssignedUserId) {
           // Si hay un usuario asignado, cargarlo
-          const allUsers = await apiService.getAgentsByName("")
-          const assignedUser = allUsers.find(user => user.id === currentAssignedUserId)
+          const allUsers = await apiService.getUsers(0, 100, true)
+          const assignedUser = allUsers.content.find(user => user.id === String(currentAssignedUserId))
           
           if (assignedUser) {
             setCurrentAssignedUser(assignedUser)
-            setSelectedUserId(assignedUser.id.toString())
+            setSelectedUserId(assignedUser.id)
             setUsers([assignedUser])
           } else {
             setCurrentAssignedUser(null)
           }
         } else if (currentUser) {
           // Si no hay usuario asignado, preseleccionar al usuario actual
-          const allUsers = await apiService.getAgentsByName("")
-          let loggedUser = allUsers.find(user => user.id.toString() === currentUser.id)
+          const allUsers = await apiService.getUsers(0, 100, true)
+          let loggedUser = allUsers.content.find(user => user.id === currentUser.id)
           
           // Si el usuario logueado no está en la lista de agentes, crearlo
           if (!loggedUser && currentUser.name) {
             loggedUser = {
-              id: Number.parseInt(currentUser.id),
-              nombre: currentUser.name.split(' ')[0] || currentUser.name,
-              apellido: currentUser.name.split(' ').slice(1).join(' ') || '',
-              mail: currentUser.email || '',
-              activo: 1
+              id: currentUser.id,
+              clientId: "",
+              email: currentUser.email || "",
+              name: currentUser.name,
+              displayName: currentUser.name,
+              agentId: currentUser.id,
+              active: true,
+              lastLoginAt: null,
+              createdAt: new Date().toISOString(),
+              roles: [],
             }
           }
           
           if (loggedUser) {
-            setSelectedUserId(loggedUser.id.toString())
+            setSelectedUserId(loggedUser.id)
             // Incluir al usuario logueado en la lista inicial
             const usersWithLoggedUser = loggedUser ? [loggedUser] : []
             setUsers(usersWithLoggedUser)
@@ -174,14 +193,13 @@ export default function AssignConversationModal({
     try {
       setAssigning(true)
       
-      await apiService.asignarConversacion({
-        targetUserId: parseInt(selectedUserId),
-        conversationId: parseInt(conversationId),
+      await apiService.assignConversation(conversationId, {
+        agentIds: [selectedUserId],
       })
 
       // Encontrar el nombre del usuario asignado
-      const assignedUser = users.find(user => user.id.toString() === selectedUserId)
-      const userName = assignedUser ? `${assignedUser.nombre} ${assignedUser.apellido}` : "el agente"
+      const assignedUser = users.find(user => user.id === selectedUserId)
+      const userName = assignedUser ? getUserDisplayName(assignedUser) : "el agente"
 
       // Mostrar toast de éxito
       toast.success(`Conversación asignada exitosamente`, {
@@ -219,7 +237,7 @@ export default function AssignConversationModal({
       })
 
       // Notificar al componente padre
-      onAssignSuccess("Inteligencia Artificial")
+          onAssignSuccess("Inteligencia Artificial")
       
       // Cerrar modal
       onClose()
@@ -269,15 +287,15 @@ export default function AssignConversationModal({
                 <div className="flex items-center gap-3">
                   <Avatar
                     size="sm"
-                    name={`${currentAssignedUser.nombre} ${currentAssignedUser.apellido}`}
+                    name={getUserDisplayName(currentAssignedUser)}
                     className="flex-shrink-0"
                   />
                   <div className="flex flex-col">
                     <span className="text-sm font-medium text-blue-900 dark:text-blue-100">
-                      {currentAssignedUser.nombre} {currentAssignedUser.apellido}
+                      {getUserDisplayName(currentAssignedUser)}
                     </span>
                     <span className="text-xs text-blue-600 dark:text-blue-400">
-                      {currentAssignedUser.mail}
+                      {currentAssignedUser.email}
                     </span>
                   </div>
                 </div>
@@ -285,7 +303,7 @@ export default function AssignConversationModal({
             )}
 
             {/* Mensaje cuando no hay asignación */}
-            {initialLoadDone && !currentAssignedUser && currentAssignedUserId === -1 && (
+            {initialLoadDone && !currentAssignedUser && isUnassigned && (
               <div className="bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg p-3">
                 <p className="text-xs text-gray-600 dark:text-gray-400 font-medium mb-1">
                   ESTADO ACTUAL:
@@ -320,21 +338,21 @@ export default function AssignConversationModal({
             >
               {users.map((user) => (
                 <SelectItem
-                  key={user.id.toString()}
-                  textValue={`${user.nombre} ${user.apellido}`}
+                  key={user.id}
+                  textValue={getUserDisplayName(user)}
                 >
                   <div className="flex items-center gap-3">
                     <Avatar
                       size="sm"
-                      name={`${user.nombre} ${user.apellido}`}
+                      name={getUserDisplayName(user)}
                       className="flex-shrink-0"
                     />
                     <div className="flex flex-col">
                       <span className="text-sm font-medium">
-                        {user.nombre} {user.apellido}
+                        {getUserDisplayName(user)}
                       </span>
                       <span className="text-xs text-gray-500">
-                        {user.mail}
+                        {user.email}
                       </span>
                     </div>
                   </div>

@@ -4,8 +4,8 @@ import type React from "react"
 
 import { useState, useRef } from "react"
 import { Button, Textarea, Dropdown, DropdownTrigger, DropdownMenu, DropdownItem, Card, CardBody } from "@heroui/react"
-import { SendIcon, PaperclipIcon, SmileIcon, BoldIcon, ItalicIcon, ListIcon, ImageIcon, FileIcon, MessageSquare, Clock, AlertTriangle } from "lucide-react"
-import { isOutside24HourWindow, getRemainingTimeIn24HourWindow } from "@/lib/utils"
+import { SendIcon, PaperclipIcon, SmileIcon, BoldIcon, ItalicIcon, ListIcon, ImageIcon, FileIcon, MessageSquare, AlertTriangle } from "lucide-react"
+import { isOutside24HourWindow } from "@/lib/utils"
 import TemplateMessageModal from "@/components/modals/template-message-modal"
 import type { Message } from "@/lib/types"
 
@@ -38,7 +38,6 @@ export default function MessageInput({
 
   // Validar si está fuera de la ventana de 24 horas
   const isOutsideWindow = isOutside24HourWindow(messages)
-  const remainingTime = getRemainingTimeIn24HourWindow(messages)
 
   const handleSend = () => {
     if (isOutsideWindow && message.trim()) {
@@ -132,19 +131,6 @@ export default function MessageInput({
         </Card>
       )}
 
-      {/* 24 Hour Window Timer - Solo mostrar si está dentro de la ventana */}
-      {!isOutsideWindow && remainingTime && (
-        <Card className="mb-3 bg-green-50 dark:bg-green-950 border-green-200 dark:border-green-800">
-          <CardBody className="p-2">
-            <div className="flex items-center gap-2 text-sm">
-              <Clock className="h-3 w-3 text-green-600 dark:text-green-400" />
-              <span className="text-green-800 dark:text-green-200">
-                Ventana libre: {remainingTime} restantes
-              </span>
-            </div>
-          </CardBody>
-        </Card>
-      )}
 
       {/* Attachments Preview */}
       {attachments.length > 0 && (

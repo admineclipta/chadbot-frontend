@@ -105,13 +105,15 @@ const ChatView = forwardRef<ChatViewRef, ChatViewProps>(
     const canIntervene = conversation.status === 'ACTIVE' && currentUser
     const canSendMessages = conversation.status !== 'CLOSED'
 
+    const normalizeStatus = (status: string): string => status.toLowerCase()
+
     const getStatusBadgeType = (status: string): 'active' | 'intervened' | 'closed' | 'pending' => {
-      switch (status) {
-        case 'ACTIVE':
+      switch (normalizeStatus(status)) {
+        case 'active':
           return 'active'
-        case 'INTERVENED':
+        case 'intervened':
           return 'intervened'
-        case 'CLOSED':
+        case 'closed':
           return 'closed'
         default:
           return 'pending'
@@ -119,13 +121,15 @@ const ChatView = forwardRef<ChatViewRef, ChatViewProps>(
     }
 
     const getStatusLabel = (status: string): string => {
-      switch (status) {
-        case 'ACTIVE':
+      switch (normalizeStatus(status)) {
+        case 'active':
           return 'Activa'
-        case 'INTERVENED':
+        case 'intervened':
           return 'Intervenida'
-        case 'CLOSED':
+        case 'closed':
           return 'Cerrada'
+        case 'no_answer':
+          return 'Sin respuesta'
         default:
           return status
       }
@@ -518,7 +522,7 @@ const ChatView = forwardRef<ChatViewRef, ChatViewProps>(
             {/* Overlay para conversaciones no intervenidas */}
             {canIntervene && (
               <div 
-                className="absolute inset-0 z-10 bg-gradient-to-b from-blue-50/95 to-violet-50/95 dark:from-slate-800/95 dark:to-slate-900/95 backdrop-blur-sm flex items-center justify-center cursor-pointer group hover:from-blue-50/90 hover:to-violet-50/90 dark:hover:from-slate-800/90 dark:hover:to-slate-900/90 transition-all"
+                className="absolute inset-0 z-10 bg-gradient-to-b from-blue-50/95 to-violet-50/95 dark:from-slate-950/95 dark:to-slate-900/95 backdrop-blur-sm flex items-center justify-center cursor-pointer group hover:from-blue-50/90 hover:to-violet-50/90 dark:hover:from-slate-950/90 dark:hover:to-slate-900/90 transition-all"
                 onClick={handleIntervenirConversacion}
               >
                 <div className="flex items-center gap-4 px-6 max-w-lg">
@@ -528,10 +532,10 @@ const ChatView = forwardRef<ChatViewRef, ChatViewProps>(
                     </div>
                   </div>
                   <div className="flex-1 text-left">
-                    <p className="text-sm font-semibold text-slate-900 dark:text-slate-100 mb-1">
+                    <p className="text-sm font-semibold text-slate-900 dark:text-slate-50 mb-1">
                       IA controlando la conversación
                     </p>
-                    <p className="text-xs text-slate-600 dark:text-slate-400">
+                    <p className="text-xs text-slate-600 dark:text-slate-200">
                       {intervenirLoading ? "Interviniendo..." : "Haz clic para intervenir y tomar control"}
                     </p>
                   </div>
