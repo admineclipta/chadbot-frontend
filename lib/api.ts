@@ -68,6 +68,7 @@ import {
   type EnviarMensajesPlantillaRequest,
   type EnviarMensajesPlantillaResponse,
   type ContactoCSV,
+  type DashboardSummary,
   ApiError,
 } from "./api-types";
 import { mapApiConversationToDomain } from "./types";
@@ -145,6 +146,8 @@ class ApiService {
         ...defaultHeaders,
         ...options.headers,
       },
+      mode: "cors",
+      credentials: "omit",
     };
 
     // Only include signal if it's actually provided and valid
@@ -1222,6 +1225,21 @@ class ApiService {
         body: JSON.stringify(payload),
       },
     );
+  }
+
+  // ============================================
+  // Dashboard
+  // ============================================
+
+  /**
+   * Get dashboard statistics and recent activity
+   * @returns Dashboard summary with conversation stats, token usage, and recent conversations
+   */
+  async getDashboardSummary(): Promise<DashboardSummary> {
+    console.log("📊 [CHADBOT API] Fetching dashboard summary");
+    return this.request<DashboardSummary>("dashboard/summary", {
+      method: "GET",
+    });
   }
 
   // ============================================

@@ -145,9 +145,10 @@ export interface MessageContent {
 
 export interface MessageFile {
   id: string;
-  messageId: string;
+  messageId?: string;
   storageProvider: string;
-  storageUri: string;
+  storageUri?: string;
+  fileUrl?: string; // URL del archivo (usado por la API v1)
   storageMeta?: Record<string, any> | null;
   metadata?: {
     width?: number;
@@ -1002,4 +1003,45 @@ export interface EnviarMensajesPlantillaResponse {
   message: string;
   sentCount?: number;
   failedCount?: number;
+}
+
+// ============================================
+// Dashboard Statistics Types
+// ============================================
+
+export interface ConversationStats {
+  activeCount: number;
+  intervenedsCount: number;
+  averageResponseTimeMinutes: number;
+  trends: {
+    activeCountChange: number;
+    intervenedsCountChange: number;
+    responseTimeChange: number;
+  };
+}
+
+export interface TokenUsage {
+  consumed: number;
+  total: number;
+  percentageUsed: number;
+  consumedChangePercent: number | null;
+}
+
+export interface RecentConversationItem {
+  id: string;
+  contactName: string;
+  lastMessageAt: number; // Unix timestamp in seconds (can be decimal)
+  status: ConversationStatus;
+  unreadCount: number;
+  lastMessagePreview: string;
+}
+
+export interface RecentActivity {
+  conversations: RecentConversationItem[];
+}
+
+export interface DashboardSummary {
+  conversationStats: ConversationStats;
+  tokenUsage: TokenUsage;
+  recentActivity: RecentActivity;
 }

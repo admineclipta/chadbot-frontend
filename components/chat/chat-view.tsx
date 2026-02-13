@@ -46,7 +46,7 @@ function MediaError({ label }: { label: string }) {
 function MessageMedia({ message, isAccent }: { message: Message; isAccent: boolean }) {
   const [hasError, setHasError] = useState(false)
   const mediaType = message.type
-  const fileUrl = message.file?.url || null
+  const fileUrl = (message.file as any)?.fileUrl || (message.file as any)?.url || null
   const fileStatus = message.file?.status
   const showError = hasError || fileStatus === "error" || !fileUrl
 

@@ -2,7 +2,7 @@
 
 import { useState } from "react"
 import Image from "next/image"
-import { MessageCircle, Users, Contact, Bot, Settings, Send, LogOut, ChevronDown, Menu, Tag } from "lucide-react"
+import { MessageCircle, Users, Contact, Bot, Settings, Send, LogOut, ChevronDown, Menu, Tag, BarChart3 } from "lucide-react"
 import { Button as HeroButton, Dropdown, DropdownTrigger, DropdownMenu, DropdownItem } from "@heroui/react"
 import UserAvatar from "@/components/management/user-avatar"
 import type { User } from "@/lib/types"
@@ -12,8 +12,8 @@ import NewChatModal from "@/components/modals/new-chat-modal"
 
 interface SidebarProps {
   user: User | null
-  currentView: "welcome" | "conversations" | "profile" | "users" | "contacts" | "teams" | "assistants" | "tags" | "settings"
-  onViewChange: (view: "welcome" | "conversations" | "profile" | "users" | "contacts" | "teams" | "assistants" | "tags" | "settings") => void
+  currentView: "dashboard" | "welcome" | "conversations" | "profile" | "users" | "contacts" | "teams" | "assistants" | "tags" | "settings"
+  onViewChange: (view: "dashboard" | "welcome" | "conversations" | "profile" | "users" | "contacts" | "teams" | "assistants" | "tags" | "settings") => void
   conversationsCount?: number
   onLogout?: () => void
 }
@@ -97,6 +97,12 @@ export default function Sidebar({
   }
 
   const menuSections = [
+    {
+      title: "Analytics",
+      items: [
+        { id: "dashboard", label: "Dashboard", icon: BarChart3, show: true },
+      ],
+    },
     {
       title: "Mensajeria",
       items: [

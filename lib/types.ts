@@ -152,6 +152,7 @@ export interface Attachment {
 export interface MessageFileInfo {
   id: string;
   url?: string | null;
+  fileUrl?: string | null; // URL del archivo (desde API v1)
   status?: string;
   mimeType?: string;
   filename?: string;
