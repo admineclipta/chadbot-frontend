@@ -88,14 +88,26 @@ function MessageMedia({ message, isAccent }: { message: Message; isAccent: boole
   if (mediaType === "audio") {
     return (
       <>
-        <audio
-          controls
-          className="w-full"
-          onError={() => setHasError(true)}
-          src={fileUrl || undefined}
-        />
+        <div className="w-full flex justify-center">
+          <audio
+            controls
+            className="w-full md:w-[700px]"
+            onError={() => setHasError(true)}
+            src={fileUrl || undefined}
+          >
+            Tu navegador no soporta audio. <a href={fileUrl} target="_blank" rel="noopener">Abrir audio</a>
+          </audio>
+        </div>
         {hasError && (
           <MediaError label={`No se pudo cargar el audio (${fileUrl})`} />
+        )}
+        {!hasError && !fileUrl && (
+          <MediaError label="Audio no disponible" />
+        )}
+        {!hasError && fileUrl && (
+          <div className="text-xs mt-2">
+            <a href={fileUrl} target="_blank" rel="noopener" className="underline text-blue-600">Abrir audio en nueva pestaña</a>
+          </div>
         )}
       </>
     )
@@ -207,7 +219,7 @@ const ChatView = forwardRef<ChatViewRef, ChatViewProps>(
 
     useEffect(() => {
       scrollToBottom("auto")
-    }, [conversation.id, scrollToBottom])
+    }, [conversation.id, conversation.messages, scrollToBottom])
 
     // Event listener para cerrar con tecla ESC
     useEffect(() => {
