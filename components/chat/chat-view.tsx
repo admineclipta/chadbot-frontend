@@ -130,6 +130,19 @@ function MessageMedia({ message, isAccent }: { message: Message; isAccent: boole
     )
   }
 
+  if (mediaType === "sticker") {
+    return (
+      <HeroImage
+        src={fileUrl}
+        alt={message.file?.filename || "Sticker"}
+        radius="lg"
+        className="max-w-32 max-h-32 rounded-xl object-cover"
+        width={128}
+        onError={() => setHasError(true)}
+      />
+    )
+  }
+
   return null
 }
 

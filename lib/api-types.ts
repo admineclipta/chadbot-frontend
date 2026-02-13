@@ -128,7 +128,13 @@ export interface ConversationDetailResponse extends Conversation {
 
 // Message Types
 export type SenderType = "contact" | "agent" | "bot" | "system";
-export type MessageType = "text" | "image" | "video" | "audio" | "document";
+export type MessageType =
+  | "text"
+  | "image"
+  | "video"
+  | "audio"
+  | "document"
+  | "sticker";
 export type MessageStatus = "sent" | "delivered" | "read" | "failed";
 
 export interface MessageSender {
@@ -188,6 +194,8 @@ export interface SendMessageRequest {
   conversationId: string;
   type?: MessageType;
   text?: string;
+  file?: File;
+  caption?: string;
 }
 
 export interface SendImageRequest {

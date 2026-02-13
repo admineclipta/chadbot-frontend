@@ -60,6 +60,15 @@ export default function MessageTypeIndicator({
     )
   }
 
+  if (type === "sticker") {
+    return (
+      <div className={`flex items-center gap-1 ${className}`}>
+        <ImageIcon size={14} className={baseIconClass} />
+        <span className="text-xs text-gray-600 truncate">Sticker</span>
+      </div>
+    )
+  }
+
   // For text type, show the actual content (truncated)
   const textContent = content?.text || content?.caption || ""
   

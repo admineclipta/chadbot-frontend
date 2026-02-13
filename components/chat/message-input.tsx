@@ -4,7 +4,7 @@ import type React from "react"
 
 import { useState, useRef } from "react"
 import { Button, Textarea, Dropdown, DropdownTrigger, DropdownMenu, DropdownItem, Card, CardBody } from "@heroui/react"
-import { SendIcon, PaperclipIcon, SmileIcon, BoldIcon, ItalicIcon, ListIcon, ImageIcon, FileIcon, MessageSquare, AlertTriangle } from "lucide-react"
+import { SendIcon, PaperclipIcon, SmileIcon, BoldIcon, ItalicIcon, ListIcon, ImageIcon, FileIcon, MessageSquare, AlertTriangle, VideoIcon, MusicIcon } from "lucide-react"
 import { isOutside24HourWindow } from "@/lib/utils"
 import TemplateMessageModal from "@/components/modals/template-message-modal"
 import type { Message } from "@/lib/types"
@@ -35,6 +35,9 @@ export default function MessageInput({
   const [showTemplateModal, setShowTemplateModal] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const imageInputRef = useRef<HTMLInputElement>(null)
+  const videoInputRef = useRef<HTMLInputElement>(null)
+  const audioInputRef = useRef<HTMLInputElement>(null)
+  const stickerInputRef = useRef<HTMLInputElement>(null)
 
   // Validar si está fuera de la ventana de 24 horas
   const isOutsideWindow = isOutside24HourWindow(messages)
@@ -210,12 +213,33 @@ export default function MessageInput({
             >
               Imagen
             </DropdownItem>
+            <DropdownItem
+              key="video"
+              startContent={<VideoIcon className="h-4 w-4" />}
+              onClick={() => videoInputRef.current?.click()}
+            >
+              Video
+            </DropdownItem>
+            <DropdownItem
+              key="audio"
+              startContent={<MusicIcon className="h-4 w-4" />}
+              onClick={() => audioInputRef.current?.click()}
+            >
+              Audio
+            </DropdownItem>
+            <DropdownItem
+              key="sticker"
+              startContent={<ImageIcon className="h-4 w-4" />}
+              onClick={() => stickerInputRef.current?.click()}
+            >
+              Sticker
+            </DropdownItem>
             <DropdownItem 
               key="file"
               startContent={<FileIcon className="h-4 w-4" />} 
               onClick={() => fileInputRef.current?.click()}
             >
-              Archivo
+              Documento
             </DropdownItem>
           </DropdownMenu>
         </Dropdown>
@@ -302,6 +326,9 @@ export default function MessageInput({
       {/* Hidden File Inputs */}
       <input ref={fileInputRef} type="file" multiple className="hidden" onChange={handleFileSelect} />
       <input ref={imageInputRef} type="file" multiple accept="image/*" className="hidden" onChange={handleFileSelect} />
+      <input ref={videoInputRef} type="file" multiple accept="video/*" className="hidden" onChange={handleFileSelect} />
+      <input ref={audioInputRef} type="file" multiple accept="audio/*" className="hidden" onChange={handleFileSelect} />
+      <input ref={stickerInputRef} type="file" multiple accept="image/webp,image/png" className="hidden" onChange={handleFileSelect} />
 
       {/* Template Message Modal */}
       <TemplateMessageModal

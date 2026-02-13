@@ -25,6 +25,25 @@ import { useApi } from "@/hooks/use-api"
 import { useIsMobile } from "@/hooks/use-mobile"
 import { cn, parseApiTimestamp } from "@/lib/utils"
 
+// Función helper para determinar el tipo de mensaje basado en el tipo MIME
+const getMessageTypeFromFile = (file: File): "image" | "video" | "audio" | "document" | "sticker" => {
+  const mimeType = file.type.toLowerCase();
+
+  if (mimeType.startsWith("image/")) {
+    // Verificar si es un sticker (webp es común para stickers)
+    if (mimeType === "image/webp") {
+      return "sticker";
+    }
+    return "image";
+  } else if (mimeType.startsWith("video/")) {
+    return "video";
+  } else if (mimeType.startsWith("audio/")) {
+    return "audio";
+  } else {
+    return "document";
+  }
+};
+
 export default function Home() {
   const router = useRouter()
   const chatViewRef = useRef<ChatViewRef>(null)
@@ -333,62 +352,116 @@ export default function Home() {
     async (content: string, attachments?: File[]) => {
       if (!selectedConversation || !user) return
 
-      const newMessage = {
-        id: Date.now().toString(),
-        content,
-        sender: "agent" as const,
-        senderId: user.id,
-        senderName: user.name,
-        timestamp: new Date(),
-        status: "sent" as const,
-        type: "text" as const,
-        attachments: attachments?.map((file) => ({
+      // Si hay attachments, enviar cada uno como mensaje multimedia
+      if (attachments && attachments.length > 0) {
+        for (const file of attachments) {
+          const messageType = getMessageTypeFromFile(file);
+          const newMessage = {
+            id: Date.now().toString() + Math.random().toString(36).substr(2, 9),
+            content: content || file.name,
+            sender: "agent" as const,
+            senderId: user.id,
+            senderName: user.name,
+            timestamp: new Date(),
+            status: "sent" as const,
+            type: messageType,
+            file: {
+              id: Date.now().toString(),
+              filename: file.name,
+              fileUrl: URL.createObjectURL(file),
+              mimeType: file.type,
+              sizeBytes: file.size,
+            },
+          }
+
+          try {
+            // Crear el mensaje localmente primero para UX inmediata
+            setSelectedConversation((prev) =>
+              prev
+                ? {
+                    ...prev,
+                    messages: [...prev.messages, newMessage],
+                    lastMessage: content || file.name,
+                  }
+                : null,
+            )
+
+            // Enviar a la API
+            await apiService.sendMessage({
+              conversationId: selectedConversation.id,
+              type: messageType,
+              text: content,
+              file: file,
+              caption: content,
+            })
+
+          } catch (error) {
+            console.error("Error sending file message:", error)
+            // Revertir el mensaje optimista en caso de error
+            setSelectedConversation((prev) =>
+              prev
+                ? {
+                    ...prev,
+                    messages: prev.messages.filter((msg) => msg.id !== newMessage.id),
+                  }
+                : null,
+            )
+          }
+        }
+      } else if (content.trim()) {
+        // Enviar mensaje de texto normal
+        const newMessage = {
           id: Date.now().toString(),
-          name: file.name,
-          type: file.type,
-          url: URL.createObjectURL(file),
-        })),
-      }
+          content,
+          sender: "agent" as const,
+          senderId: user.id,
+          senderName: user.name,
+          timestamp: new Date(),
+          status: "sent" as const,
+          type: "text" as const,
+        }
 
-      try {
-        // Crear el mensaje localmente primero para UX inmediata
-        setSelectedConversation((prev) =>
-          prev
-            ? {
-                ...prev,
-                messages: [...prev.messages, newMessage],
-                lastMessage: content,
-              }
-            : null,
-        )
+        try {
+          // Crear el mensaje localmente primero para UX inmediata
+          setSelectedConversation((prev) =>
+            prev
+              ? {
+                  ...prev,
+                  messages: [...prev.messages, newMessage],
+                    lastMessage: content || file.name,
+                }
+              : null,
+          )
 
-        // Enviar a la API
-        await apiService.sendMessage({
-          conversationId: selectedConversation.id,
-          type: "text",
-          text: content,
-        })
+          // Enviar a la API
+          await apiService.sendMessage({
+            conversationId: selectedConversation.id,
+            type: "text",
+            text: content,
+          })
 
-        // Refrescar mensajes después de enviar y hacer scroll
-        setTimeout(() => {
-          refetchMessages()
-          // Hacer scroll al final después de enviar el mensaje
-          setTimeout(() => {
-            chatViewRef.current?.scrollToBottom("smooth")
-          }, 200)
-        }, 1000)
-      } catch (error) {
-        console.error("Error sending message:", error)
-        // Revertir el mensaje optimista en caso de error
-        setSelectedConversation((prev) =>
-          prev
-            ? {
+        } catch (error) {
+          console.error("Error sending text message:", error)
+          // Revertir el mensaje optimista en caso de error
+          setSelectedConversation((prev) =>
+            prev
+              ? {
                 ...prev,
                 messages: prev.messages.filter((msg) => msg.id !== newMessage.id),
               }
-            : null,
-        )
+              : null,
+          )
+        }
       }
+
+      // Refrescar mensajes después de enviar y hacer scroll
+      setTimeout(() => {
+        refetchMessages()
+        // Hacer scroll al final después de enviar el mensaje
+        setTimeout(() => {
+          chatViewRef.current?.scrollToBottom("smooth")
+        }, 200)
+      }, 1000)
     },
     [selectedConversation, user, refetchMessages],
   )
