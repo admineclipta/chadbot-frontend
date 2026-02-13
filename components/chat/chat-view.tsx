@@ -49,6 +49,9 @@ function MessageMedia({ message, isAccent }: { message: Message; isAccent: boole
   const fileUrl = (message.file as any)?.fileUrl || (message.file as any)?.url || null
   const fileStatus = message.file?.status
   const showError = hasError || fileStatus === "error" || !fileUrl
+  if (mediaType === "audio") {
+    console.log("[AUDIO] fileUrl:", fileUrl, message.file)
+  }
 
   if (!mediaType || mediaType === "text") {
     return null
@@ -84,12 +87,17 @@ function MessageMedia({ message, isAccent }: { message: Message; isAccent: boole
 
   if (mediaType === "audio") {
     return (
-      <audio
-        controls
-        className="w-full"
-        onError={() => setHasError(true)}
-        src={fileUrl}
-      />
+      <>
+        <audio
+          controls
+          className="w-full"
+          onError={() => setHasError(true)}
+          src={fileUrl || undefined}
+        />
+        {hasError && (
+          <MediaError label={`No se pudo cargar el audio (${fileUrl})`} />
+        )}
+      </>
     )
   }
 

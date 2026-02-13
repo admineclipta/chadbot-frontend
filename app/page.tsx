@@ -170,7 +170,10 @@ export default function Home() {
       : msg.sender?.type === "bot"
         ? "bot"
         : "client"
-    const fileUrl = getMessageFileUrl(msg.file)
+    let fileUrl = getMessageFileUrl(msg.file)
+    if (!fileUrl && msg.file) {
+      fileUrl = msg.file.url || msg.file.storageUri || msg.file.fileUrl || null
+    }
 
     return {
       id: msg.id,
