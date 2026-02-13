@@ -53,6 +53,40 @@ export default function Sidebar({
   
   const isAdmin = hasAdminPermissions(user)
 
+  const renderMenuItem = (item: {
+    id: string
+    label: string
+    icon: typeof MessageCircle
+    badge?: number
+  }) => {
+    const Icon = item.icon
+    const isActive = currentView === item.id
+    const baseClasses = "w-full flex items-center justify-between gap-3 px-3 py-2.5 rounded-lg font-medium transition-all duration-200"
+    const activeClasses = "bg-gradient-to-r from-blue-600 to-violet-700 text-white shadow-lg scale-[1.02]"
+    const inactiveClasses = "text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 hover:scale-[1.02] active:scale-[0.98]"
+
+    return (
+      <button
+        key={item.id}
+        onClick={() => {
+          onViewChange(item.id as any)
+          setMobileMenuOpen(false)
+        }}
+        className={`${baseClasses} ${isActive ? activeClasses : inactiveClasses} group`}
+      >
+        <div className="flex items-center gap-3">
+          <Icon className={`w-5 h-5 ${isActive ? "" : "group-hover:text-blue-600 dark:group-hover:text-blue-400"} transition-colors`} />
+          <span className={isActive ? "" : "group-hover:text-slate-900 dark:group-hover:text-slate-100"}>{item.label}</span>
+        </div>
+        {item.badge !== undefined && item.badge > 0 && (
+          <span className={`px-2 py-0.5 text-xs font-semibold rounded-full ${isActive ? "bg-white/20 text-white" : "bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300"}`}>
+            {item.badge}
+          </span>
+        )}
+      </button>
+    )
+  }
+
   const handleLogout = () => {
     localStorage.removeItem("chadbot_token")
     if (onLogout) {
@@ -62,13 +96,28 @@ export default function Sidebar({
     }
   }
 
-  const menuItems = [
-    { id: 'conversations', label: 'Conversaciones', icon: MessageCircle, badge: conversationsCount, show: true },
-    { id: 'contacts', label: 'Contactos', icon: Contact, show: true },
-    { id: 'tags', label: 'Tags', icon: Tag, show: true },
-    { id: 'users', label: 'Usuarios', icon: Users, show: isAdmin },
-    { id: 'teams', label: 'Equipos', icon: Users, show: isAdmin },
-    { id: 'assistants', label: 'Asistentes', icon: Bot, show: true },
+  const menuSections = [
+    {
+      title: "Mensajeria",
+      items: [
+        { id: "conversations", label: "Conversaciones", icon: MessageCircle, badge: conversationsCount, show: true },
+        { id: "contacts", label: "Contactos", icon: Contact, show: true },
+        { id: "tags", label: "Etiquetas", icon: Tag, show: true },
+      ],
+    },
+    {
+      title: "Automatizacion",
+      items: [
+        { id: "assistants", label: "Asistentes", icon: Bot, show: true },
+      ],
+    },
+    {
+      title: "Administracion",
+      items: [
+        { id: "users", label: "Usuarios", icon: Users, show: isAdmin },
+        { id: "teams", label: "Equipos", icon: Users, show: isAdmin },
+      ],
+    },
   ]
 
   return (
@@ -106,37 +155,21 @@ export default function Sidebar({
         </div>
 
         {/* Navigation */}
-        <nav className="flex-1 px-4 py-2 space-y-1 overflow-y-auto">
-          <div className="text-xs font-semibold text-slate-500 dark:text-slate-400 px-3 py-2 uppercase tracking-wider">
-            Navegación
-          </div>
-          
-          {menuItems.filter(item => item.show).map((item) => {
-            const Icon = item.icon
-            const isActive = currentView === item.id
-            const baseClasses = "w-full flex items-center justify-between gap-3 px-3 py-2.5 rounded-lg font-medium transition-all duration-200"
-            const activeClasses = "bg-gradient-to-r from-blue-600 to-violet-700 text-white shadow-lg scale-[1.02]"
-            const inactiveClasses = "text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 hover:scale-[1.02] active:scale-[0.98]"
-            
+        <nav className="flex-1 px-4 py-2 space-y-4 overflow-y-auto">
+          {menuSections.map((section) => {
+            const visibleItems = section.items.filter((item) => item.show)
+            if (visibleItems.length === 0) return null
+
             return (
-              <button
-                key={item.id}
-                onClick={() => {
-                  onViewChange(item.id as any)
-                  setMobileMenuOpen(false)
-                }}
-                className={`${baseClasses} ${isActive ? activeClasses : inactiveClasses} group`}
-              >
-                <div className="flex items-center gap-3">
-                  <Icon className={`w-5 h-5 ${isActive ? '' : 'group-hover:text-blue-600 dark:group-hover:text-blue-400'} transition-colors`} />
-                  <span className={isActive ? '' : 'group-hover:text-slate-900 dark:group-hover:text-slate-100'}>{item.label}</span>
+              <div key={section.title}>
+                <div className="text-xs font-semibold text-slate-500 dark:text-slate-400 px-3 py-2 uppercase tracking-wider">
+                  {section.title}
                 </div>
-                {item.badge !== undefined && item.badge > 0 && (
-                  <span className={`px-2 py-0.5 text-xs font-semibold rounded-full ${isActive ? 'bg-white/20 text-white' : 'bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300'}`}>
-                    {item.badge}
-                  </span>
-                )}
-              </button>
+
+                <div className="space-y-1">
+                  {visibleItems.map(renderMenuItem)}
+                </div>
+              </div>
             )
           })}
         </nav>

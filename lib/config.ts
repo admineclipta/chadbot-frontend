@@ -3,9 +3,12 @@ interface Config {
   wsUrl: string; // WebSocket URL
   environment: "development" | "staging" | "production";
   environmentName: string;
+  chadminUrl: string;
 }
 
 function getConfig(): Config {
+  const defaultChadminDevUrl = "https://chadmin-admin-panel-20r4.bolt.host/";
+
   if (typeof window === "undefined") {
     // Server-side: default to development
     return {
@@ -13,6 +16,7 @@ function getConfig(): Config {
       wsUrl: "http://localhost:8080/ws",
       environment: "development",
       environmentName: "localhost",
+      chadminUrl: process.env.NEXT_PUBLIC_CHADMIN_URL || defaultChadminDevUrl,
     };
   }
 
@@ -24,6 +28,7 @@ function getConfig(): Config {
       wsUrl: "http://localhost:8080/ws",
       environment: "development",
       environmentName: "localhost",
+      chadminUrl: process.env.NEXT_PUBLIC_CHADMIN_URL || defaultChadminDevUrl,
     };
   }
 
@@ -38,6 +43,7 @@ function getConfig(): Config {
       wsUrl: "https://chadbot-backend-914352408266.us-central1.run.app/ws",
       environment: "staging",
       environmentName: "staging",
+      chadminUrl: process.env.NEXT_PUBLIC_CHADMIN_URL || "",
     };
   }
 
@@ -46,6 +52,7 @@ function getConfig(): Config {
     wsUrl: "http://localhost:8080/ws",
     environment: "production",
     environmentName: "prod",
+    chadminUrl: process.env.NEXT_PUBLIC_CHADMIN_URL || "",
   };
 }
 

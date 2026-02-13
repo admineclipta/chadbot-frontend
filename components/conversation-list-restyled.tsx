@@ -206,13 +206,15 @@ export default function ConversationList({
     setContactInfoModalOpen(true)
   }
 
+  const normalizeStatus = (status: string): string => status.toLowerCase()
+
   const getStatusBadgeType = (status: string): 'active' | 'intervened' | 'closed' | 'pending' => {
-    switch (status) {
-      case 'ACTIVE':
+    switch (normalizeStatus(status)) {
+      case 'active':
         return 'active'
-      case 'INTERVENED':
+      case 'intervened':
         return 'intervened'
-      case 'CLOSED':
+      case 'closed':
         return 'closed'
       default:
         return 'pending'
@@ -220,16 +222,39 @@ export default function ConversationList({
   }
 
   const getStatusLabel = (status: string): string => {
-    switch (status) {
-      case 'ACTIVE':
+    switch (normalizeStatus(status)) {
+      case 'active':
         return 'Activa'
-      case 'INTERVENED':
+      case 'intervened':
         return 'Intervenida'
-      case 'CLOSED':
+      case 'closed':
         return 'Cerrada'
+      case 'no_answer':
+        return 'Sin respuesta'
       default:
         return status
     }
+  }
+
+  const getLastMessagePreview = (conversation: Conversation): string => {
+    if (conversation.lastMessage) return conversation.lastMessage
+
+    if (conversation.lastMessageType) {
+      switch (conversation.lastMessageType) {
+        case "image":
+          return "Imagen"
+        case "video":
+          return "Video"
+        case "audio":
+          return "Audio"
+        case "document":
+          return "Documento"
+        default:
+          return ""
+      }
+    }
+
+    return "Sin mensajes"
   }
 
   if (loading) {
@@ -346,7 +371,7 @@ export default function ConversationList({
               const isSelected = selectedConversation?.id === conversation.id
               const isHovered = hoveredConversation === conversation.id
               const contactName = conversation.customer?.name || conversation.customer?.phone || 'Sin nombre'
-              const lastMessage = conversation.lastMessage || 'Sin mensajes'
+              const lastMessage = getLastMessagePreview(conversation)
               const time = conversation.lastActivity 
                 ? formatConversationTime(conversation.lastActivity)
                 : ''

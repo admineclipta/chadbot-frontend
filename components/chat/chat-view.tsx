@@ -1,7 +1,7 @@
 "use client"
 
 import { forwardRef, useImperativeHandle, useRef, useEffect, useState, useCallback } from "react"
-import { Phone, Video, MoreVertical, ArrowLeft, Clock, Bot, User, X, Sparkles, UserPlus, CheckCheck, Check, Send, ChevronDown, Orbit } from "lucide-react"
+import { Phone, MoreVertical, ArrowLeft, Bot, User, X, Sparkles, UserPlus, Send, Orbit } from "lucide-react"
 import { toast } from "sonner"
 import Image from "next/image"
 import { 
@@ -9,13 +9,15 @@ import {
   DropdownTrigger, 
   DropdownMenu, 
   DropdownItem,
-  ButtonGroup,
   Button as HeroButton,
+  Tooltip,
   Tabs,
-  Tab
+  Tab,
+  Image as HeroImage
 } from "@heroui/react"
 import { Avatar } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
+import MessageStatusIcon from "./message-status-icon"
 import MessageInput from "./message-input"
 import ConversationNotes from "./conversation-notes"
 import AISummaryPanel from "@/components/shared/ai-summary-panel"
@@ -23,10 +25,127 @@ import AssignConversationModal from "@/components/modals/assign-conversation-mod
 import ContactInfoModal from "@/components/modals/contact-info-modal"
 import { apiService } from "@/lib/api"
 import type { Conversation, Message } from "@/lib/types"
-import { CONVERSATION_STATUS_CONFIG } from "@/lib/types"
 import type { ConversationStatus } from "@/lib/api-types"
 import { formatMessageTime } from "@/lib/utils"
 import { getChannelDisplayName, getChannelIcon } from "@/lib/messaging-channels"
+
+function getFirstName(value?: string): string | null {
+  if (!value) return null
+  const parts = value.trim().split(/\s+/)
+  return parts.length > 0 ? parts[0] : null
+}
+
+function MediaError({ label }: { label: string }) {
+  return (
+    <div className="rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700 dark:border-red-800 dark:bg-red-950 dark:text-red-300">
+      {label}
+    </div>
+  )
+}
+
+function MessageMedia({ message, isAccent }: { message: Message; isAccent: boolean }) {
+  const [hasError, setHasError] = useState(false)
+  const mediaType = message.type
+  const fileUrl = message.file?.url || null
+  const fileStatus = message.file?.status
+  const showError = hasError || fileStatus === "error" || !fileUrl
+
+  if (!mediaType || mediaType === "text") {
+    return null
+  }
+
+  if (showError) {
+    return <MediaError label="Archivo no disponible" />
+  }
+
+  if (mediaType === "image") {
+    return (
+      <HeroImage
+        src={fileUrl}
+        alt={message.file?.filename || "Imagen"}
+        radius="lg"
+        className="max-w-full rounded-xl object-cover"
+        width={360}
+        onError={() => setHasError(true)}
+      />
+    )
+  }
+
+  if (mediaType === "video") {
+    return (
+      <video
+        controls
+        className="max-w-full rounded-xl"
+        onError={() => setHasError(true)}
+        src={fileUrl}
+      />
+    )
+  }
+
+  if (mediaType === "audio") {
+    return (
+      <audio
+        controls
+        className="w-full"
+        onError={() => setHasError(true)}
+        src={fileUrl}
+      />
+    )
+  }
+
+  if (mediaType === "document") {
+    return (
+      <a
+        href={fileUrl}
+        target="_blank"
+        rel="noreferrer"
+        className={`inline-flex items-center gap-2 rounded-lg px-3 py-2 text-xs font-medium transition-colors ${
+          isAccent
+            ? "bg-white/20 text-white"
+            : "bg-slate-100 text-slate-700 dark:bg-slate-700 dark:text-slate-200"
+        }`}
+      >
+        📄 {message.file?.filename || "Documento"}
+      </a>
+    )
+  }
+
+  return null
+}
+
+type UiConversationStatus = "active" | "intervened" | "closed" | "no_answer"
+
+const STATUS_OPTIONS: Array<{ key: UiConversationStatus; label: string }> = [
+  { key: "active", label: "Activa" },
+  { key: "intervened", label: "Intervenida" },
+  { key: "closed", label: "Cerrada" },
+  { key: "no_answer", label: "Sin respuesta" },
+]
+
+function normalizeStatus(status: string): UiConversationStatus {
+  const normalized = status.toLowerCase()
+  if (normalized === "active") return "active"
+  if (normalized === "intervened") return "intervened"
+  if (normalized === "closed") return "closed"
+  return "no_answer"
+}
+
+function toApiStatus(status: UiConversationStatus): ConversationStatus {
+  return status as unknown as ConversationStatus
+}
+
+function toLegacyStatus(status: UiConversationStatus): ConversationStatus {
+  switch (status) {
+    case "active":
+      return "ACTIVE" as ConversationStatus
+    case "intervened":
+      return "INTERVENED" as ConversationStatus
+    case "closed":
+      return "CLOSED" as ConversationStatus
+    default:
+      return "NO_ANSWER" as ConversationStatus
+  }
+}
 
 interface ChatViewProps {
   conversation: Conversation
@@ -105,17 +224,18 @@ const ChatView = forwardRef<ChatViewRef, ChatViewProps>(
 
     const contactName = conversation.customer?.name || conversation.customer?.phone || 'Sin nombre'
     const contactPhone = conversation.customer?.phone || 'Sin teléfono'
-    const isActive = conversation.status === 'ACTIVE'
-    const canIntervene = conversation.status === 'ACTIVE' && currentUser
-    const canSendMessages = conversation.status !== 'CLOSED'
+    const normalizedStatus = normalizeStatus(conversation.status)
+    const isActive = normalizedStatus === 'active'
+    const canIntervene = normalizedStatus === 'active' && currentUser
+    const canSendMessages = normalizedStatus !== 'closed'
 
     const getStatusBadgeType = (status: string): 'active' | 'intervened' | 'closed' | 'pending' => {
-      switch (status) {
-        case 'ACTIVE':
+      switch (normalizeStatus(status)) {
+        case 'active':
           return 'active'
-        case 'INTERVENED':
+        case 'intervened':
           return 'intervened'
-        case 'CLOSED':
+        case 'closed':
           return 'closed'
         default:
           return 'pending'
@@ -123,16 +243,9 @@ const ChatView = forwardRef<ChatViewRef, ChatViewProps>(
     }
 
     const getStatusLabel = (status: string): string => {
-      switch (status) {
-        case 'ACTIVE':
-          return 'Activa'
-        case 'INTERVENED':
-          return 'Intervenida'
-        case 'CLOSED':
-          return 'Cerrada'
-        default:
-          return status
-      }
+      const normalized = normalizeStatus(status)
+      const option = STATUS_OPTIONS.find((item) => item.key === normalized)
+      return option?.label || status
     }
 
     const getSenderLabel = (sender: string): string => {
@@ -153,7 +266,7 @@ const ChatView = forwardRef<ChatViewRef, ChatViewProps>(
 
       try {
         setIntervenirLoading(true)
-        await apiService.changeConversationStatus(conversation.id, { status: 'INTERVENED' })
+        await apiService.changeConversationStatus(conversation.id, { status: toApiStatus("intervened") })
         
         toast.success('Conversación intervenida exitosamente')
         
@@ -161,7 +274,7 @@ const ChatView = forwardRef<ChatViewRef, ChatViewProps>(
         if (onConversationUpdate) {
           onConversationUpdate({
             ...conversation,
-            status: 'INTERVENED',
+            status: toLegacyStatus("intervened"),
           })
         }
 
@@ -184,80 +297,17 @@ const ChatView = forwardRef<ChatViewRef, ChatViewProps>(
       toast.success('Conversación asignada exitosamente')
     }
 
-    // Función para obtener el estado actual de la conversación
-    const getCurrentState = (): ConversationStatus => {
-      return conversation.status
-    }
-
-    // Función para obtener configuración del estado actual
-    const getCurrentStateConfig = () => {
-      return CONVERSATION_STATUS_CONFIG[conversation.status] || CONVERSATION_STATUS_CONFIG.ACTIVE
-    }
-
-    // Función para obtener el botón principal según el estado
-    const getMainButtonText = (status: ConversationStatus) => {
-      const config = CONVERSATION_STATUS_CONFIG[status]
-      if (!config) return "Cambiar Estado"
-      
-      const transitions = config.allowedTransitions
-      
-      // Priorizar transiciones más comunes
-      if (status === "ACTIVE" && transitions.includes("INTERVENED")) {
-        return "Intervenir"
-      }
-      if (status === "INTERVENED" && transitions.includes("CLOSED")) {
-        return "Cerrar"
-      }
-      if ((status === "CLOSED" || status === "NO_ANSWER") && transitions.includes("ACTIVE")) {
-        return "Activar"
-      }
-      
-      // Fallback: usar primera transición disponible
-      return CONVERSATION_STATUS_CONFIG[transitions[0]]?.label || "Cambiar Estado"
-    }
-
-    // Función para obtener el estado objetivo del botón principal
-    const getMainButtonTargetState = (status: ConversationStatus): ConversationStatus => {
-      const config = CONVERSATION_STATUS_CONFIG[status]
-      if (!config || !config.allowedTransitions || config.allowedTransitions.length === 0) {
-        return "CLOSED"
-      }
-      
-      const transitions = config.allowedTransitions
-      
-      // Priorizar transiciones más comunes
-      if (status === "ACTIVE" && transitions.includes("INTERVENED")) {
-        return "INTERVENED"
-      }
-      if (status === "INTERVENED" && transitions.includes("CLOSED")) {
-        return "CLOSED"
-      }
-      if ((status === "CLOSED" || status === "NO_ANSWER") && transitions.includes("ACTIVE")) {
-        return "ACTIVE"
-      }
-      
-      // Fallback: usar primera transición disponible
-      return transitions[0] || "CLOSED"
-    }
-
-    // Función para obtener los estados disponibles en el dropdown
-    const getDropdownStates = (currentStatus: ConversationStatus): ConversationStatus[] => {
-      const config = CONVERSATION_STATUS_CONFIG[currentStatus]
-      return config?.allowedTransitions || []
-    }
-
-    // Función para cambiar el estado de la conversación
-    const handleStatusChange = async (newStatus: ConversationStatus) => {
+    const handleStatusChange = async (newStatus: UiConversationStatus) => {
       try {
         setChangingStatus(true)
-        
-        await apiService.changeConversationStatus(conversation.id, { status: newStatus })
+
+        await apiService.changeConversationStatus(conversation.id, { status: toApiStatus(newStatus) })
         
         // Actualizar la conversación localmente
         const updatedConversation: Conversation = {
           ...conversation,
-          status: newStatus,
-          archived: newStatus === "CLOSED"
+          status: toLegacyStatus(newStatus),
+          archived: newStatus === "closed"
         }
 
         // Notificar al componente padre sobre el cambio
@@ -265,26 +315,13 @@ const ChatView = forwardRef<ChatViewRef, ChatViewProps>(
           onConversationUpdate(updatedConversation)
         }
 
-        const statusLabel = CONVERSATION_STATUS_CONFIG[newStatus].label
+        const statusLabel = STATUS_OPTIONS.find((option) => option.key === newStatus)?.label || newStatus
         toast.success(`Estado cambiado a "${statusLabel}" exitosamente`)
       } catch (error) {
         console.error("Error al cambiar estado:", error)
         toast.error("Error al cambiar el estado de la conversación")
       } finally {
         setChangingStatus(false)
-      }
-    }
-
-    const getMessageStatusIcon = (status?: string) => {
-      switch (status) {
-        case 'sent':
-          return <Check className="w-4 h-4 text-slate-400" />
-        case 'delivered':
-          return <CheckCheck className="w-4 h-4 text-slate-400" />
-        case 'read':
-          return <CheckCheck className="w-4 h-4 text-blue-600" />
-        default:
-          return null
       }
     }
 
@@ -392,31 +429,38 @@ const ChatView = forwardRef<ChatViewRef, ChatViewProps>(
               {/* Acciones */}
               <div className="flex items-center gap-1 md:gap-2 flex-shrink-0">
                 <button 
-                  onClick={() => setShowSummaryPanel(true)}
-                  className="p-2 md:p-2.5 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg transition-colors group hidden sm:flex"
-                  title="Resumen IA"
+                  disabled
+                  className="p-2 md:p-2.5 rounded-lg transition-colors hidden sm:flex opacity-50 cursor-not-allowed"
+                  title="Resumen IA (próximamente)"
+                  aria-disabled="true"
                 >
-                  <Sparkles className="w-4 h-4 md:w-5 md:h-5 text-slate-600 group-hover:text-violet-600" />
+                  <Sparkles className="w-4 h-4 md:w-5 md:h-5 text-slate-400" />
                 </button>
 
-                {/* Dropdown de cambiar estado */}
+                {/* Selector de estado */}
                 <Dropdown placement="bottom-end">
-                  <DropdownTrigger>
-                    <button 
-                      disabled={changingStatus}
-                      className="p-2 md:p-2.5 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg transition-colors group disabled:opacity-50 disabled:cursor-not-allowed"
-                      title="Cambiar estado"
-                    >
-                      <Orbit className="w-4 h-4 md:w-5 md:h-5 text-slate-600 group-hover:text-blue-600" />
-                    </button>
-                  </DropdownTrigger>
-                  <DropdownMenu
-                    aria-label="Estados de conversación"
-                    onAction={(key) => handleStatusChange(key as ConversationStatus)}
-                  >
-                    {getDropdownStates(getCurrentState()).map((status) => (
-                      <DropdownItem key={status}>
-                        {CONVERSATION_STATUS_CONFIG[status].label}
+                  <Tooltip content="Cambiar estado">
+                    <DropdownTrigger>
+                      <button 
+                        disabled={changingStatus}
+                        className="p-2 md:p-2.5 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg transition-colors group disabled:opacity-50 disabled:cursor-not-allowed"
+                        aria-label="Cambiar estado"
+                      >
+                        <Orbit className="w-4 h-4 md:w-5 md:h-5 text-slate-600 group-hover:text-blue-600" />
+                      </button>
+                    </DropdownTrigger>
+                  </Tooltip>
+                  <DropdownMenu aria-label="Estados de conversación">
+                    {STATUS_OPTIONS.map((status) => (
+                      <DropdownItem
+                        key={status.key}
+                        onPress={() => {
+                          if (status.key !== normalizedStatus) {
+                            handleStatusChange(status.key)
+                          }
+                        }}
+                      >
+                        {status.label}
                       </DropdownItem>
                     ))}
                   </DropdownMenu>
@@ -453,6 +497,12 @@ const ChatView = forwardRef<ChatViewRef, ChatViewProps>(
                 const isSent = message.sender === 'agent' || message.sender === 'bot'
                 const isBot = message.sender === 'bot'
                 const isAgent = message.sender === 'agent'
+                const senderFirstName = getFirstName(message.senderName)
+                const senderLabel = message.senderName
+                  ? isBot
+                    ? message.senderName
+                    : senderFirstName || message.senderName
+                  : getSenderLabel(message.sender)
                 
                 return (
                   <div key={message.id} className={`flex ${isSent ? 'justify-end' : 'justify-start'} items-end gap-2`}>
@@ -471,7 +521,7 @@ const ChatView = forwardRef<ChatViewRef, ChatViewProps>(
                       <div className={`text-xs text-slate-500 dark:text-slate-400 mb-1 px-1 flex items-center gap-1`}>
                         {isBot && <Bot className="w-3 h-3" />}
                         {isAgent && <User className="w-3 h-3" />}
-                        <span>{getSenderLabel(message.sender)}</span>
+                        <span>{senderLabel}</span>
                       </div>
 
                       {/* Message Bubble */}
@@ -482,13 +532,26 @@ const ChatView = forwardRef<ChatViewRef, ChatViewProps>(
                             : 'bg-gradient-to-r from-blue-600 to-violet-700 text-white shadow-lg shadow-blue-500/20 rounded-tr-sm'
                           : 'bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 shadow-sm rounded-tl-sm'
                       }`}>
-                        <p className={`text-sm leading-relaxed whitespace-pre-wrap break-words ${
-                          isSent && !isBot ? 'text-white' : 'text-slate-900 dark:text-slate-100'
-                        }`}>
-                          {message.content}
-                        </p>
+                        {message.type === "text" || !message.type ? (
+                          <p className={`text-sm leading-relaxed whitespace-pre-wrap break-words ${
+                            isSent && !isBot ? 'text-white' : 'text-slate-900 dark:text-slate-100'
+                          }`}>
+                            {message.content}
+                          </p>
+                        ) : (
+                          <div className="space-y-2">
+                            <MessageMedia message={message} isAccent={isSent && !isBot} />
+                            {message.content ? (
+                              <p className={`text-sm leading-relaxed whitespace-pre-wrap break-words ${
+                                isSent && !isBot ? 'text-white' : 'text-slate-900 dark:text-slate-100'
+                              }`}>
+                                {message.content}
+                              </p>
+                            ) : null}
+                          </div>
+                        )}
 
-                        {message.attachments && message.attachments.length > 0 && (
+                        {(!message.type || message.type === "text") && message.attachments && message.attachments.length > 0 && (
                           <div className="mt-2 space-y-1">
                             {message.attachments.map((attachment) => (
                               <div 
@@ -506,8 +569,10 @@ const ChatView = forwardRef<ChatViewRef, ChatViewProps>(
 
                       {/* Time and Status */}
                       <div className={`flex items-center gap-2 mt-1 px-2 text-xs text-slate-500`}>
-                        <Clock className="w-3 h-3" />
                         <span>{formatMessageTime(message.timestamp)}</span>
+                        {isSent && message.status && (
+                          <MessageStatusIcon status={message.status} className="ml-1" />
+                        )}
                       </div>
                     </div>
 
@@ -520,7 +585,7 @@ const ChatView = forwardRef<ChatViewRef, ChatViewProps>(
                           </div>
                         ) : (
                           <Avatar
-                            name="AG"
+                            name={senderLabel || "Agente"}
                             size="sm"
                             gradient="emerald"
                           />
@@ -547,7 +612,7 @@ const ChatView = forwardRef<ChatViewRef, ChatViewProps>(
             {/* Overlay para conversaciones no intervenidas */}
             {canIntervene && (
               <div 
-                className="absolute inset-0 z-10 bg-gradient-to-b from-blue-50/95 to-violet-50/95 backdrop-blur-sm flex items-center justify-center cursor-pointer group hover:from-blue-50/90 hover:to-violet-50/90 transition-all"
+                className="absolute inset-0 z-10 bg-gradient-to-b from-blue-50/95 to-violet-50/95 dark:from-slate-950/95 dark:to-slate-900/95 backdrop-blur-sm flex items-center justify-center cursor-pointer group hover:from-blue-50/90 hover:to-violet-50/90 dark:hover:from-slate-950/90 dark:hover:to-slate-900/90 transition-all"
                 onClick={handleIntervenirConversacion}
               >
                 <div className="flex items-center gap-4 px-6 max-w-lg">
@@ -557,10 +622,10 @@ const ChatView = forwardRef<ChatViewRef, ChatViewProps>(
                     </div>
                   </div>
                   <div className="flex-1 text-left">
-                    <p className="text-sm font-semibold text-slate-900 mb-1">
+                    <p className="text-sm font-semibold text-slate-900 dark:text-slate-50 mb-1">
                       IA controlando la conversación
                     </p>
-                    <p className="text-xs text-slate-600">
+                    <p className="text-xs text-slate-600 dark:text-slate-200">
                       {intervenirLoading ? "Interviniendo..." : "Haz clic para intervenir y tomar control"}
                     </p>
                   </div>

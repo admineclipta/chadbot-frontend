@@ -11,6 +11,7 @@ import {
   Textarea,
   Select,
   SelectItem,
+  SelectSection,
   Spinner,
   Chip,
   Avatar,
@@ -35,14 +36,68 @@ export default function AssistantForm({ assistantId, onBack }: AssistantFormProp
   const router = useRouter()
   const isEditMode = !!assistantId
 
+  const modelSections = [
+    {
+      label: "OpenAI",
+      models: [
+        { label: "GPT-4o", value: "gpt-4o" },
+        { label: "GPT-4.1", value: "gpt-4.1" },
+        { label: "GPT-4.5", value: "gpt-4.5" },
+        { label: "GPT-5", value: "gpt-5" },
+        { label: "GPT-5.2", value: "gpt-5.2" },
+        { label: "o1", value: "o1" },
+        { label: "o3", value: "o3" },
+        { label: "DALL-E", value: "dall-e" },
+        { label: "Whisper", value: "whisper" },
+      ],
+    },
+    {
+      label: "Google (DeepMind)",
+      models: [
+        { label: "Gemini 1.5", value: "gemini-1.5" },
+        { label: "Gemini 2.x", value: "gemini-2" },
+        { label: "PaLM 2", value: "palm-2" },
+      ],
+    },
+    {
+      label: "Anthropic",
+      models: [
+        { label: "Claude 3 Haiku", value: "claude-3-haiku" },
+        { label: "Claude 3 Sonnet", value: "claude-3-sonnet" },
+        { label: "Claude 3 Opus", value: "claude-3-opus" },
+        { label: "Claude 3.5 Sonnet", value: "claude-3.5-sonnet" },
+        { label: "Claude 3.5 Opus", value: "claude-3.5-opus" },
+      ],
+    },
+    {
+      label: "Meta",
+      models: [
+        { label: "Llama 2", value: "llama-2" },
+        { label: "Llama 3", value: "llama-3" },
+        { label: "Llama 3.1", value: "llama-3.1" },
+        { label: "Llama 3.2", value: "llama-3.2" },
+        { label: "Code Llama", value: "code-llama" },
+      ],
+    },
+  ]
+
+  const modelValues = new Set(
+    modelSections.flatMap((section) => section.models.map((model) => model.value)),
+  )
+
   // Form states
   const [name, setName] = useState("")
   const [description, setDescription] = useState("")
   const [credentialId, setCredentialId] = useState("")
   const [teamId, setTeamId] = useState<string>("")
   const [systemPrompt, setSystemPrompt] = useState("")
-  const [temperature, setTemperature] = useState("0.7")
+  const [temperature, setTemperature] = useState("")
   const [model, setModel] = useState("")
+  const [maxTokens, setMaxTokens] = useState("")
+  const [topP, setTopP] = useState("")
+  const [presencePenalty, setPresencePenalty] = useState("")
+  const [frequencyPenalty, setFrequencyPenalty] = useState("")
+  const [isCustomModel, setIsCustomModel] = useState(false)
 
   // Data states
   const [credentials, setCredentials] = useState<AiCredentialResponseDto[]>([])
@@ -75,8 +130,42 @@ export default function AssistantForm({ assistantId, onBack }: AssistantFormProp
         setAssistant(assistantData)
         setName(assistantData.name)
         setDescription(assistantData.description)
-        setCredentialId(assistantData.aiCredentialId)
-        setSystemPrompt(assistantData.systemPrompt || "")
+        setCredentialId(assistantData.credentialId)
+        setTeamId(assistantData.teamId || "")
+
+        const metadata = assistantData.metadata || {}
+        setSystemPrompt(metadata.system_prompt || "")
+        setTemperature(
+          metadata.temperature !== undefined && metadata.temperature !== null
+            ? String(metadata.temperature)
+            : "",
+        )
+        setMaxTokens(
+          metadata.max_tokens !== undefined && metadata.max_tokens !== null
+            ? String(metadata.max_tokens)
+            : "",
+        )
+        setTopP(
+          metadata.top_p !== undefined && metadata.top_p !== null
+            ? String(metadata.top_p)
+            : "",
+        )
+        setPresencePenalty(
+          metadata.presence_penalty !== undefined &&
+          metadata.presence_penalty !== null
+            ? String(metadata.presence_penalty)
+            : "",
+        )
+        setFrequencyPenalty(
+          metadata.frequency_penalty !== undefined &&
+          metadata.frequency_penalty !== null
+            ? String(metadata.frequency_penalty)
+            : "",
+        )
+
+        const incomingModel = metadata.model || ""
+        setModel(incomingModel)
+        setIsCustomModel(Boolean(incomingModel && !modelValues.has(incomingModel)))
       }
     } catch (error) {
       console.error("Error loading form data:", error)
@@ -103,9 +192,34 @@ export default function AssistantForm({ assistantId, onBack }: AssistantFormProp
       setLoading(true)
 
       const metadata: Record<string, any> = {}
-      if (systemPrompt.trim()) metadata.systemPrompt = systemPrompt.trim()
-      if (temperature) metadata.temperature = parseFloat(temperature)
-      if (model.trim()) metadata.model = model.trim()
+      const trimmedSystemPrompt = systemPrompt.trim()
+      const trimmedModel = model.trim()
+      const parsedTemperature = temperature.trim()
+        ? Number.parseFloat(temperature)
+        : null
+      const parsedMaxTokens = maxTokens.trim()
+        ? Number.parseInt(maxTokens, 10)
+        : null
+      const parsedTopP = topP.trim() ? Number.parseFloat(topP) : null
+      const parsedPresencePenalty = presencePenalty.trim()
+        ? Number.parseFloat(presencePenalty)
+        : null
+      const parsedFrequencyPenalty = frequencyPenalty.trim()
+        ? Number.parseFloat(frequencyPenalty)
+        : null
+
+      if (trimmedSystemPrompt) metadata.system_prompt = trimmedSystemPrompt
+      if (trimmedModel) metadata.model = trimmedModel
+      if (parsedTemperature !== null && !Number.isNaN(parsedTemperature))
+        metadata.temperature = parsedTemperature
+      if (parsedMaxTokens !== null && !Number.isNaN(parsedMaxTokens))
+        metadata.max_tokens = parsedMaxTokens
+      if (parsedTopP !== null && !Number.isNaN(parsedTopP))
+        metadata.top_p = parsedTopP
+      if (parsedPresencePenalty !== null && !Number.isNaN(parsedPresencePenalty))
+        metadata.presence_penalty = parsedPresencePenalty
+      if (parsedFrequencyPenalty !== null && !Number.isNaN(parsedFrequencyPenalty))
+        metadata.frequency_penalty = parsedFrequencyPenalty
 
       if (isEditMode) {
         const updateData: UpdateAssistantRequest = {
@@ -240,6 +354,20 @@ export default function AssistantForm({ assistantId, onBack }: AssistantFormProp
               isRequired
               variant="bordered"
               isDisabled={credentials.length === 0}
+              renderValue={(items) => {
+                return items.map((item) => {
+                  const credential = credentials.find((c) => c.id === item.key)
+                  if (!credential) return null
+                  return (
+                    <div key={item.key} className="flex items-center gap-2">
+                      <span>{credential.name}</span>
+                      <span className="text-default-500 text-sm">
+                        ({credential.metadata?.model || "Sin modelo"})
+                      </span>
+                    </div>
+                  )
+                })
+              }}
             >
               {credentials.map((credential) => (
                 <SelectItem key={credential.id}>
@@ -324,13 +452,108 @@ export default function AssistantForm({ assistantId, onBack }: AssistantFormProp
             />
 
             {/* Metadata - Model */}
-            <Input
+            <Select
               label="Modelo (Opcional)"
-              placeholder="gpt-4"
-              value={model}
-              onValueChange={setModel}
+              placeholder="Selecciona un modelo"
+              selectedKeys={
+                isCustomModel
+                  ? ["custom"]
+                  : model
+                  ? [model]
+                  : []
+              }
+              onSelectionChange={(keys) => {
+                const selected = Array.from(keys)[0] as string
+                if (selected === "custom") {
+                  setIsCustomModel(true)
+                  setModel("")
+                  return
+                }
+                setIsCustomModel(false)
+                setModel(selected || "")
+              }}
               variant="bordered"
               description="Sobrescribe el modelo de la credencial seleccionada"
+              isClearable
+              onClear={() => {
+                setIsCustomModel(false)
+                setModel("")
+              }}
+            >
+              {modelSections.map((section) => (
+                <SelectSection key={section.label} title={section.label}>
+                  {section.models.map((option) => (
+                    <SelectItem key={option.value}>
+                      {option.label}
+                    </SelectItem>
+                  ))}
+                </SelectSection>
+              ))}
+              <SelectSection title="Personalizado">
+                <SelectItem key="custom">Otro modelo</SelectItem>
+              </SelectSection>
+            </Select>
+
+            {isCustomModel && (
+              <Input
+                label="Modelo personalizado"
+                placeholder="gpt-5.2"
+                value={model}
+                onValueChange={setModel}
+                variant="bordered"
+                description="Ingresa el codigo exacto del modelo"
+              />
+            )}
+
+            {/* Metadata - Max tokens */}
+            <Input
+              label="Max tokens (Opcional)"
+              placeholder="2048"
+              value={maxTokens}
+              onValueChange={setMaxTokens}
+              type="number"
+              step="1"
+              min="1"
+              variant="bordered"
+            />
+
+            {/* Metadata - Top P */}
+            <Input
+              label="Top P (Opcional)"
+              placeholder="1.0"
+              value={topP}
+              onValueChange={setTopP}
+              type="number"
+              step="0.1"
+              min="0"
+              max="1"
+              variant="bordered"
+            />
+
+            {/* Metadata - Presence penalty */}
+            <Input
+              label="Presence penalty (Opcional)"
+              placeholder="0"
+              value={presencePenalty}
+              onValueChange={setPresencePenalty}
+              type="number"
+              step="0.1"
+              min="-2"
+              max="2"
+              variant="bordered"
+            />
+
+            {/* Metadata - Frequency penalty */}
+            <Input
+              label="Frequency penalty (Opcional)"
+              placeholder="0"
+              value={frequencyPenalty}
+              onValueChange={setFrequencyPenalty}
+              type="number"
+              step="0.1"
+              min="-2"
+              max="2"
+              variant="bordered"
             />
 
             {/* Actions */}

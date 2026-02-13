@@ -449,6 +449,10 @@ export default function AssistantManagement() {
                     <p className="text-sm text-default-500 line-clamp-2">
                       {assistant.description}
                     </p>
+                    <p className="text-xs text-default-400 line-clamp-2">
+                      {assistant.metadata?.system_prompt ||
+                        "Sin prompt configurado"}
+                    </p>
                     <div className="text-xs text-default-400">
                       <p>Creado: {formatDate(assistant.createdAt)}</p>
                     </div>
@@ -559,7 +563,8 @@ export default function AssistantManagement() {
                   </p>
                   <div className="bg-default-100 p-4 rounded-lg prose prose-sm dark:prose-invert max-w-none">
                     <ReactMarkdown>
-                      {selectedAssistant?.systemPrompt || "Sin prompt configurado"}
+                      {selectedAssistant?.metadata?.system_prompt ||
+                        "Sin prompt configurado"}
                     </ReactMarkdown>
                   </div>
                 </div>

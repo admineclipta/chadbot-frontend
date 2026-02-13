@@ -45,7 +45,7 @@ export function formatMessageTime(date: Date): string {
   // Convertir formato "dd/mm, hh:mm a.m." a "dd/mm - hh:mm a.m."
   return formatted.replace(
     /(\d{2}\/\d{2}),?\s*(\d{1,2}:\d{2}\s*[ap]\.?\s*m\.?)/,
-    "$1 - $2"
+    "$1 - $2",
   );
 }
 
@@ -104,10 +104,34 @@ export function formatDateTime(date: Date): string {
   }).format(date);
 }
 
+export function parseApiTimestamp(value: unknown): Date {
+  if (value instanceof Date) {
+    return value;
+  }
+
+  if (typeof value === "number") {
+    const millis = value < 1_000_000_000_000 ? value * 1000 : value;
+    return new Date(millis);
+  }
+
+  if (typeof value === "string") {
+    const numericValue = Number(value);
+    if (!Number.isNaN(numericValue)) {
+      const millis =
+        numericValue < 1_000_000_000_000 ? numericValue * 1000 : numericValue;
+      return new Date(millis);
+    }
+
+    return new Date(value);
+  }
+
+  return new Date();
+}
+
 // Función helper para manejar fechas que pueden ser null/undefined
 export function safeFormatDate(
   date: Date | string | null | undefined,
-  formatter: (d: Date) => string
+  formatter: (d: Date) => string,
 ): string {
   if (!date) return "Sin fecha";
 
@@ -125,7 +149,7 @@ export function safeFormatDate(
 // WhatsApp Business requiere que los mensajes de texto libre se envíen dentro de las 24 horas
 // siguientes al último mensaje del cliente. Después de ese período, solo se pueden enviar plantillas.
 export function isOutside24HourWindow(
-  messages: Array<{ sender: string; timestamp: Date }>
+  messages: Array<{ sender: string; timestamp: Date }>,
 ): boolean {
   if (!messages || messages.length === 0) {
     return true; // Si no hay mensajes, está fuera de la ventana
@@ -152,7 +176,7 @@ export function isOutside24HourWindow(
 
 // Función para obtener el tiempo restante en la ventana de 24 horas
 export function getRemainingTimeIn24HourWindow(
-  messages: Array<{ sender: string; timestamp: Date }>
+  messages: Array<{ sender: string; timestamp: Date }>,
 ): string | null {
   if (!messages || messages.length === 0) {
     return null;

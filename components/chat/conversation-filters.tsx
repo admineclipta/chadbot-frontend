@@ -406,7 +406,7 @@ export default function ConversationFilters({
                         
                         const ChannelIcon = ({ code }: { code: string }) => {
                           const type = code?.toLowerCase()
-                          if (type?.includes("whatsapp")) {
+                          if (type?.includes("whatsapp") || type?.includes("evolution")) {
                             return <Image src="/WhatsApp.png" alt="WhatsApp" width={16} height={16} />
                           }
                           if (type?.includes("telegram")) {
@@ -431,7 +431,7 @@ export default function ConversationFilters({
                         .map((service) => {
                           const ChannelIcon = ({ code }: { code: string }) => {
                             const type = code?.toLowerCase()
-                            if (type?.includes("whatsapp")) {
+                            if (type?.includes("whatsapp") || type?.includes("evolution")) {
                               return <Image src="/WhatsApp.png" alt="WhatsApp" width={20} height={20} />
                             }
                             if (type?.includes("telegram")) {

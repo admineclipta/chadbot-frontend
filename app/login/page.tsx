@@ -3,7 +3,21 @@
 import type React from "react"
 import { useState, useRef, useCallback } from "react"
 import { useRouter } from "next/navigation"
-import { Card, CardBody, Input, Button, Chip, Popover, PopoverTrigger, PopoverContent } from "@heroui/react"
+import {
+  Card,
+  CardBody,
+  Input,
+  Button,
+  Chip,
+  Popover,
+  PopoverTrigger,
+  PopoverContent,
+  Modal,
+  ModalContent,
+  ModalHeader,
+  ModalBody,
+  ModalFooter,
+} from "@heroui/react"
 import {
   EyeIcon,
   SlashIcon as EyeSlashIcon,
@@ -27,6 +41,7 @@ export default function Login() {
   const [emailError, setEmailError] = useState<string | null>(null)
   const [showConfetti, setShowConfetti] = useState(false)
   const [showEasterEggMessage, setShowEasterEggMessage] = useState(false)
+  const [showSuperAdminPrompt, setShowSuperAdminPrompt] = useState(false)
   const confettiRef = useRef<HTMLDivElement>(null)
   const currentYear = new Date().getFullYear()
 
@@ -250,6 +265,11 @@ export default function Login() {
                    roleLower.includes("owner") ||
                    roleLower.includes("superadmin");
           });
+
+          const isSuperAdmin = fullUserData.roles?.some((role) => {
+            const roleLower = role.code.toLowerCase();
+            return roleLower === "super_admin" || roleLower === "superadmin";
+          });
           
           const frontendUserData = {
             id: fullUserData.id,
@@ -265,6 +285,11 @@ export default function Login() {
 
           localStorage.setItem("chadbot_user", JSON.stringify(frontendUserData))
           console.log("User data saved to localStorage, redirecting...")
+
+          if (isSuperAdmin) {
+            setShowSuperAdminPrompt(true)
+            return
+          }
 
           // Redirigir al dashboard
           router.push("/")
@@ -537,6 +562,62 @@ export default function Login() {
             </p>
           </div>
         </div>
+
+        <Modal
+          isOpen={showSuperAdminPrompt}
+          onClose={() => setShowSuperAdminPrompt(false)}
+          size="lg"
+          isDismissable={false}
+          classNames={{
+            backdrop: "bg-slate-950/70 backdrop-blur-sm",
+          }}
+        >
+          <ModalContent>
+            {(onClose) => (
+              <>
+                <ModalHeader className="flex items-center gap-2">
+                  <ShieldCheckIcon className="h-5 w-5 text-brand-lime" />
+                  <span>Acceso Super Admin</span>
+                </ModalHeader>
+                <ModalBody>
+                  <p className="text-slate-600 dark:text-slate-300">
+                    Tu usuario tiene el rol <span className="font-semibold">super_admin</span>.
+                  </p>
+                  <p className="text-slate-600 dark:text-slate-300">
+                    Quieres ser redirigido a la web de administracion (Chadmin)?
+                  </p>
+                  {!config.chadminUrl && (
+                    <p className="text-sm text-amber-600 dark:text-amber-400">
+                      La URL de Chadmin no esta configurada en el ambiente.
+                    </p>
+                  )}
+                </ModalBody>
+                <ModalFooter>
+                  <Button
+                    variant="light"
+                    onPress={() => {
+                      onClose()
+                      router.push("/")
+                    }}
+                  >
+                    Continuar en Chadbot
+                  </Button>
+                  <Button
+                    color="secondary"
+                    isDisabled={!config.chadminUrl}
+                    onPress={() => {
+                      if (config.chadminUrl) {
+                        window.location.href = config.chadminUrl
+                      }
+                    }}
+                  >
+                    Ir a Chadmin
+                  </Button>
+                </ModalFooter>
+              </>
+            )}
+          </ModalContent>
+        </Modal>
       </div>
     </div>
   )

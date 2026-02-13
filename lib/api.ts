@@ -411,13 +411,13 @@ class ApiService {
     data: AssignConversationRequest,
   ): Promise<Conversation> {
     console.log(
-      `👤 [CHADBOT API] Assigning conversation ${conversationId} to agent ${data.agentId}`,
+      `👤 [CHADBOT API] Assigning conversation ${conversationId} to agents ${data.agentIds.join(", ")}`,
     );
     return this.request<Conversation>(
-      `conversations/${conversationId}/assign`,
+      `conversations/${conversationId}/agents`,
       {
-        method: "POST",
-        body: JSON.stringify(data),
+        method: "PUT",
+        body: JSON.stringify({ agentIds: data.agentIds }),
       },
     );
   }
@@ -678,11 +678,24 @@ class ApiService {
   async getUsers(
     page: number = 0,
     size: number = 20,
-    signal?: AbortSignal,
+    signalOrOnlyAgents?: AbortSignal | boolean,
+    onlyAgents?: boolean,
   ): Promise<UserListResponse> {
-    console.log(`👥 [CHADBOT API] Fetching users (page ${page}, size ${size})`);
+    const signal =
+      typeof signalOrOnlyAgents === "boolean" ? undefined : signalOrOnlyAgents;
+    const onlyAgentsParam =
+      typeof signalOrOnlyAgents === "boolean" ? signalOrOnlyAgents : onlyAgents;
+    const queryParams = new URLSearchParams();
+    queryParams.append("page", page.toString());
+    queryParams.append("size", size.toString());
+    if (onlyAgentsParam !== undefined) {
+      queryParams.append("onlyAgents", String(onlyAgentsParam));
+    }
+    console.log(
+      `👥 [CHADBOT API] Fetching users (page ${page}, size ${size}, onlyAgents ${onlyAgentsParam ?? "unset"})`,
+    );
     return this.request<UserListResponse>(
-      `users?page=${page}&size=${size}`,
+      `users?${queryParams.toString()}`,
       {},
       signal,
     );
