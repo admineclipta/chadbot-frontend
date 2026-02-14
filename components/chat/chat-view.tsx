@@ -23,6 +23,7 @@ import ConversationNotes from "./conversation-notes"
 import AISummaryPanel from "@/components/shared/ai-summary-panel"
 import AssignConversationModal from "@/components/modals/assign-conversation-modal"
 import ContactInfoModal from "@/components/modals/contact-info-modal"
+import ConversationInfoModal from "@/components/modals/conversation-info-modal"
 import { apiService } from "@/lib/api"
 import type { Conversation, Message } from "@/lib/types"
 import type { ConversationStatus } from "@/lib/api-types"
@@ -218,6 +219,7 @@ const ChatView = forwardRef<ChatViewRef, ChatViewProps>(
     const [showSummaryPanel, setShowSummaryPanel] = useState(false)
     const [showAssignModal, setShowAssignModal] = useState(false)
     const [showContactInfoModal, setShowContactInfoModal] = useState(false)
+    const [showConversationInfoModal, setShowConversationInfoModal] = useState(false)
     const [intervenirLoading, setIntervenirLoading] = useState(false)
     const [changingStatus, setChangingStatus] = useState(false)
     const [activeTab, setActiveTab] = useState<string>("responder")
@@ -420,14 +422,18 @@ const ChatView = forwardRef<ChatViewRef, ChatViewProps>(
               {/* Info del contacto */}
               <div 
                 className="flex items-center gap-3 cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-700 rounded-lg p-2 transition-colors flex-1 min-w-0"
-                onClick={() => setShowContactInfoModal(true)}
+                onClick={() => setShowConversationInfoModal(true)}
               >
                 <Avatar
                   name={contactName}
                   size="lg"
                   gradient="mixed"
                   online={isActive}
-                  className="flex-shrink-0"
+                  className="flex-shrink-0 cursor-pointer"
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    setShowContactInfoModal(true)
+                  }}
                 />
                 
                 <div className="flex-1 min-w-0">
@@ -548,7 +554,11 @@ const ChatView = forwardRef<ChatViewRef, ChatViewProps>(
                         name={contactName}
                         size="sm"
                         gradient="blue"
-                        className="flex-shrink-0"
+                        className="flex-shrink-0 cursor-pointer"
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          setShowContactInfoModal(true)
+                        }}
                       />
                     )}
 
@@ -744,6 +754,12 @@ const ChatView = forwardRef<ChatViewRef, ChatViewProps>(
           contactId={conversation.customer.id}
           isOpen={showContactInfoModal}
           onClose={() => setShowContactInfoModal(false)}
+        />
+        
+        <ConversationInfoModal
+          isOpen={showConversationInfoModal}
+          onClose={() => setShowConversationInfoModal(false)}
+          conversation={conversation}
         />
       </>
     )
