@@ -366,36 +366,16 @@ const ChatView = forwardRef<ChatViewRef, ChatViewProps>(
 
               {/* Acciones */}
               <div className="flex items-center gap-2">
-                <button 
+{/* TODO: Botón de IA - Comentar por el momento */}
+                {/*
+                <button
                   onClick={() => setShowSummaryPanel(true)}
                   className="p-2.5 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg transition-colors group"
                   title="Resumen IA"
                 >
                   <Sparkles className="w-5 h-5 text-slate-600 dark:text-slate-300 group-hover:text-violet-600 dark:group-hover:text-violet-400" />
                 </button>
-
-                {/* Dropdown de cambiar estado */}
-                <Dropdown placement="bottom-end">
-                  <DropdownTrigger>
-                    <button 
-                      disabled={changingStatus}
-                      className="p-2.5 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg transition-colors group disabled:opacity-50 disabled:cursor-not-allowed"
-                      title="Cambiar estado"
-                    >
-                      <Orbit className="w-5 h-5 text-slate-600 dark:text-slate-300 group-hover:text-blue-600 dark:group-hover:text-blue-400" />
-                    </button>
-                  </DropdownTrigger>
-                  <DropdownMenu
-                    aria-label="Estados de conversación"
-                    onAction={(key) => handleStatusChange(key as ConversationStatus)}
-                  >
-                    {getDropdownStates(getCurrentState()).map((status) => (
-                      <DropdownItem key={status}>
-                        {CONVERSATION_STATUS_CONFIG[status].label}
-                      </DropdownItem>
-                    ))}
-                  </DropdownMenu>
-                </Dropdown>
+                */}
 
                 {/* Dropdown de opciones */}
                 <Dropdown placement="bottom-end">
@@ -405,6 +385,16 @@ const ChatView = forwardRef<ChatViewRef, ChatViewProps>(
                     </button>
                   </DropdownTrigger>
                   <DropdownMenu aria-label="Opciones de conversación">
+                    {/* Opciones de cambiar estado */}
+                    {getDropdownStates(getCurrentState()).map((status) => (
+                      <DropdownItem 
+                        key={status}
+                        startContent={<Orbit className="w-4 h-4" />}
+                        onPress={() => handleStatusChange(status)}
+                      >
+                        {CONVERSATION_STATUS_CONFIG[status].label}
+                      </DropdownItem>
+                    ))}
                     <DropdownItem 
                       key="assign" 
                       startContent={<UserPlus className="w-4 h-4" />}

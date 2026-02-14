@@ -4,7 +4,7 @@ import type React from "react"
 
 import { useState, useRef } from "react"
 import { Button, Textarea, Dropdown, DropdownTrigger, DropdownMenu, DropdownItem, Card, CardBody } from "@heroui/react"
-import { SendIcon, PaperclipIcon, SmileIcon, BoldIcon, ItalicIcon, ListIcon, ImageIcon, FileIcon, MessageSquare, AlertTriangle, VideoIcon, MusicIcon } from "lucide-react"
+import { SendIcon, PaperclipIcon, SmileIcon, BoldIcon, ItalicIcon, ListIcon, ImageIcon, FileIcon, MessageSquare, AlertTriangle, VideoIcon, MusicIcon, Type } from "lucide-react"
 import { isOutside24HourWindow } from "@/lib/utils"
 import TemplateMessageModal from "@/components/modals/template-message-modal"
 import type { Message } from "@/lib/types"
@@ -33,6 +33,7 @@ export default function MessageInput({
   const [message, setMessage] = useState("")
   const [attachments, setAttachments] = useState<File[]>([])
   const [showTemplateModal, setShowTemplateModal] = useState(false)
+  const [showFormattingToolbar, setShowFormattingToolbar] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const imageInputRef = useRef<HTMLInputElement>(null)
   const videoInputRef = useRef<HTMLInputElement>(null)
@@ -155,8 +156,8 @@ export default function MessageInput({
         </div>
       )}
 
-      {/* Formatting Toolbar */}
-      {!disabled && (
+      {/* Formatting Toolbar - Hidden by default, shown when format button is clicked */}
+      {showFormattingToolbar && !disabled && (
         <div className="flex items-center gap-2 mb-3 pb-2 border-b border-gray-200 dark:border-gray-600">
         <Button
           size="sm"
@@ -199,57 +200,6 @@ export default function MessageInput({
               size="sm"
               variant="light"
               isIconOnly
-              title="Adjuntar"
-              className="text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200"
-            >
-              <PaperclipIcon className="h-4 w-4" />
-            </Button>
-          </DropdownTrigger>
-          <DropdownMenu>
-            <DropdownItem
-              key="image"
-              startContent={<ImageIcon className="h-4 w-4" />}
-              onClick={() => imageInputRef.current?.click()}
-            >
-              Imagen
-            </DropdownItem>
-            <DropdownItem
-              key="video"
-              startContent={<VideoIcon className="h-4 w-4" />}
-              onClick={() => videoInputRef.current?.click()}
-            >
-              Video
-            </DropdownItem>
-            <DropdownItem
-              key="audio"
-              startContent={<MusicIcon className="h-4 w-4" />}
-              onClick={() => audioInputRef.current?.click()}
-            >
-              Audio
-            </DropdownItem>
-            <DropdownItem
-              key="sticker"
-              startContent={<ImageIcon className="h-4 w-4" />}
-              onClick={() => stickerInputRef.current?.click()}
-            >
-              Sticker
-            </DropdownItem>
-            <DropdownItem 
-              key="file"
-              startContent={<FileIcon className="h-4 w-4" />} 
-              onClick={() => fileInputRef.current?.click()}
-            >
-              Documento
-            </DropdownItem>
-          </DropdownMenu>
-        </Dropdown>
-
-        <Dropdown>
-          <DropdownTrigger>
-            <Button
-              size="sm"
-              variant="light"
-              isIconOnly
               title="Emoji"
               className="text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200"
             >
@@ -269,7 +219,8 @@ export default function MessageInput({
 
       {/* Message Input */}
       <div className="flex gap-2">
-        {/* Botón de Plantillas - Siempre visible a la izquierda */}
+        {/* TODO: Botón de Plantillas - Comentar por el momento */}
+        {/*
         <Button
           variant="bordered"
           isIconOnly
@@ -280,6 +231,7 @@ export default function MessageInput({
         >
           <MessageSquare className="h-4 w-4" />
         </Button>
+        */}
 
         <Textarea
           value={message}
@@ -297,6 +249,72 @@ export default function MessageInput({
           className="flex-1"
           variant="bordered"
           isDisabled={disabled || isOutsideWindow}
+          endContent={
+            !disabled && !isOutsideWindow ? (
+              <div className="flex items-center gap-1">
+                <Button
+                  size="sm"
+                  variant="light"
+                  isIconOnly
+                  onClick={() => setShowFormattingToolbar(!showFormattingToolbar)}
+                  title="Formato"
+                  className="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
+                >
+                  <Type className="h-4 w-4" />
+                </Button>
+                <Dropdown placement="top-end">
+                  <DropdownTrigger>
+                    <Button
+                      size="sm"
+                      variant="light"
+                      isIconOnly
+                      title="Adjuntar"
+                      className="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
+                    >
+                      <PaperclipIcon className="h-4 w-4" />
+                    </Button>
+                  </DropdownTrigger>
+                  <DropdownMenu>
+                    <DropdownItem
+                      key="image"
+                      startContent={<ImageIcon className="h-4 w-4" />}
+                      onClick={() => imageInputRef.current?.click()}
+                    >
+                      Imagen
+                    </DropdownItem>
+                    <DropdownItem
+                      key="video"
+                      startContent={<VideoIcon className="h-4 w-4" />}
+                      onClick={() => videoInputRef.current?.click()}
+                    >
+                      Video
+                    </DropdownItem>
+                    <DropdownItem
+                      key="audio"
+                      startContent={<MusicIcon className="h-4 w-4" />}
+                      onClick={() => audioInputRef.current?.click()}
+                    >
+                      Audio
+                    </DropdownItem>
+                    <DropdownItem
+                      key="sticker"
+                      startContent={<ImageIcon className="h-4 w-4" />}
+                      onClick={() => stickerInputRef.current?.click()}
+                    >
+                      Sticker
+                    </DropdownItem>
+                    <DropdownItem 
+                      key="file"
+                      startContent={<FileIcon className="h-4 w-4" />} 
+                      onClick={() => fileInputRef.current?.click()}
+                    >
+                      Documento
+                    </DropdownItem>
+                  </DropdownMenu>
+                </Dropdown>
+              </div>
+            ) : null
+          }
           classNames={{
             input: "text-gray-900 dark:text-white",
             inputWrapper: `${
@@ -306,6 +324,8 @@ export default function MessageInput({
             }`,
           }}
         />
+
+        {/* REMOVED: Format button inside textarea - now using endContent */}
 
         <Button
           color="primary"

@@ -461,6 +461,8 @@ const ChatView = forwardRef<ChatViewRef, ChatViewProps>(
 
               {/* Acciones */}
               <div className="flex items-center gap-1 md:gap-2 flex-shrink-0">
+                {/* TODO: Botón de IA - Comentar por el momento */}
+                {/*
                 <button 
                   disabled
                   className="p-2 md:p-2.5 rounded-lg transition-colors hidden sm:flex opacity-50 cursor-not-allowed"
@@ -469,6 +471,7 @@ const ChatView = forwardRef<ChatViewRef, ChatViewProps>(
                 >
                   <Sparkles className="w-4 h-4 md:w-5 md:h-5 text-slate-400" />
                 </button>
+                */}
 
                 {/* Selector de estado */}
                 <Dropdown placement="bottom-end">
