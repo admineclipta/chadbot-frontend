@@ -21,6 +21,7 @@ import {
   Divider,
   type SelectedItems,
 } from "@heroui/react"
+import { toast } from "sonner"
 import Image from "next/image"
 import { Avatar } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
@@ -200,6 +201,40 @@ export default function ConversationList({
     setTagsModalOpen(true)
   }
 
+  const handleSetTagsForConversation = async (conversationId: string, tagIds: string[]) => {
+    try {
+      await apiService.setConversationTags(conversationId, tagIds)
+      toast.success("Etiquetas actualizadas")
+    } catch (err: any) {
+      console.error(err)
+      toast.error(err?.message || "Error actualizando etiquetas")
+    }
+  }
+
+  const handleAddTagFromModal = async (label: string) => {
+    if (!selectedConvForTags) return
+    try {
+      // Create tag with default color and public visibility
+      const newTag = await apiService.createTag({ label, color: "#BDF26D", isPrivate: false })
+      await handleSetTagsForConversation(selectedConvForTags.id, [newTag.id])
+    } catch (err: any) {
+      console.error(err)
+      toast.error(err?.message || "Error creando etiqueta")
+    }
+  }
+
+  const handleRemoveTagFromModal = async (tagId: string) => {
+    if (!selectedConvForTags) return
+    try {
+      // Unassign the tag (remove single tag) by setting remaining tags (excluding tagId)
+      const remaining = (selectedConvForTags.tags || []).filter(t => t.id !== tagId).map(t => t.id)
+      await handleSetTagsForConversation(selectedConvForTags.id, remaining)
+    } catch (err: any) {
+      console.error(err)
+      toast.error(err?.message || "Error removiendo etiqueta")
+    }
+  }
+
   const handleOpenContactInfo = (e: React.MouseEvent, contactId: string) => {
     e.stopPropagation()
     setSelectedContactId(contactId)
@@ -286,6 +321,8 @@ export default function ConversationList({
               <MessageCircle className="h-5 w-5 text-blue-600 dark:text-blue-400" />
               Conversaciones
             </h2>
+            {/*
+            TODO: Se comenta el boton de nueva conversacion hasta que esté implementado correctamente
             <Dropdown>
               <DropdownTrigger>
                 <Button
@@ -328,7 +365,7 @@ export default function ConversationList({
                   Mensaje Masivo
                 </DropdownItem>
               </DropdownMenu>
-            </Dropdown>
+            </Dropdown> */}
           </div>
           
           {/* Search and Filter Bar */}
@@ -580,6 +617,8 @@ export default function ConversationList({
             setTagsModalOpen(false)
             setSelectedConvForTags(null)
           }}
+          onAddTag={handleAddTagFromModal}
+          onRemoveTag={handleRemoveTagFromModal}
         />
       )}
 

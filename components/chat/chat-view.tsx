@@ -1,7 +1,7 @@
 "use client"
 
 import { forwardRef, useImperativeHandle, useRef, useEffect, useState, useCallback } from "react"
-import { Phone, MoreVertical, ArrowLeft, Bot, User, X, Sparkles, UserPlus, Send, Orbit } from "lucide-react"
+import { Phone, MoreVertical, ArrowLeft, Bot, User, X, Sparkles, UserPlus, Send, Orbit, Tag as TagIcon, Info } from "lucide-react"
 import { toast } from "sonner"
 import Image from "next/image"
 import { 
@@ -15,6 +15,7 @@ import {
   Tab,
   Image as HeroImage
 } from "@heroui/react"
+import ConversationTagsModal from "@/components/modals/conversation-tags-modal"
 import { Avatar } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
 import MessageStatusIcon from "./message-status-icon"
@@ -24,7 +25,7 @@ import AISummaryPanel from "@/components/shared/ai-summary-panel"
 import AssignConversationModal from "@/components/modals/assign-conversation-modal"
 import ContactInfoModal from "@/components/modals/contact-info-modal"
 import ConversationInfoModal from "@/components/modals/conversation-info-modal"
-import { apiService } from "@/lib/api"
+import { apiService, ApiError } from "@/lib/api"
 import type { Conversation, Message } from "@/lib/types"
 import type { ConversationStatus } from "@/lib/api-types"
 import { formatMessageTime } from "@/lib/utils"
@@ -218,6 +219,7 @@ const ChatView = forwardRef<ChatViewRef, ChatViewProps>(
     const scrollContainerRef = useRef<HTMLDivElement>(null)
     const [showSummaryPanel, setShowSummaryPanel] = useState(false)
     const [showAssignModal, setShowAssignModal] = useState(false)
+    const [tagsModalOpen, setTagsModalOpen] = useState(false)
     const [showContactInfoModal, setShowContactInfoModal] = useState(false)
     const [showConversationInfoModal, setShowConversationInfoModal] = useState(false)
     const [intervenirLoading, setIntervenirLoading] = useState(false)
@@ -322,6 +324,58 @@ const ChatView = forwardRef<ChatViewRef, ChatViewProps>(
         toast.error(error.message || 'Error al intervenir la conversación')
       } finally {
         setIntervenirLoading(false)
+      }
+    }
+
+    const handleSetTagsForConversation = async (conversationId: string, tagIds: string[]) => {
+      try {
+        await apiService.setConversationTags(conversationId, tagIds)
+        toast.success("Etiquetas actualizadas")
+        if (onConversationUpdate) {
+          // Optionally inform parent to refresh conversation
+          onConversationUpdate({ ...conversation, tags: (conversation.tags || []).filter(t => tagIds.includes(t.id)) })
+        }
+      } catch (err: any) {
+        console.error(err)
+        toast.error(err?.message || "Error actualizando etiquetas")
+      }
+    }
+
+    const handleAddTagFromModal = async (label: string) => {
+      try {
+        const newTag = await apiService.createTag({ label, color: "#BDF26D", isPrivate: false })
+
+        try {
+          await apiService.setConversationTags(conversation.id, [newTag.id])
+          toast.success("Etiquetas actualizadas")
+          if (onConversationUpdate) {
+            onConversationUpdate({ ...conversation, tags: (conversation.tags || []).concat(newTag) })
+          }
+        } catch (e: any) {
+          // If conversation not found, swallow but still acknowledge tag creation
+          if (e instanceof ApiError && e.status === 404) {
+            console.warn('Conversation not found while assigning tag, tag created:', newTag)
+            toast.success("Etiqueta creada")
+            if (onConversationUpdate) {
+              onConversationUpdate({ ...conversation, tags: (conversation.tags || []).concat(newTag) })
+            }
+          } else {
+            throw e
+          }
+        }
+      } catch (err: any) {
+        console.error(err)
+        toast.error(err?.message || "Error creando etiqueta")
+      }
+    }
+
+    const handleRemoveTagFromModal = async (tagId: string) => {
+      try {
+        const remaining = (conversation.tags || []).filter(t => t.id !== tagId).map(t => t.id)
+        await handleSetTagsForConversation(conversation.id, remaining)
+      } catch (err: any) {
+        console.error(err)
+        toast.error(err?.message || "Error removiendo etiqueta")
       }
     }
 
@@ -522,6 +576,13 @@ const ChatView = forwardRef<ChatViewRef, ChatViewProps>(
                       onPress={() => setShowAssignModal(true)}
                     >
                       Asignar usuario
+                    </DropdownItem>
+                    <DropdownItem
+                      key="tags"
+                      startContent={<TagIcon className="w-4 h-4" />}
+                      onPress={() => setTagsModalOpen(true)}
+                    >
+                      Etiquetas
                     </DropdownItem>
                   </DropdownMenu>
                 </Dropdown>
@@ -729,6 +790,18 @@ const ChatView = forwardRef<ChatViewRef, ChatViewProps>(
               </Tab>
             </Tabs>
           </div>
+
+          {/* Conversation Tags Modal */}
+          {tagsModalOpen && (
+            <ConversationTagsModal
+              tags={conversation.tags || []}
+              isOpen={tagsModalOpen}
+              onClose={() => setTagsModalOpen(false)}
+              onAddTag={handleAddTagFromModal}
+              onRemoveTag={handleRemoveTagFromModal}
+              onSetTags={(tagIds: string[]) => handleSetTagsForConversation(conversation.id, tagIds)}
+            />
+          )}
         </div>
 
         {/* AI Summary Panel */}

@@ -305,7 +305,7 @@ export default function TagManagement() {
 
   // Desktop table view
   const renderDesktopTable = () => (
-    <Table aria-label="Tags">
+    <Table aria-label="Etiquetas">
       <TableHeader>
         <TableColumn>NOMBRE</TableColumn>
         <TableColumn>VISTA PREVIA</TableColumn>

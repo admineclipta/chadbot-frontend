@@ -591,6 +591,19 @@ class ApiService {
     });
   }
 
+  async setConversationTags(
+    conversationId: string,
+    tagIds: string[],
+  ): Promise<void> {
+    console.log(
+      `🏷️ [CHADBOT API] Setting tags for conversation ${conversationId}: ${tagIds.join(", ")}`,
+    );
+    return this.request<void>(`conversations/${conversationId}/tags`, {
+      method: "PUT",
+      body: JSON.stringify({ tagIds }),
+    });
+  }
+
   async removeTagFromConversation(
     conversationId: string,
     tagId: string,
