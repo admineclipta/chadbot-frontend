@@ -2,7 +2,6 @@
 
 import { useEffect, useState, useCallback, useRef } from "react"
 import { useRouter } from "next/navigation"
-import { Select, SelectItem, Kbd } from "@heroui/react"
 import Sidebar from "@/components/layout/sidebar"
 import ConversationList from "@/components/chat/conversation-list"
 import ConversationFilters from "@/components/chat/conversation-filters"
@@ -18,12 +17,21 @@ import EnvironmentIndicator from "@/components/layout/environment-indicator"
 import ContactInfoModal from "@/components/modals/contact-info-modal"
 import HomeDashboard from "@/components/home-dashboard"
 import type { Conversation, User, Message, Tag } from "@/lib/types"
-import type { ConversationStatus, MessagingServiceType, ConversationSortField, SortDirection, Message as ApiMessage } from "@/lib/api-types"
+import type {
+  ConversationStatus,
+  MessagingServiceType,
+  ConversationSortField,
+  SortDirection,
+  Message as ApiMessage,
+  IncomingMessageRealtimeEvent,
+  SseConnectionState,
+} from "@/lib/api-types"
 import { apiService } from "@/lib/api"
 import { DEBOUNCE_SEARCH_MS } from "@/lib/config"
 import { useApi } from "@/hooks/use-api"
 import { useIsMobile } from "@/hooks/use-mobile"
 import { cn, parseApiTimestamp } from "@/lib/utils"
+import { useIncomingMessagesSse } from "@/hooks/use-incoming-messages-sse"
 
 // Función helper para determinar el tipo de mensaje basado en el tipo MIME
 const getMessageTypeFromFile = (file: File): "image" | "video" | "audio" | "document" | "sticker" => {
@@ -54,7 +62,11 @@ export default function Home() {
   const [conversations, setConversations] = useState<Conversation[]>([])
   const [user, setUser] = useState<User | null>(null)
   const [selectedUserId, setSelectedUserId] = useState<string | null>(null)
-  const [messagesRefreshKey, setMessagesRefreshKey] = useState<number>(0) // Key para forzar refresco de mensajes
+  const [authToken, setAuthToken] = useState<string | null>(null)
+  const [sseReconnectKey, setSseReconnectKey] = useState<number>(0)
+  const [sseFailureSince, setSseFailureSince] = useState<number | null>(null)
+  const [isFallbackActive, setIsFallbackActive] = useState(false)
+  const [isSseReconnectRequested, setIsSseReconnectRequested] = useState(false)
   const [selectedRepresentativeFilter, setSelectedRepresentativeFilter] = useState<"all" | "mine" | number>("all") // Filtro por representante
   const [availableRepresentatives, setAvailableRepresentatives] = useState<Array<{id: number, name: string}>>([]) // Lista de representantes disponibles
   
@@ -174,7 +186,7 @@ export default function Home() {
   } = useApi(
     (signal?: AbortSignal) =>
       selectedConversation ? apiService.getMessages(selectedConversation.id, 0, 20) : Promise.resolve(null),
-    [selectedConversation?.id, messagesRefreshKey], // Incluir refreshKey para forzar refresco
+    [selectedConversation?.id],
   )
 
   const getMessageFileUrl = useCallback((file?: any): string | null => {
@@ -191,7 +203,7 @@ export default function Home() {
         : "client"
     let fileUrl = getMessageFileUrl(msg.file)
     if (!fileUrl && msg.file) {
-      fileUrl = msg.file.url || msg.file.storageUri || msg.file.fileUrl || null
+      fileUrl = msg.file.storageUri || msg.file.fileUrl || null
     }
 
     return {
@@ -216,6 +228,7 @@ export default function Home() {
           }
         : undefined,
       attachments: fileUrl
+        && msg.file
         ? [
             {
               id: msg.file.id,
@@ -228,6 +241,73 @@ export default function Home() {
     }
   }, [getMessageFileUrl, parseApiTimestamp])
 
+  const mapIncomingSseMessageToDomainMessage = useCallback(
+    (event: IncomingMessageRealtimeEvent): Message => {
+      const rawType = event.message.type?.toLowerCase()
+      const normalizedType: Message["type"] =
+        rawType === "text" ||
+        rawType === "image" ||
+        rawType === "video" ||
+        rawType === "audio" ||
+        rawType === "document" ||
+        rawType === "sticker"
+          ? (rawType as Message["type"])
+          : "text"
+
+      const senderType = event.message.senderType?.toUpperCase()
+      const sender: Message["sender"] =
+        senderType === "AGENT"
+          ? "agent"
+          : senderType === "BOT"
+            ? "bot"
+            : "client"
+
+      const content = ((event.message.content || {}) as Record<string, unknown>)
+      const text =
+        (typeof content.text === "string" ? content.text : "") ||
+        (typeof content.caption === "string" ? content.caption : "") ||
+        ""
+
+      return {
+        id: event.message.messageId,
+        content: text,
+        sender,
+        senderName: sender === "client" ? "Cliente" : sender === "bot" ? "Bot" : "Agente",
+        timestamp: parseApiTimestamp(event.message.sentAt || event.timestamp),
+        type: normalizedType,
+        status: "delivered",
+      }
+    },
+    [parseApiTimestamp],
+  )
+
+  const refreshSelectedConversationMessages = useCallback(
+    async (conversationId: string, mode: "replace" | "merge" = "replace") => {
+      try {
+        const response = await apiService.getMessages(conversationId, 0, 20)
+        const mappedMessages = response.content.map(mapApiMessageToDomain).reverse()
+
+        setSelectedConversation((prev) => {
+          if (!prev || prev.id !== conversationId) return prev
+
+          const nextMessages =
+            mode === "replace"
+              ? mappedMessages
+              : [...prev.messages, ...mappedMessages.filter((m) => !prev.messages.some((pm) => pm.id === m.id))]
+
+          return {
+            ...prev,
+            messages: nextMessages,
+            lastMessage: nextMessages[nextMessages.length - 1]?.content || prev.lastMessage,
+          }
+        })
+      } catch (error) {
+        console.error("[SSE] Failed re-syncing selected conversation messages", error)
+      }
+    },
+    [mapApiMessageToDomain],
+  )
+
   useEffect(() => {
     const token = localStorage.getItem("chadbot_token")
     const userData = localStorage.getItem("chadbot_user")
@@ -236,10 +316,210 @@ export default function Home() {
       setIsAuthenticated(true)
       setUser(JSON.parse(userData))
       apiService.setToken(token)
+      setAuthToken(token)
     } else {
       router.push("/login")
     }
   }, [router])
+
+  const handleIncomingMessageSse = useCallback(
+    (event: IncomingMessageRealtimeEvent) => {
+      const incomingMessage = mapIncomingSseMessageToDomainMessage(event)
+      const activeConversationId = selectedConversation?.id
+      const isForActiveConversation = activeConversationId === event.conversationId
+      const lastActivityAt = parseApiTimestamp(
+        event.conversation.lastMessageAt || event.timestamp,
+      )
+
+      setConversations((prev) => {
+        const targetIndex = prev.findIndex((conv) => conv.id === event.conversationId)
+        if (targetIndex === -1) return prev
+
+        const targetConversation = prev[targetIndex]
+        const updatedConversation: Conversation = {
+          ...targetConversation,
+          lastMessage:
+            event.conversation.lastMessagePreview ||
+            incomingMessage.content ||
+            targetConversation.lastMessage,
+          lastActivity: lastActivityAt,
+          unreadCount: isForActiveConversation
+            ? 0
+            : (targetConversation.unreadCount || 0) + 1,
+        }
+
+        const next = prev.map((conv) =>
+          conv.id === event.conversationId ? updatedConversation : conv,
+        )
+        next.sort((a, b) => b.lastActivity.getTime() - a.lastActivity.getTime())
+        return next
+      })
+
+      if (!isForActiveConversation) return
+
+      setSelectedConversation((prev) => {
+        if (!prev || prev.id !== event.conversationId) return prev
+        if (prev.messages.some((msg) => msg.id === incomingMessage.id)) return prev
+
+        return {
+          ...prev,
+          messages: [...prev.messages, incomingMessage],
+          lastMessage:
+            event.conversation.lastMessagePreview ||
+            incomingMessage.content ||
+            prev.lastMessage,
+          lastActivity: lastActivityAt,
+          unreadCount: 0,
+        }
+      })
+
+      const shouldAutoscroll = chatViewRef.current?.isNearBottom() ?? true
+      if (shouldAutoscroll) {
+        setTimeout(() => {
+          chatViewRef.current?.scrollToBottom("smooth")
+        }, 50)
+      }
+    },
+    [mapIncomingSseMessageToDomainMessage, parseApiTimestamp, selectedConversation?.id],
+  )
+
+  const sseEnabled =
+    isAuthenticated &&
+    currentView === "conversations" &&
+    !!authToken
+
+  const {
+    connectionState: rawSseConnectionState,
+    lastHeartbeatAt: sseLastHeartbeatAt,
+  } = useIncomingMessagesSse({
+    enabled: sseEnabled,
+    token: authToken,
+    reconnectKey: sseReconnectKey,
+    onIncomingMessage: handleIncomingMessageSse,
+  })
+
+  const sseConnectionState: SseConnectionState =
+    isFallbackActive && rawSseConnectionState !== "connected"
+      ? "degraded"
+      : rawSseConnectionState
+
+  const handleManualSseReconnect = useCallback(() => {
+    setIsSseReconnectRequested(true)
+    setSseReconnectKey((prev) => prev + 1)
+    setTimeout(() => {
+      setIsSseReconnectRequested(false)
+    }, 1200)
+  }, [])
+
+  const previousSseStateRef = useRef<SseConnectionState>("connecting")
+  const fallbackActivationTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const fallbackIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
+
+  useEffect(() => {
+    const previousState = previousSseStateRef.current
+
+    if (previousState !== rawSseConnectionState) {
+      console.info(
+        `[SSE] Connection state changed: ${previousState} -> ${rawSseConnectionState}`,
+      )
+      previousSseStateRef.current = rawSseConnectionState
+    }
+
+    if (rawSseConnectionState === "connected") {
+      setSseFailureSince(null)
+      setIsFallbackActive(false)
+
+      if (previousState !== "connected") {
+        refetchConversations()
+        if (selectedConversation?.id) {
+          refreshSelectedConversationMessages(selectedConversation.id, "replace")
+        }
+      }
+      return
+    }
+
+    if (
+      rawSseConnectionState === "error" ||
+      rawSseConnectionState === "degraded"
+    ) {
+      setSseFailureSince((prev) => prev ?? Date.now())
+    }
+  }, [
+    rawSseConnectionState,
+    refetchConversations,
+    refreshSelectedConversationMessages,
+    selectedConversation?.id,
+  ])
+
+  useEffect(() => {
+    if (fallbackActivationTimeoutRef.current) {
+      clearTimeout(fallbackActivationTimeoutRef.current)
+      fallbackActivationTimeoutRef.current = null
+    }
+
+    if (
+      !sseEnabled ||
+      !(rawSseConnectionState === "error" || rawSseConnectionState === "degraded") ||
+      sseFailureSince === null
+    ) {
+      return
+    }
+
+    const elapsed = Date.now() - sseFailureSince
+    const remaining = 30000 - elapsed
+
+    if (remaining <= 0) {
+      setIsFallbackActive(true)
+      return
+    }
+
+    fallbackActivationTimeoutRef.current = setTimeout(() => {
+      setIsFallbackActive(true)
+    }, remaining)
+
+    return () => {
+      if (fallbackActivationTimeoutRef.current) {
+        clearTimeout(fallbackActivationTimeoutRef.current)
+        fallbackActivationTimeoutRef.current = null
+      }
+    }
+  }, [rawSseConnectionState, sseEnabled, sseFailureSince])
+
+  useEffect(() => {
+    if (fallbackIntervalRef.current) {
+      clearInterval(fallbackIntervalRef.current)
+      fallbackIntervalRef.current = null
+    }
+
+    if (!isFallbackActive || !sseEnabled || currentView !== "conversations") {
+      return
+    }
+
+    const runFallbackSync = () => {
+      console.warn("[SSE] Running fallback REST sync")
+      refetchConversations()
+      if (selectedConversation?.id) {
+        refreshSelectedConversationMessages(selectedConversation.id, "replace")
+      }
+    }
+
+    runFallbackSync()
+    fallbackIntervalRef.current = setInterval(runFallbackSync, 15000)
+
+    return () => {
+      if (fallbackIntervalRef.current) {
+        clearInterval(fallbackIntervalRef.current)
+        fallbackIntervalRef.current = null
+      }
+    }
+  }, [
+    currentView,
+    isFallbackActive,
+    refetchConversations,
+    refreshSelectedConversationMessages,
+    selectedConversation?.id,
+    sseEnabled,
+  ])
 
   // Actualizar conversaciones cuando lleguen de la API
   useEffect(() => {
@@ -289,54 +569,14 @@ export default function Home() {
 
   const handleRefreshMessages = useCallback(async () => {
     if (!selectedConversation) return
-
-    try {
-      // Obtener mensajes más recientes usando API v1
-      const response = await apiService.getMessages(selectedConversation.id, 0, 20)
-
-      if (response && response.content.length > 0) {
-        const mappedMessages = response.content.map(mapApiMessageToDomain).reverse()
-        
-        setSelectedConversation((prev) => {
-          if (!prev) return null
-
-          // Comparar con los mensajes actuales para ver si hay nuevos
-          const currentLastMessageId = prev.messages[prev.messages.length - 1]?.id
-          const newLastMessageId = mappedMessages[mappedMessages.length - 1]?.id
-
-          // Si hay nuevos mensajes, actualizar
-          if (currentLastMessageId !== newLastMessageId) {
-            // Encontrar mensajes que no están en la lista actual
-            const currentMessageIds = new Set(prev.messages.map(m => m.id))
-            const newMessages = mappedMessages.filter(m => !currentMessageIds.has(m.id))
-
-            if (newMessages.length > 0) {
-              // Hacer scroll automático solo si el usuario está cerca del final
-              setTimeout(() => {
-                chatViewRef.current?.scrollToBottom("smooth")
-              }, 100)
-
-              return {
-                ...prev,
-                messages: [...prev.messages, ...newMessages],
-                lastMessage: mappedMessages[mappedMessages.length - 1]?.content || prev.lastMessage,
-              }
-            }
-          }
-
-          return prev
-        })
-      }
-    } catch (error) {
-      console.error("Error refreshing messages:", error)
-      // No mostrar toast para evitar spam, solo log silencioso
-    }
-  }, [mapApiMessageToDomain, selectedConversation])
+    await refreshSelectedConversationMessages(selectedConversation.id, "replace")
+  }, [refreshSelectedConversationMessages, selectedConversation])
 
   const handleLogout = async () => {
     try {
       await apiService.logout()
       setIsAuthenticated(false)
+      setAuthToken(null)
       router.push("/login")
     } catch (error) {
       console.error("Logout error:", error)
@@ -344,6 +584,7 @@ export default function Home() {
       localStorage.removeItem("chadbot_token")
       localStorage.removeItem("chadbot_user")
       setIsAuthenticated(false)
+      setAuthToken(null)
       router.push("/login")
     }
   }
@@ -428,7 +669,7 @@ export default function Home() {
               ? {
                   ...prev,
                   messages: [...prev.messages, newMessage],
-                    lastMessage: content || file.name,
+                  lastMessage: content,
                 }
               : null,
           )
@@ -468,8 +709,6 @@ export default function Home() {
 
   const handleSelectConversation = useCallback((conversation: Conversation) => {
     setSelectedConversation(conversation)
-    // Forzar refresco de mensajes incluso si es la misma conversación
-    setMessagesRefreshKey(prev => prev + 1)
   }, [])
 
   const handleCloseChat = useCallback(() => {
@@ -586,6 +825,7 @@ export default function Home() {
                 currentPage={currentPage}
                 totalPages={totalPages}
                 onPageChange={handlePageChange}
+                sseConnectionState={sseConnectionState}
               />
             </div>
 
@@ -607,7 +847,6 @@ export default function Home() {
                   onLoadOlderMessages={handleLoadOlderMessages}
                   onRefreshMessages={handleRefreshMessages}
                   initialPaginationInfo={null}
-                  refreshKey={messagesRefreshKey}
                   currentUser={user}
                 />
               </div>
@@ -662,7 +901,12 @@ export default function Home() {
 
         {currentView === "settings" && (
           <div className="flex-1 bg-slate-50 dark:bg-slate-900 overflow-x-hidden overflow-y-auto pt-16 md:pt-0">
-            <SettingsView />
+            <SettingsView
+              sseState={sseConnectionState}
+              sseLastHeartbeatAt={sseLastHeartbeatAt}
+              onSseReconnect={handleManualSseReconnect}
+              isSseReconnecting={isSseReconnectRequested}
+            />
           </div>
         )}
 

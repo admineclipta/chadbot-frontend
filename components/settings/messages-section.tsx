@@ -1,21 +1,23 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { Card, CardBody, Select, SelectItem, Switch } from "@heroui/react"
-import { RefreshCw, Bell } from "lucide-react"
+import { Card, CardBody, Switch, Chip, Button } from "@heroui/react"
+import { Activity, Bell, RefreshCw } from "lucide-react"
+import type { SseConnectionState } from "@/lib/api-types"
 
 interface MessagesSectionProps {
-  autoRefreshInterval?: number
-  onAutoRefreshIntervalChange?: (interval: number) => void
+  sseState?: SseConnectionState
+  lastHeartbeatAt?: Date | null
+  onReconnect?: () => void
+  isReconnecting?: boolean
 }
 
 export default function MessagesSection({
-  autoRefreshInterval,
-  onAutoRefreshIntervalChange,
+  sseState = "connecting",
+  lastHeartbeatAt = null,
+  onReconnect,
+  isReconnecting = false,
 }: MessagesSectionProps) {
-  const [currentRefreshInterval, setCurrentRefreshInterval] = useState(
-    autoRefreshInterval?.toString() || "10"
-  )
   const [notificationsEnabled, setNotificationsEnabled] = useState(false)
 
   useEffect(() => {
@@ -24,27 +26,6 @@ export default function MessagesSection({
       setNotificationsEnabled(notificationsStoredValue === "true")
     }
   }, [])
-
-  const refreshIntervals = [
-    { value: "5", label: "5 segundos" },
-    { value: "10", label: "10 segundos" },
-    { value: "15", label: "15 segundos" },
-    { value: "30", label: "30 segundos" },
-    { value: "60", label: "1 minuto" },
-  ]
-
-  const handleRefreshIntervalChange = (value: string) => {
-    setCurrentRefreshInterval(value)
-    const newInterval = parseInt(value)
-    
-    if (typeof window !== "undefined") {
-      localStorage.setItem("chadbot_autoRefreshInterval", value)
-    }
-    
-    if (onAutoRefreshIntervalChange) {
-      onAutoRefreshIntervalChange(newInterval)
-    }
-  }
 
   const handleNotificationsChange = (enabled: boolean) => {
     setNotificationsEnabled(enabled)
@@ -59,37 +40,72 @@ export default function MessagesSection({
     }
   }
 
+  const getSseLabel = (state: SseConnectionState): string => {
+    switch (state) {
+      case "connected":
+        return "En vivo"
+      case "connecting":
+        return "Reconectando..."
+      case "degraded":
+        return "Modo degradado"
+      default:
+        return "Sin conexión"
+    }
+  }
+
+  const getSseColor = (state: SseConnectionState) => {
+    switch (state) {
+      case "connected":
+        return "success" as const
+      case "connecting":
+        return "warning" as const
+      case "degraded":
+        return "warning" as const
+      default:
+        return "danger" as const
+    }
+  }
+
+  const formatHeartbeat = (value: Date | null): string => {
+    if (!value) return "Sin heartbeat recibido"
+    return `Último heartbeat: ${value.toLocaleTimeString()}`
+  }
+
   return (
     <div className="py-6 space-y-6">
-      {/* Auto-refresh Section */}
+      {/* SSE Section */}
       <Card>
         <CardBody className="p-4 md:p-6">
           <div className="flex flex-col md:flex-row items-start gap-4">
             <div className="flex-shrink-0">
               <div className="w-12 h-12 rounded-full bg-primary-100 dark:bg-primary-900/30 flex items-center justify-center">
-                <RefreshCw className="h-6 w-6 text-primary" />
+                <Activity className="h-6 w-6 text-primary" />
               </div>
             </div>
             <div className="flex-1">
-              <h3 className="text-lg font-semibold mb-1">Actualización Automática</h3>
+              <h3 className="text-lg font-semibold mb-1">Estado de conexión en tiempo real</h3>
               <p className="text-sm text-default-500 mb-4">
-                Configura con qué frecuencia se actualizan los mensajes en las conversaciones
+                Los mensajes entrantes se actualizan por SSE en tiempo real
               </p>
-              <Select
-                label="Intervalo de actualización"
-                placeholder="Selecciona un intervalo"
-                selectedKeys={[currentRefreshInterval]}
-                onChange={(e) => handleRefreshIntervalChange(e.target.value)}
-                classNames={{
-                  base: "w-full md:max-w-xs",
-                }}
+              <div className="flex flex-col sm:flex-row sm:items-center gap-3">
+                <Chip color={getSseColor(sseState)} variant="flat" size="sm">
+                  {getSseLabel(sseState)}
+                </Chip>
+                <span className="text-xs text-default-500">
+                  {formatHeartbeat(lastHeartbeatAt)}
+                </span>
+              </div>
+              <Button
+                className="mt-4"
+                color="primary"
+                variant="flat"
+                size="sm"
+                isLoading={isReconnecting}
+                onPress={() => onReconnect?.()}
+                startContent={<RefreshCw className="h-4 w-4" />}
               >
-                {refreshIntervals.map((interval) => (
-                  <SelectItem key={interval.value}>
-                    {interval.label}
-                  </SelectItem>
-                ))}
-              </Select>
+                Reconectar
+              </Button>
             </div>
           </div>
         </CardBody>

@@ -44,6 +44,7 @@ import type {
   UserDto,
   Tag,
   MessagingServiceDto,
+  SseConnectionState,
 } from "@/lib/api-types"
 import { formatConversationTime, generatePastelColor } from "@/lib/utils"
 import { getChannelDisplayName, getChannelIcon } from "@/lib/messaging-channels"
@@ -60,6 +61,7 @@ interface ConversationListProps {
   currentPage?: number
   totalPages?: number
   onPageChange?: (page: number) => void
+  sseConnectionState?: SseConnectionState
 }
 
 const statusOptions: { key: ConversationStatus | "all"; label: string; color: "default" | "success" | "warning" | "danger" }[] = [
@@ -91,6 +93,7 @@ export default function ConversationList({
   currentPage = 0,
   totalPages = 1,
   onPageChange,
+  sseConnectionState = "connecting",
 }: ConversationListProps) {
   const [hoveredConversation, setHoveredConversation] = useState<string | null>(null)
   const [infoModalOpen, setInfoModalOpen] = useState(false)
@@ -292,6 +295,21 @@ export default function ConversationList({
     return "Sin mensajes"
   }
 
+  const getSseChipProps = (state: SseConnectionState) => {
+    switch (state) {
+      case "connected":
+        return { color: "success" as const, label: "En vivo" }
+      case "connecting":
+        return { color: "warning" as const, label: "Reconectando..." }
+      case "degraded":
+        return { color: "warning" as const, label: "Modo degradado" }
+      default:
+        return { color: "danger" as const, label: "Sin conexión" }
+    }
+  }
+
+  const sseChip = getSseChipProps(sseConnectionState)
+
   if (loading) {
     return (
       <div className="w-96 border-r border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 flex items-center justify-center">
@@ -321,6 +339,9 @@ export default function ConversationList({
               <MessageCircle className="h-5 w-5 text-blue-600 dark:text-blue-400" />
               Conversaciones
             </h2>
+            <Chip size="sm" color={sseChip.color} variant="flat">
+              {sseChip.label}
+            </Chip>
             {/*
             TODO: Se comenta el boton de nueva conversacion hasta que esté implementado correctamente
             <Dropdown>

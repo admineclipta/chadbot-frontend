@@ -201,6 +201,7 @@ interface ChatViewProps {
 
 export interface ChatViewRef {
   scrollToBottom: (behavior?: "auto" | "smooth") => void
+  isNearBottom: (thresholdPx?: number) => boolean
 }
 
 const ChatView = forwardRef<ChatViewRef, ChatViewProps>(
@@ -232,6 +233,13 @@ const ChatView = forwardRef<ChatViewRef, ChatViewProps>(
 
     useImperativeHandle(ref, () => ({
       scrollToBottom,
+      isNearBottom: (thresholdPx: number = 180) => {
+        const container = scrollContainerRef.current
+        if (!container) return true
+        const distanceFromBottom =
+          container.scrollHeight - container.scrollTop - container.clientHeight
+        return distanceFromBottom <= thresholdPx
+      },
     }))
 
     useEffect(() => {

@@ -190,6 +190,39 @@ export interface MessageListResponse {
   last: boolean;
 }
 
+export type SseConnectionState =
+  | "connecting"
+  | "connected"
+  | "degraded"
+  | "error";
+
+export interface IncomingMessageRealtimeEvent {
+  eventType: "INCOMING_MESSAGE";
+  clientId: string;
+  conversationId: string;
+  message: {
+    messageId: string;
+    type:
+      | "TEXT"
+      | "IMAGE"
+      | "VIDEO"
+      | "AUDIO"
+      | "DOCUMENT"
+      | "STICKER"
+      | "LOCATION"
+      | "CONTACT"
+      | "TEMPLATE_WHATSAPP";
+    senderType: "CONTACT" | "AGENT" | "BOT" | "SYSTEM";
+    content: Record<string, unknown> | null;
+    sentAt: string;
+  };
+  conversation: {
+    lastMessageAt: string;
+    lastMessagePreview: string;
+  };
+  timestamp: string;
+}
+
 export interface SendMessageRequest {
   conversationId: string;
   type?: MessageType;

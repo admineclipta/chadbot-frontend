@@ -1276,6 +1276,10 @@ class ApiService {
     };
   }
 
+  getRealtimeIncomingMessagesUrl(): string {
+    return `${this.baseUrl}realtime/messages/incoming`;
+  }
+
   setToken(token: string) {
     this.token = token;
     const payload = decodeJWT(token);

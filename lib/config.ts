@@ -12,8 +12,7 @@ function getConfig(): Config {
   if (typeof window === "undefined") {
     // Server-side: default to development
     return {
-      apiUrl:
-        "https://chadbot-backend-914352408266.us-central1.run.app/api/v1/",
+      apiUrl: "http://localhost:8080/api/v1/",
       wsUrl: "http://localhost:8080/ws",
       environment: "development",
       environmentName: "localhost",
@@ -25,8 +24,7 @@ function getConfig(): Config {
 
   if (hostname === "localhost" || hostname === "127.0.0.1") {
     return {
-      apiUrl:
-        "https://chadbot-backend-914352408266.us-central1.run.app/api/v1/",
+      apiUrl: "http://localhost:8080/api/v1/",
       wsUrl: "http://localhost:8080/ws",
       environment: "development",
       environmentName: "localhost",
