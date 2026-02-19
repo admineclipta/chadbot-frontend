@@ -3,8 +3,10 @@
 import { useEffect, useRef, useState } from "react";
 import { fetchEventSource } from "@microsoft/fetch-event-source";
 import type {
+  ConversationAssignedRealtimeEvent,
   IncomingMessageRealtimeEvent,
   SseConnectionState,
+  UserNotificationRealtimeEvent,
 } from "@/lib/api-types";
 import { apiService } from "@/lib/api";
 
@@ -12,7 +14,12 @@ interface UseIncomingMessagesSseParams {
   enabled: boolean;
   token: string | null;
   reconnectKey?: number;
-  onIncomingMessage: (event: IncomingMessageRealtimeEvent) => void;
+  streamUrl?: string;
+  onIncomingMessage?: (event: IncomingMessageRealtimeEvent) => void;
+  onConversationAssigned?: (
+    event: ConversationAssignedRealtimeEvent,
+  ) => void;
+  onNotification?: (event: UserNotificationRealtimeEvent) => void;
   onHeartbeat?: () => void;
 }
 
@@ -22,7 +29,10 @@ export function useIncomingMessagesSse({
   enabled,
   token,
   reconnectKey = 0,
+  streamUrl,
   onIncomingMessage,
+  onConversationAssigned,
+  onNotification,
   onHeartbeat,
 }: UseIncomingMessagesSseParams) {
   const [connectionState, setConnectionState] =
@@ -30,6 +40,26 @@ export function useIncomingMessagesSse({
   const [lastHeartbeatAt, setLastHeartbeatAt] = useState<Date | null>(null);
   const abortRef = useRef<AbortController | null>(null);
   const reconnectTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const onIncomingMessageRef = useRef(onIncomingMessage);
+  const onConversationAssignedRef = useRef(onConversationAssigned);
+  const onNotificationRef = useRef(onNotification);
+  const onHeartbeatRef = useRef(onHeartbeat);
+
+  useEffect(() => {
+    onIncomingMessageRef.current = onIncomingMessage;
+  }, [onIncomingMessage]);
+
+  useEffect(() => {
+    onConversationAssignedRef.current = onConversationAssigned;
+  }, [onConversationAssigned]);
+
+  useEffect(() => {
+    onNotificationRef.current = onNotification;
+  }, [onNotification]);
+
+  useEffect(() => {
+    onHeartbeatRef.current = onHeartbeat;
+  }, [onHeartbeat]);
 
   useEffect(() => {
     if (!enabled) {
@@ -60,9 +90,12 @@ export function useIncomingMessagesSse({
       setConnectionState("connecting");
 
       try {
-        await fetchEventSource(apiService.getRealtimeIncomingMessagesUrl(), {
+        await fetchEventSource(
+          streamUrl || apiService.getRealtimeIncomingMessagesUrl(),
+          {
           method: "GET",
           signal: controller.signal,
+          openWhenHidden: true,
           headers: {
             Authorization: `Bearer ${token}`,
             Accept: "text/event-stream",
@@ -82,7 +115,7 @@ export function useIncomingMessagesSse({
             if (message.event === "heartbeat") {
               const heartbeatAt = new Date();
               setLastHeartbeatAt(heartbeatAt);
-              onHeartbeat?.();
+              onHeartbeatRef.current?.();
               return;
             }
 
@@ -91,7 +124,7 @@ export function useIncomingMessagesSse({
                 const parsed = JSON.parse(
                   message.data,
                 ) as IncomingMessageRealtimeEvent;
-                onIncomingMessage(parsed);
+                onIncomingMessageRef.current?.(parsed);
               } catch (error) {
                 console.error(
                   "[SSE] Failed parsing incoming-message payload",
@@ -99,12 +132,49 @@ export function useIncomingMessagesSse({
                 );
               }
             }
+
+            if (message.event === "conversation-assigned") {
+              try {
+                const parsed = JSON.parse(
+                  message.data,
+                ) as ConversationAssignedRealtimeEvent;
+                onConversationAssignedRef.current?.(parsed);
+              } catch (error) {
+                console.error(
+                  "[SSE] Failed parsing conversation-assigned payload",
+                  error,
+                );
+              }
+              return;
+            }
+
+            if (message.data) {
+              try {
+                const parsed = JSON.parse(
+                  message.data,
+                ) as UserNotificationRealtimeEvent;
+                onNotificationRef.current?.(parsed);
+              } catch (error) {
+                if (process.env.NODE_ENV === "development") {
+                  console.debug(
+                    "[SSE] Ignoring non-JSON notification payload",
+                    message.event,
+                    message.data,
+                  );
+                }
+              }
+            }
           },
           onerror(error) {
             if (!isActive || controller.signal.aborted) return;
             throw error;
           },
-        });
+          onclose() {
+            if (!isActive || controller.signal.aborted) return;
+            throw new Error("SSE stream closed by server");
+          },
+          },
+        );
       } catch (error) {
         if (!isActive || controller.signal.aborted) return;
 
@@ -128,7 +198,12 @@ export function useIncomingMessagesSse({
       clearReconnectTimeout();
       controller.abort();
     };
-  }, [enabled, token, reconnectKey, onIncomingMessage, onHeartbeat]);
+  }, [
+    enabled,
+    token,
+    reconnectKey,
+    streamUrl,
+  ]);
 
   return {
     connectionState,

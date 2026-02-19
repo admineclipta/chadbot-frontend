@@ -1280,6 +1280,14 @@ class ApiService {
     return `${this.baseUrl}realtime/messages/incoming`;
   }
 
+  getRealtimeAssignmentsUrl(): string {
+    return `${this.baseUrl}realtime/agents/assignments`;
+  }
+
+  getRealtimeNotificationsUrl(): string {
+    return `${this.baseUrl}realtime/notifications`;
+  }
+
   setToken(token: string) {
     this.token = token;
     const payload = decodeJWT(token);

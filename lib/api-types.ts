@@ -223,6 +223,28 @@ export interface IncomingMessageRealtimeEvent {
   timestamp: string;
 }
 
+export interface ConversationAssignedRealtimeEvent {
+  eventType: "CONVERSATION_ASSIGNED";
+  clientId: string;
+  agentId: string;
+  conversationId: string;
+  assignmentSource: "AUTO" | "MANUAL";
+  timestamp: string;
+}
+
+export interface UserNotificationRealtimeEvent {
+  type?: string;
+  eventType?: string;
+  entityType?: string;
+  entityId?: string;
+  conversationId?: string;
+  assignmentSource?: "AUTO" | "MANUAL";
+  title?: string;
+  message?: string;
+  timestamp?: string;
+  [key: string]: unknown;
+}
+
 export interface SendMessageRequest {
   conversationId: string;
   type?: MessageType;

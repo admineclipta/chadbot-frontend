@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useCallback, useRef } from "react"
 import { useRouter } from "next/navigation"
+import { Button, addToast } from "@heroui/react"
 import Sidebar from "@/components/layout/sidebar"
 import ConversationList from "@/components/chat/conversation-list"
 import ConversationFilters from "@/components/chat/conversation-filters"
@@ -18,6 +19,7 @@ import ContactInfoModal from "@/components/modals/contact-info-modal"
 import HomeDashboard from "@/components/home-dashboard"
 import type { Conversation, User, Message, Tag } from "@/lib/types"
 import type {
+  ConversationAssignedRealtimeEvent,
   ConversationStatus,
   MessagingServiceType,
   ConversationSortField,
@@ -25,6 +27,7 @@ import type {
   Message as ApiMessage,
   IncomingMessageRealtimeEvent,
   SseConnectionState,
+  UserNotificationRealtimeEvent,
 } from "@/lib/api-types"
 import { apiService } from "@/lib/api"
 import { DEBOUNCE_SEARCH_MS } from "@/lib/config"
@@ -67,6 +70,9 @@ export default function Home() {
   const [sseFailureSince, setSseFailureSince] = useState<number | null>(null)
   const [isFallbackActive, setIsFallbackActive] = useState(false)
   const [isSseReconnectRequested, setIsSseReconnectRequested] = useState(false)
+  const shownIncomingToastIdsRef = useRef<Set<string>>(new Set())
+  const shownAssignmentToastIdsRef = useRef<Set<string>>(new Set())
+  const shownGenericToastIdsRef = useRef<Set<string>>(new Set())
   const [selectedRepresentativeFilter, setSelectedRepresentativeFilter] = useState<"all" | "mine" | number>("all") // Filtro por representante
   const [availableRepresentatives, setAvailableRepresentatives] = useState<Array<{id: number, name: string}>>([]) // Lista de representantes disponibles
   
@@ -308,6 +314,115 @@ export default function Home() {
     [mapApiMessageToDomain],
   )
 
+  const openConversationById = useCallback(
+    async (conversationId: string) => {
+      setCurrentView("conversations")
+
+      const existing = conversations.find((conv) => conv.id === conversationId)
+      if (existing) {
+        setSelectedConversation(existing)
+        return
+      }
+
+      try {
+        const fetchedConversation = await apiService.getConversationById(conversationId)
+        setConversations((prev) => {
+          const withoutTarget = prev.filter((conv) => conv.id !== fetchedConversation.id)
+          const next = [fetchedConversation, ...withoutTarget]
+          next.sort((a, b) => b.lastActivity.getTime() - a.lastActivity.getTime())
+          return next
+        })
+        setSelectedConversation(fetchedConversation)
+      } catch (error) {
+        console.error("[SSE] Failed opening conversation from notification", error)
+        addToast({
+          title: "No se pudo abrir la conversación",
+          severity: "danger",
+        })
+      }
+    },
+    [conversations],
+  )
+
+  const playNotificationSound = useCallback(async () => {
+    if (typeof window === "undefined") return
+
+    try {
+      const AudioContextClass =
+        window.AudioContext || (window as any).webkitAudioContext
+      if (!AudioContextClass) return
+
+      const context = new AudioContextClass()
+      if (context.state === "suspended") {
+        await context.resume()
+      }
+      const oscillator = context.createOscillator()
+      const gain = context.createGain()
+
+      oscillator.type = "sine"
+      oscillator.frequency.setValueAtTime(880, context.currentTime)
+      gain.gain.setValueAtTime(0.0001, context.currentTime)
+      gain.gain.exponentialRampToValueAtTime(0.12, context.currentTime + 0.01)
+      gain.gain.exponentialRampToValueAtTime(0.0001, context.currentTime + 0.2)
+
+      oscillator.connect(gain)
+      gain.connect(context.destination)
+      oscillator.start()
+      oscillator.stop(context.currentTime + 0.2)
+      oscillator.onended = () => {
+        void context.close()
+      }
+    } catch (error) {
+      if (process.env.NODE_ENV === "development") {
+        console.debug("[Notifications] Could not play sound", error)
+      }
+    }
+  }, [])
+
+  const notifyBrowser = useCallback(
+    (title: string, body: string, conversationId?: string) => {
+      if (typeof window === "undefined") return
+
+      const notificationsEnabled =
+        localStorage.getItem("chadbot_notifications") === "true"
+      if (!notificationsEnabled) return
+
+      if (!("Notification" in window)) return
+
+      // Mostrar notificación nativa principalmente cuando la app no está en foco.
+      if (document.visibilityState === "visible" && document.hasFocus()) return
+
+      void playNotificationSound()
+
+      if (Notification.permission === "granted") {
+        const notification = new Notification(title, { body, tag: conversationId })
+        notification.onclick = () => {
+          window.focus()
+          if (conversationId) {
+            void openConversationById(conversationId)
+          }
+          notification.close()
+        }
+        return
+      }
+
+      if (Notification.permission === "default") {
+        void Notification.requestPermission().then((permission) => {
+          if (permission !== "granted") return
+          const notification = new Notification(title, { body, tag: conversationId })
+          notification.onclick = () => {
+            window.focus()
+            if (conversationId) {
+              void openConversationById(conversationId)
+            }
+            notification.close()
+          }
+        })
+      }
+    },
+    [openConversationById, playNotificationSound],
+  )
+
   useEffect(() => {
     const token = localStorage.getItem("chadbot_token")
     const userData = localStorage.getItem("chadbot_user")
@@ -327,15 +442,25 @@ export default function Home() {
       const incomingMessage = mapIncomingSseMessageToDomainMessage(event)
       const activeConversationId = selectedConversation?.id
       const isForActiveConversation = activeConversationId === event.conversationId
+      const isAppInForeground =
+        typeof document !== "undefined" &&
+        document.visibilityState === "visible" &&
+        document.hasFocus()
+      const shouldSuppressNotification = isForActiveConversation && isAppInForeground
       const lastActivityAt = parseApiTimestamp(
         event.conversation.lastMessageAt || event.timestamp,
       )
+      let contactNameForToast = "Cliente"
 
       setConversations((prev) => {
         const targetIndex = prev.findIndex((conv) => conv.id === event.conversationId)
         if (targetIndex === -1) return prev
 
         const targetConversation = prev[targetIndex]
+        contactNameForToast =
+          targetConversation.customer?.name ||
+          targetConversation.customer?.phone ||
+          "Cliente"
         const updatedConversation: Conversation = {
           ...targetConversation,
           lastMessage:
@@ -343,7 +468,7 @@ export default function Home() {
             incomingMessage.content ||
             targetConversation.lastMessage,
           lastActivity: lastActivityAt,
-          unreadCount: isForActiveConversation
+          unreadCount: shouldSuppressNotification
             ? 0
             : (targetConversation.unreadCount || 0) + 1,
         }
@@ -355,7 +480,39 @@ export default function Home() {
         return next
       })
 
-      if (!isForActiveConversation) return
+      if (!shouldSuppressNotification) {
+        if (!shownIncomingToastIdsRef.current.has(incomingMessage.id)) {
+          shownIncomingToastIdsRef.current.add(incomingMessage.id)
+          addToast({
+            title: `Nuevo mensaje de ${contactNameForToast}`,
+            description:
+              event.conversation.lastMessagePreview ||
+              incomingMessage.content ||
+              "Tienes un nuevo mensaje",
+            severity: "primary",
+            endContent: (
+              <Button
+                size="sm"
+                variant="light"
+                color="primary"
+                onPress={() => {
+                  void openConversationById(event.conversationId)
+                }}
+              >
+                Abrir
+              </Button>
+            ),
+          })
+          notifyBrowser(
+            `Nuevo mensaje de ${contactNameForToast}`,
+            event.conversation.lastMessagePreview ||
+              incomingMessage.content ||
+              "Tienes un nuevo mensaje",
+            event.conversationId,
+          )
+        }
+        return
+      }
 
       setSelectedConversation((prev) => {
         if (!prev || prev.id !== event.conversationId) return prev
@@ -380,13 +537,134 @@ export default function Home() {
         }, 50)
       }
     },
-    [mapIncomingSseMessageToDomainMessage, parseApiTimestamp, selectedConversation?.id],
+    [
+      mapIncomingSseMessageToDomainMessage,
+      openConversationById,
+      parseApiTimestamp,
+      selectedConversation?.id,
+    ],
   )
 
-  const sseEnabled =
-    isAuthenticated &&
-    currentView === "conversations" &&
-    !!authToken
+  const sseEnabled = isAuthenticated && !!authToken
+
+  const handleConversationAssignedSse = useCallback(
+    (event: ConversationAssignedRealtimeEvent) => {
+      const toastKey = `${event.conversationId}:${event.timestamp}`
+      if (shownAssignmentToastIdsRef.current.has(toastKey)) return
+      shownAssignmentToastIdsRef.current.add(toastKey)
+
+      refetchConversations()
+
+      addToast({
+        title: "Se te asignó una nueva conversación",
+        description:
+          event.assignmentSource === "AUTO"
+            ? "Asignación automática recibida"
+            : "Asignación manual recibida",
+        severity: "success",
+        endContent: (
+          <Button
+            size="sm"
+            variant="light"
+            color="primary"
+            onPress={() => {
+              void openConversationById(event.conversationId)
+            }}
+          >
+            Abrir
+          </Button>
+        ),
+      })
+      notifyBrowser(
+        "Nueva conversación asignada",
+        event.assignmentSource === "AUTO"
+          ? "Asignación automática recibida"
+          : "Asignación manual recibida",
+        event.conversationId,
+      )
+    },
+    [notifyBrowser, openConversationById, refetchConversations],
+  )
+
+  const handleNotificationSse = useCallback(
+    (event: UserNotificationRealtimeEvent) => {
+      const rawType = String(event.type || event.eventType || "").toUpperCase()
+      const conversationId =
+        (typeof event.conversationId === "string" && event.conversationId) ||
+        (typeof event.entityId === "string" && event.entityId) ||
+        ""
+
+      if (!rawType || !conversationId) return
+
+      if (rawType === "NEW_MESSAGE") {
+        void refetchConversations()
+
+        const isAppInForeground =
+          typeof document !== "undefined" &&
+          document.visibilityState === "visible" &&
+          document.hasFocus()
+        const isSelectedConversationInForeground =
+          selectedConversation?.id === conversationId && isAppInForeground
+
+        if (isSelectedConversationInForeground) {
+          void refreshSelectedConversationMessages(conversationId, "replace")
+          return
+        }
+
+        const toastKey = `NEW_MESSAGE:${conversationId}:${event.timestamp || "no-ts"}`
+        if (shownGenericToastIdsRef.current.has(toastKey)) return
+        shownGenericToastIdsRef.current.add(toastKey)
+
+        addToast({
+          title: event.title || "Nuevo mensaje",
+          description: event.message || "Tienes un nuevo mensaje en una conversación",
+          severity: "primary",
+          endContent: (
+            <Button
+              size="sm"
+              variant="light"
+              color="primary"
+              onPress={() => {
+                void openConversationById(conversationId)
+              }}
+            >
+              Abrir
+            </Button>
+          ),
+        })
+        notifyBrowser(
+          event.title || "Nuevo mensaje",
+          event.message || "Tienes un nuevo mensaje en una conversación",
+          conversationId,
+        )
+        return
+      }
+
+      if (rawType === "CONVERSATION_ASSIGNED") {
+        const assignmentEvent: ConversationAssignedRealtimeEvent = {
+          eventType: "CONVERSATION_ASSIGNED",
+          clientId: "",
+          agentId: "",
+          conversationId,
+          assignmentSource:
+            event.assignmentSource === "AUTO" ? "AUTO" : "MANUAL",
+          timestamp:
+            typeof event.timestamp === "string"
+              ? event.timestamp
+              : new Date().toISOString(),
+        }
+        handleConversationAssignedSse(assignmentEvent)
+      }
+    },
+    [
+      handleConversationAssignedSse,
+      openConversationById,
+      notifyBrowser,
+      refetchConversations,
+      refreshSelectedConversationMessages,
+      selectedConversation?.id,
+    ],
+  )
 
   const {
     connectionState: rawSseConnectionState,
@@ -395,7 +673,10 @@ export default function Home() {
     enabled: sseEnabled,
     token: authToken,
     reconnectKey: sseReconnectKey,
+    streamUrl: apiService.getRealtimeNotificationsUrl(),
     onIncomingMessage: handleIncomingMessageSse,
+    onConversationAssigned: handleConversationAssignedSse,
+    onNotification: handleNotificationSse,
   })
 
   const sseConnectionState: SseConnectionState =
