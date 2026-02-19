@@ -6,9 +6,10 @@ interface AvatarProps {
   gradient?: 'blue' | 'violet' | 'emerald' | 'amber' | 'mixed'
   online?: boolean
   className?: string
+  onClick?: React.MouseEventHandler<HTMLDivElement>
 }
 
-export function Avatar({ name, size = 'md', gradient = 'mixed', online, className = '' }: AvatarProps) {
+export function Avatar({ name, size = 'md', gradient = 'mixed', online, className = '', onClick }: AvatarProps) {
   const sizes = {
     sm: 'w-8 h-8 text-sm',
     md: 'w-10 h-10 text-base',
@@ -30,10 +31,25 @@ export function Avatar({ name, size = 'md', gradient = 'mixed', online, classNam
     .join('')
     .toUpperCase()
     .slice(0, 2) || '?'
+  const clickableClass = onClick ? 'cursor-pointer' : ''
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
+    if (!onClick) return
+    if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault()
+      ;(onClick as React.MouseEventHandler<HTMLDivElement>)(e as unknown as React.MouseEvent<HTMLDivElement>)
+    }
+  }
 
   return (
-    <div className={`relative ${className}`}>
-      <div className={`${sizes[size]} rounded-full bg-gradient-to-br ${gradients[gradient]} flex items-center justify-center text-white font-semibold shadow-md`}>
+    <div
+      className={`relative ${className}`}
+      onClick={onClick}
+      role={onClick ? 'button' : undefined}
+      tabIndex={onClick ? 0 : undefined}
+      onKeyDown={handleKeyDown}
+    >
+      <div className={`${sizes[size]} rounded-full bg-gradient-to-br ${gradients[gradient]} flex items-center justify-center text-white font-semibold shadow-md ${clickableClass}`}>
         {initials}
       </div>
       {online && (

@@ -1,7 +1,7 @@
 "use client"
 
 import { forwardRef, useImperativeHandle, useRef, useEffect, useState, useCallback } from "react"
-import { Phone, MoreVertical, ArrowLeft, Bot, User, X, Sparkles, UserPlus, Send, Orbit } from "lucide-react"
+import { Phone, MoreVertical, ArrowLeft, Bot, User, X, Sparkles, UserPlus, Send, Orbit, Tag as TagIcon, Info } from "lucide-react"
 import { toast } from "sonner"
 import Image from "next/image"
 import { 
@@ -15,6 +15,7 @@ import {
   Tab,
   Image as HeroImage
 } from "@heroui/react"
+import ConversationTagsModal from "@/components/modals/conversation-tags-modal"
 import { Avatar } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
 import MessageStatusIcon from "./message-status-icon"
@@ -23,7 +24,8 @@ import ConversationNotes from "./conversation-notes"
 import AISummaryPanel from "@/components/shared/ai-summary-panel"
 import AssignConversationModal from "@/components/modals/assign-conversation-modal"
 import ContactInfoModal from "@/components/modals/contact-info-modal"
-import { apiService } from "@/lib/api"
+import ConversationInfoModal from "@/components/modals/conversation-info-modal"
+import { apiService, ApiError } from "@/lib/api"
 import type { Conversation, Message } from "@/lib/types"
 import type { ConversationStatus } from "@/lib/api-types"
 import { formatMessageTime } from "@/lib/utils"
@@ -49,6 +51,9 @@ function MessageMedia({ message, isAccent }: { message: Message; isAccent: boole
   const fileUrl = (message.file as any)?.fileUrl || (message.file as any)?.url || null
   const fileStatus = message.file?.status
   const showError = hasError || fileStatus === "error" || !fileUrl
+  if (mediaType === "audio") {
+    console.log("[AUDIO] fileUrl:", fileUrl, message.file)
+  }
 
   if (!mediaType || mediaType === "text") {
     return null
@@ -84,12 +89,29 @@ function MessageMedia({ message, isAccent }: { message: Message; isAccent: boole
 
   if (mediaType === "audio") {
     return (
-      <audio
-        controls
-        className="w-full"
-        onError={() => setHasError(true)}
-        src={fileUrl}
-      />
+      <>
+        <div className="w-full flex justify-center">
+          <audio
+            controls
+            className="w-full md:w-[700px]"
+            onError={() => setHasError(true)}
+            src={fileUrl || undefined}
+          >
+            Tu navegador no soporta audio. <a href={fileUrl} target="_blank" rel="noopener">Abrir audio</a>
+          </audio>
+        </div>
+        {hasError && (
+          <MediaError label={`No se pudo cargar el audio (${fileUrl})`} />
+        )}
+        {!hasError && !fileUrl && (
+          <MediaError label="Audio no disponible" />
+        )}
+        {!hasError && fileUrl && (
+          <div className="text-xs mt-2">
+            <a href={fileUrl} target="_blank" rel="noopener" className="underline text-blue-600">Abrir audio en nueva pestaña</a>
+          </div>
+        )}
+      </>
     )
   }
 
@@ -107,6 +129,19 @@ function MessageMedia({ message, isAccent }: { message: Message; isAccent: boole
       >
         📄 {message.file?.filename || "Documento"}
       </a>
+    )
+  }
+
+  if (mediaType === "sticker") {
+    return (
+      <HeroImage
+        src={fileUrl}
+        alt={message.file?.filename || "Sticker"}
+        radius="lg"
+        className="max-w-32 max-h-32 rounded-xl object-cover"
+        width={128}
+        onError={() => setHasError(true)}
+      />
     )
   }
 
@@ -166,6 +201,7 @@ interface ChatViewProps {
 
 export interface ChatViewRef {
   scrollToBottom: (behavior?: "auto" | "smooth") => void
+  isNearBottom: (thresholdPx?: number) => boolean
 }
 
 const ChatView = forwardRef<ChatViewRef, ChatViewProps>(
@@ -184,7 +220,9 @@ const ChatView = forwardRef<ChatViewRef, ChatViewProps>(
     const scrollContainerRef = useRef<HTMLDivElement>(null)
     const [showSummaryPanel, setShowSummaryPanel] = useState(false)
     const [showAssignModal, setShowAssignModal] = useState(false)
+    const [tagsModalOpen, setTagsModalOpen] = useState(false)
     const [showContactInfoModal, setShowContactInfoModal] = useState(false)
+    const [showConversationInfoModal, setShowConversationInfoModal] = useState(false)
     const [intervenirLoading, setIntervenirLoading] = useState(false)
     const [changingStatus, setChangingStatus] = useState(false)
     const [activeTab, setActiveTab] = useState<string>("responder")
@@ -195,11 +233,18 @@ const ChatView = forwardRef<ChatViewRef, ChatViewProps>(
 
     useImperativeHandle(ref, () => ({
       scrollToBottom,
+      isNearBottom: (thresholdPx: number = 180) => {
+        const container = scrollContainerRef.current
+        if (!container) return true
+        const distanceFromBottom =
+          container.scrollHeight - container.scrollTop - container.clientHeight
+        return distanceFromBottom <= thresholdPx
+      },
     }))
 
     useEffect(() => {
       scrollToBottom("auto")
-    }, [conversation.id, scrollToBottom])
+    }, [conversation.id, conversation.messages, scrollToBottom])
 
     // Event listener para cerrar con tecla ESC
     useEffect(() => {
@@ -287,6 +332,58 @@ const ChatView = forwardRef<ChatViewRef, ChatViewProps>(
         toast.error(error.message || 'Error al intervenir la conversación')
       } finally {
         setIntervenirLoading(false)
+      }
+    }
+
+    const handleSetTagsForConversation = async (conversationId: string, tagIds: string[]) => {
+      try {
+        await apiService.setConversationTags(conversationId, tagIds)
+        toast.success("Etiquetas actualizadas")
+        if (onConversationUpdate) {
+          // Optionally inform parent to refresh conversation
+          onConversationUpdate({ ...conversation, tags: (conversation.tags || []).filter(t => tagIds.includes(t.id)) })
+        }
+      } catch (err: any) {
+        console.error(err)
+        toast.error(err?.message || "Error actualizando etiquetas")
+      }
+    }
+
+    const handleAddTagFromModal = async (label: string) => {
+      try {
+        const newTag = await apiService.createTag({ label, color: "#BDF26D", isPrivate: false })
+
+        try {
+          await apiService.setConversationTags(conversation.id, [newTag.id])
+          toast.success("Etiquetas actualizadas")
+          if (onConversationUpdate) {
+            onConversationUpdate({ ...conversation, tags: (conversation.tags || []).concat(newTag) })
+          }
+        } catch (e: any) {
+          // If conversation not found, swallow but still acknowledge tag creation
+          if (e instanceof ApiError && e.status === 404) {
+            console.warn('Conversation not found while assigning tag, tag created:', newTag)
+            toast.success("Etiqueta creada")
+            if (onConversationUpdate) {
+              onConversationUpdate({ ...conversation, tags: (conversation.tags || []).concat(newTag) })
+            }
+          } else {
+            throw e
+          }
+        }
+      } catch (err: any) {
+        console.error(err)
+        toast.error(err?.message || "Error creando etiqueta")
+      }
+    }
+
+    const handleRemoveTagFromModal = async (tagId: string) => {
+      try {
+        const remaining = (conversation.tags || []).filter(t => t.id !== tagId).map(t => t.id)
+        await handleSetTagsForConversation(conversation.id, remaining)
+      } catch (err: any) {
+        console.error(err)
+        toast.error(err?.message || "Error removiendo etiqueta")
       }
     }
 
@@ -387,14 +484,18 @@ const ChatView = forwardRef<ChatViewRef, ChatViewProps>(
               {/* Info del contacto */}
               <div 
                 className="flex items-center gap-3 cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-700 rounded-lg p-2 transition-colors flex-1 min-w-0"
-                onClick={() => setShowContactInfoModal(true)}
+                onClick={() => setShowConversationInfoModal(true)}
               >
                 <Avatar
                   name={contactName}
                   size="lg"
                   gradient="mixed"
                   online={isActive}
-                  className="flex-shrink-0"
+                  className="flex-shrink-0 cursor-pointer"
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    setShowContactInfoModal(true)
+                  }}
                 />
                 
                 <div className="flex-1 min-w-0">
@@ -428,6 +529,8 @@ const ChatView = forwardRef<ChatViewRef, ChatViewProps>(
 
               {/* Acciones */}
               <div className="flex items-center gap-1 md:gap-2 flex-shrink-0">
+                {/* TODO: Botón de IA - Comentar por el momento */}
+                {/*
                 <button 
                   disabled
                   className="p-2 md:p-2.5 rounded-lg transition-colors hidden sm:flex opacity-50 cursor-not-allowed"
@@ -436,6 +539,7 @@ const ChatView = forwardRef<ChatViewRef, ChatViewProps>(
                 >
                   <Sparkles className="w-4 h-4 md:w-5 md:h-5 text-slate-400" />
                 </button>
+                */}
 
                 {/* Selector de estado */}
                 <Dropdown placement="bottom-end">
@@ -481,6 +585,13 @@ const ChatView = forwardRef<ChatViewRef, ChatViewProps>(
                     >
                       Asignar usuario
                     </DropdownItem>
+                    <DropdownItem
+                      key="tags"
+                      startContent={<TagIcon className="w-4 h-4" />}
+                      onPress={() => setTagsModalOpen(true)}
+                    >
+                      Etiquetas
+                    </DropdownItem>
                   </DropdownMenu>
                 </Dropdown>
               </div>
@@ -512,7 +623,11 @@ const ChatView = forwardRef<ChatViewRef, ChatViewProps>(
                         name={contactName}
                         size="sm"
                         gradient="blue"
-                        className="flex-shrink-0"
+                        className="flex-shrink-0 cursor-pointer"
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          setShowContactInfoModal(true)
+                        }}
                       />
                     )}
 
@@ -683,6 +798,18 @@ const ChatView = forwardRef<ChatViewRef, ChatViewProps>(
               </Tab>
             </Tabs>
           </div>
+
+          {/* Conversation Tags Modal */}
+          {tagsModalOpen && (
+            <ConversationTagsModal
+              tags={conversation.tags || []}
+              isOpen={tagsModalOpen}
+              onClose={() => setTagsModalOpen(false)}
+              onAddTag={handleAddTagFromModal}
+              onRemoveTag={handleRemoveTagFromModal}
+              onSetTags={(tagIds: string[]) => handleSetTagsForConversation(conversation.id, tagIds)}
+            />
+          )}
         </div>
 
         {/* AI Summary Panel */}
@@ -708,6 +835,12 @@ const ChatView = forwardRef<ChatViewRef, ChatViewProps>(
           contactId={conversation.customer.id}
           isOpen={showContactInfoModal}
           onClose={() => setShowContactInfoModal(false)}
+        />
+        
+        <ConversationInfoModal
+          isOpen={showConversationInfoModal}
+          onClose={() => setShowConversationInfoModal(false)}
+          conversation={conversation}
         />
       </>
     )

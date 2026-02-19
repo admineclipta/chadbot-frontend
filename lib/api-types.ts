@@ -128,7 +128,13 @@ export interface ConversationDetailResponse extends Conversation {
 
 // Message Types
 export type SenderType = "contact" | "agent" | "bot" | "system";
-export type MessageType = "text" | "image" | "video" | "audio" | "document";
+export type MessageType =
+  | "text"
+  | "image"
+  | "video"
+  | "audio"
+  | "document"
+  | "sticker";
 export type MessageStatus = "sent" | "delivered" | "read" | "failed";
 
 export interface MessageSender {
@@ -184,10 +190,67 @@ export interface MessageListResponse {
   last: boolean;
 }
 
+export type SseConnectionState =
+  | "connecting"
+  | "connected"
+  | "degraded"
+  | "error";
+
+export interface IncomingMessageRealtimeEvent {
+  eventType: "INCOMING_MESSAGE";
+  clientId: string;
+  conversationId: string;
+  message: {
+    messageId: string;
+    type:
+      | "TEXT"
+      | "IMAGE"
+      | "VIDEO"
+      | "AUDIO"
+      | "DOCUMENT"
+      | "STICKER"
+      | "LOCATION"
+      | "CONTACT"
+      | "TEMPLATE_WHATSAPP";
+    senderType: "CONTACT" | "AGENT" | "BOT" | "SYSTEM";
+    content: Record<string, unknown> | null;
+    sentAt: string;
+  };
+  conversation: {
+    lastMessageAt: string;
+    lastMessagePreview: string;
+  };
+  timestamp: string;
+}
+
+export interface ConversationAssignedRealtimeEvent {
+  eventType: "CONVERSATION_ASSIGNED";
+  clientId: string;
+  agentId: string;
+  conversationId: string;
+  assignmentSource: "AUTO" | "MANUAL";
+  timestamp: string;
+}
+
+export interface UserNotificationRealtimeEvent {
+  type?: string;
+  eventType?: string;
+  entityType?: string;
+  entityId?: string;
+  conversationId?: string;
+  assignmentSource?: "AUTO" | "MANUAL";
+  title?: string;
+  message?: string;
+  timestamp?: string;
+  [key: string]: unknown;
+}
+
 export interface SendMessageRequest {
   conversationId: string;
   type?: MessageType;
   text?: string;
+  file?: File;
+  caption?: string;
 }
 
 export interface SendImageRequest {

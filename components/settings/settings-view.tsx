@@ -7,15 +7,20 @@ import AboutMeSection from "@/components/settings/about-me-section"
 import AppearanceSection from "@/components/settings/appearance-section"
 import MessagesSection from "@/components/settings/messages-section"
 import CredentialsSection from "@/components/settings/credentials-section"
+import type { SseConnectionState } from "@/lib/api-types"
 
 interface SettingsViewProps {
-  autoRefreshInterval?: number
-  onAutoRefreshIntervalChange?: (interval: number) => void
+  sseState?: SseConnectionState
+  sseLastHeartbeatAt?: Date | null
+  onSseReconnect?: () => void
+  isSseReconnecting?: boolean
 }
 
 export default function SettingsView({
-  autoRefreshInterval,
-  onAutoRefreshIntervalChange,
+  sseState = "connecting",
+  sseLastHeartbeatAt = null,
+  onSseReconnect,
+  isSseReconnecting = false,
 }: SettingsViewProps) {
   const [selectedTab, setSelectedTab] = useState<string>("about")
 
@@ -78,8 +83,10 @@ export default function SettingsView({
               }
             >
               <MessagesSection
-                autoRefreshInterval={autoRefreshInterval}
-                onAutoRefreshIntervalChange={onAutoRefreshIntervalChange}
+                sseState={sseState}
+                lastHeartbeatAt={sseLastHeartbeatAt}
+                onReconnect={onSseReconnect}
+                isReconnecting={isSseReconnecting}
               />
             </Tab>
 

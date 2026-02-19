@@ -286,7 +286,7 @@ export default function ConversationList({
               <MessageCircle className="h-5 w-5 text-blue-600" />
               Conversaciones
             </h2>
-            <Dropdown>
+            {/* <Dropdown>
               <DropdownTrigger>
                 <Button
                   isIconOnly
@@ -328,7 +328,7 @@ export default function ConversationList({
                   Mensaje Masivo
                 </DropdownItem>
               </DropdownMenu>
-            </Dropdown>
+            </Dropdown> */}
           </div>
           
           {/* Search and Filter Bar */}

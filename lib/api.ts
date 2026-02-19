@@ -471,13 +471,20 @@ class ApiService {
     console.log(
       `📤 [CHADBOT API] Sending message to conversation ${data.conversationId}`,
     );
+
     const metadata = {
       conversationId: data.conversationId,
       type: data.type ?? "text",
-      text: data.text ?? "",
+      ...(data.text && { text: data.text }),
+      ...(data.caption && { caption: data.caption }),
     };
+
     const formData = new FormData();
     formData.append("metadata", JSON.stringify(metadata));
+
+    if (data.file) {
+      formData.append("file", data.file);
+    }
 
     return this.request<SendMessageResponse>("messages/send", {
       method: "POST",
@@ -581,6 +588,19 @@ class ApiService {
     );
     return this.request<void>(`conversations/${conversationId}/tags/${tagId}`, {
       method: "POST",
+    });
+  }
+
+  async setConversationTags(
+    conversationId: string,
+    tagIds: string[],
+  ): Promise<void> {
+    console.log(
+      `🏷️ [CHADBOT API] Setting tags for conversation ${conversationId}: ${tagIds.join(", ")}`,
+    );
+    return this.request<void>(`conversations/${conversationId}/tags`, {
+      method: "PUT",
+      body: JSON.stringify({ tagIds }),
     });
   }
 
@@ -1254,6 +1274,18 @@ class ApiService {
       environmentName: config.environmentName,
       clientId: this.clientId,
     };
+  }
+
+  getRealtimeIncomingMessagesUrl(): string {
+    return `${this.baseUrl}realtime/messages/incoming`;
+  }
+
+  getRealtimeAssignmentsUrl(): string {
+    return `${this.baseUrl}realtime/agents/assignments`;
+  }
+
+  getRealtimeNotificationsUrl(): string {
+    return `${this.baseUrl}realtime/notifications`;
   }
 
   setToken(token: string) {

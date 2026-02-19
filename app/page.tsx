@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useCallback, useRef } from "react"
 import { useRouter } from "next/navigation"
-import { Select, SelectItem, Kbd } from "@heroui/react"
+import { Button, addToast } from "@heroui/react"
 import Sidebar from "@/components/layout/sidebar"
 import ConversationList from "@/components/chat/conversation-list"
 import ConversationFilters from "@/components/chat/conversation-filters"
@@ -18,12 +18,42 @@ import EnvironmentIndicator from "@/components/layout/environment-indicator"
 import ContactInfoModal from "@/components/modals/contact-info-modal"
 import HomeDashboard from "@/components/home-dashboard"
 import type { Conversation, User, Message, Tag } from "@/lib/types"
-import type { ConversationStatus, MessagingServiceType, ConversationSortField, SortDirection, Message as ApiMessage } from "@/lib/api-types"
+import type {
+  ConversationAssignedRealtimeEvent,
+  ConversationStatus,
+  MessagingServiceType,
+  ConversationSortField,
+  SortDirection,
+  Message as ApiMessage,
+  IncomingMessageRealtimeEvent,
+  SseConnectionState,
+  UserNotificationRealtimeEvent,
+} from "@/lib/api-types"
 import { apiService } from "@/lib/api"
 import { DEBOUNCE_SEARCH_MS } from "@/lib/config"
 import { useApi } from "@/hooks/use-api"
 import { useIsMobile } from "@/hooks/use-mobile"
 import { cn, parseApiTimestamp } from "@/lib/utils"
+import { useIncomingMessagesSse } from "@/hooks/use-incoming-messages-sse"
+
+// Función helper para determinar el tipo de mensaje basado en el tipo MIME
+const getMessageTypeFromFile = (file: File): "image" | "video" | "audio" | "document" | "sticker" => {
+  const mimeType = file.type.toLowerCase();
+
+  if (mimeType.startsWith("image/")) {
+    // Verificar si es un sticker (webp es común para stickers)
+    if (mimeType === "image/webp") {
+      return "sticker";
+    }
+    return "image";
+  } else if (mimeType.startsWith("video/")) {
+    return "video";
+  } else if (mimeType.startsWith("audio/")) {
+    return "audio";
+  } else {
+    return "document";
+  }
+};
 
 export default function Home() {
   const router = useRouter()
@@ -35,7 +65,14 @@ export default function Home() {
   const [conversations, setConversations] = useState<Conversation[]>([])
   const [user, setUser] = useState<User | null>(null)
   const [selectedUserId, setSelectedUserId] = useState<string | null>(null)
-  const [messagesRefreshKey, setMessagesRefreshKey] = useState<number>(0) // Key para forzar refresco de mensajes
+  const [authToken, setAuthToken] = useState<string | null>(null)
+  const [sseReconnectKey, setSseReconnectKey] = useState<number>(0)
+  const [sseFailureSince, setSseFailureSince] = useState<number | null>(null)
+  const [isFallbackActive, setIsFallbackActive] = useState(false)
+  const [isSseReconnectRequested, setIsSseReconnectRequested] = useState(false)
+  const shownIncomingToastIdsRef = useRef<Set<string>>(new Set())
+  const shownAssignmentToastIdsRef = useRef<Set<string>>(new Set())
+  const shownGenericToastIdsRef = useRef<Set<string>>(new Set())
   const [selectedRepresentativeFilter, setSelectedRepresentativeFilter] = useState<"all" | "mine" | number>("all") // Filtro por representante
   const [availableRepresentatives, setAvailableRepresentatives] = useState<Array<{id: number, name: string}>>([]) // Lista de representantes disponibles
   
@@ -155,7 +192,7 @@ export default function Home() {
   } = useApi(
     (signal?: AbortSignal) =>
       selectedConversation ? apiService.getMessages(selectedConversation.id, 0, 20) : Promise.resolve(null),
-    [selectedConversation?.id, messagesRefreshKey], // Incluir refreshKey para forzar refresco
+    [selectedConversation?.id],
   )
 
   const getMessageFileUrl = useCallback((file?: any): string | null => {
@@ -170,7 +207,10 @@ export default function Home() {
       : msg.sender?.type === "bot"
         ? "bot"
         : "client"
-    const fileUrl = getMessageFileUrl(msg.file)
+    let fileUrl = getMessageFileUrl(msg.file)
+    if (!fileUrl && msg.file) {
+      fileUrl = msg.file.storageUri || msg.file.fileUrl || null
+    }
 
     return {
       id: msg.id,
@@ -194,6 +234,7 @@ export default function Home() {
           }
         : undefined,
       attachments: fileUrl
+        && msg.file
         ? [
             {
               id: msg.file.id,
@@ -206,6 +247,182 @@ export default function Home() {
     }
   }, [getMessageFileUrl, parseApiTimestamp])
 
+  const mapIncomingSseMessageToDomainMessage = useCallback(
+    (event: IncomingMessageRealtimeEvent): Message => {
+      const rawType = event.message.type?.toLowerCase()
+      const normalizedType: Message["type"] =
+        rawType === "text" ||
+        rawType === "image" ||
+        rawType === "video" ||
+        rawType === "audio" ||
+        rawType === "document" ||
+        rawType === "sticker"
+          ? (rawType as Message["type"])
+          : "text"
+
+      const senderType = event.message.senderType?.toUpperCase()
+      const sender: Message["sender"] =
+        senderType === "AGENT"
+          ? "agent"
+          : senderType === "BOT"
+            ? "bot"
+            : "client"
+
+      const content = ((event.message.content || {}) as Record<string, unknown>)
+      const text =
+        (typeof content.text === "string" ? content.text : "") ||
+        (typeof content.caption === "string" ? content.caption : "") ||
+        ""
+
+      return {
+        id: event.message.messageId,
+        content: text,
+        sender,
+        senderName: sender === "client" ? "Cliente" : sender === "bot" ? "Bot" : "Agente",
+        timestamp: parseApiTimestamp(event.message.sentAt || event.timestamp),
+        type: normalizedType,
+        status: "delivered",
+      }
+    },
+    [parseApiTimestamp],
+  )
+
+  const refreshSelectedConversationMessages = useCallback(
+    async (conversationId: string, mode: "replace" | "merge" = "replace") => {
+      try {
+        const response = await apiService.getMessages(conversationId, 0, 20)
+        const mappedMessages = response.content.map(mapApiMessageToDomain).reverse()
+
+        setSelectedConversation((prev) => {
+          if (!prev || prev.id !== conversationId) return prev
+
+          const nextMessages =
+            mode === "replace"
+              ? mappedMessages
+              : [...prev.messages, ...mappedMessages.filter((m) => !prev.messages.some((pm) => pm.id === m.id))]
+
+          return {
+            ...prev,
+            messages: nextMessages,
+            lastMessage: nextMessages[nextMessages.length - 1]?.content || prev.lastMessage,
+          }
+        })
+      } catch (error) {
+        console.error("[SSE] Failed re-syncing selected conversation messages", error)
+      }
+    },
+    [mapApiMessageToDomain],
+  )
+
+  const openConversationById = useCallback(
+    async (conversationId: string) => {
+      setCurrentView("conversations")
+
+      const existing = conversations.find((conv) => conv.id === conversationId)
+      if (existing) {
+        setSelectedConversation(existing)
+        return
+      }
+
+      try {
+        const fetchedConversation = await apiService.getConversationById(conversationId)
+        setConversations((prev) => {
+          const withoutTarget = prev.filter((conv) => conv.id !== fetchedConversation.id)
+          const next = [fetchedConversation, ...withoutTarget]
+          next.sort((a, b) => b.lastActivity.getTime() - a.lastActivity.getTime())
+          return next
+        })
+        setSelectedConversation(fetchedConversation)
+      } catch (error) {
+        console.error("[SSE] Failed opening conversation from notification", error)
+        addToast({
+          title: "No se pudo abrir la conversación",
+          severity: "danger",
+        })
+      }
+    },
+    [conversations],
+  )
+
+  const playNotificationSound = useCallback(async () => {
+    if (typeof window === "undefined") return
+
+    try {
+      const AudioContextClass =
+        window.AudioContext || (window as any).webkitAudioContext
+      if (!AudioContextClass) return
+
+      const context = new AudioContextClass()
+      if (context.state === "suspended") {
+        await context.resume()
+      }
+      const oscillator = context.createOscillator()
+      const gain = context.createGain()
+
+      oscillator.type = "sine"
+      oscillator.frequency.setValueAtTime(880, context.currentTime)
+      gain.gain.setValueAtTime(0.0001, context.currentTime)
+      gain.gain.exponentialRampToValueAtTime(0.12, context.currentTime + 0.01)
+      gain.gain.exponentialRampToValueAtTime(0.0001, context.currentTime + 0.2)
+
+      oscillator.connect(gain)
+      gain.connect(context.destination)
+      oscillator.start()
+      oscillator.stop(context.currentTime + 0.2)
+      oscillator.onended = () => {
+        void context.close()
+      }
+    } catch (error) {
+      if (process.env.NODE_ENV === "development") {
+        console.debug("[Notifications] Could not play sound", error)
+      }
+    }
+  }, [])
+
+  const notifyBrowser = useCallback(
+    (title: string, body: string, conversationId?: string) => {
+      if (typeof window === "undefined") return
+
+      const notificationsEnabled =
+        localStorage.getItem("chadbot_notifications") === "true"
+      if (!notificationsEnabled) return
+
+      if (!("Notification" in window)) return
+
+      // Mostrar notificación nativa principalmente cuando la app no está en foco.
+      if (document.visibilityState === "visible" && document.hasFocus()) return
+
+      void playNotificationSound()
+
+      if (Notification.permission === "granted") {
+        const notification = new Notification(title, { body, tag: conversationId })
+        notification.onclick = () => {
+          window.focus()
+          if (conversationId) {
+            void openConversationById(conversationId)
+          }
+          notification.close()
+        }
+        return
+      }
+
+      if (Notification.permission === "default") {
+        void Notification.requestPermission().then((permission) => {
+          if (permission !== "granted") return
+          const notification = new Notification(title, { body, tag: conversationId })
+          notification.onclick = () => {
+            window.focus()
+            if (conversationId) {
+              void openConversationById(conversationId)
+            }
+            notification.close()
+          }
+        })
+      }
+    },
+    [openConversationById, playNotificationSound],
+  )
+
   useEffect(() => {
     const token = localStorage.getItem("chadbot_token")
     const userData = localStorage.getItem("chadbot_user")
@@ -214,10 +431,376 @@ export default function Home() {
       setIsAuthenticated(true)
       setUser(JSON.parse(userData))
       apiService.setToken(token)
+      setAuthToken(token)
     } else {
       router.push("/login")
     }
   }, [router])
+
+  const handleIncomingMessageSse = useCallback(
+    (event: IncomingMessageRealtimeEvent) => {
+      const incomingMessage = mapIncomingSseMessageToDomainMessage(event)
+      const activeConversationId = selectedConversation?.id
+      const isForActiveConversation = activeConversationId === event.conversationId
+      const isAppInForeground =
+        typeof document !== "undefined" &&
+        document.visibilityState === "visible" &&
+        document.hasFocus()
+      const shouldSuppressNotification = isForActiveConversation && isAppInForeground
+      const lastActivityAt = parseApiTimestamp(
+        event.conversation.lastMessageAt || event.timestamp,
+      )
+      let contactNameForToast = "Cliente"
+
+      setConversations((prev) => {
+        const targetIndex = prev.findIndex((conv) => conv.id === event.conversationId)
+        if (targetIndex === -1) return prev
+
+        const targetConversation = prev[targetIndex]
+        contactNameForToast =
+          targetConversation.customer?.name ||
+          targetConversation.customer?.phone ||
+          "Cliente"
+        const updatedConversation: Conversation = {
+          ...targetConversation,
+          lastMessage:
+            event.conversation.lastMessagePreview ||
+            incomingMessage.content ||
+            targetConversation.lastMessage,
+          lastActivity: lastActivityAt,
+          unreadCount: shouldSuppressNotification
+            ? 0
+            : (targetConversation.unreadCount || 0) + 1,
+        }
+
+        const next = prev.map((conv) =>
+          conv.id === event.conversationId ? updatedConversation : conv,
+        )
+        next.sort((a, b) => b.lastActivity.getTime() - a.lastActivity.getTime())
+        return next
+      })
+
+      if (!shouldSuppressNotification) {
+        if (!shownIncomingToastIdsRef.current.has(incomingMessage.id)) {
+          shownIncomingToastIdsRef.current.add(incomingMessage.id)
+          addToast({
+            title: `Nuevo mensaje de ${contactNameForToast}`,
+            description:
+              event.conversation.lastMessagePreview ||
+              incomingMessage.content ||
+              "Tienes un nuevo mensaje",
+            severity: "primary",
+            endContent: (
+              <Button
+                size="sm"
+                variant="light"
+                color="primary"
+                onPress={() => {
+                  void openConversationById(event.conversationId)
+                }}
+              >
+                Abrir
+              </Button>
+            ),
+          })
+          notifyBrowser(
+            `Nuevo mensaje de ${contactNameForToast}`,
+            event.conversation.lastMessagePreview ||
+              incomingMessage.content ||
+              "Tienes un nuevo mensaje",
+            event.conversationId,
+          )
+        }
+        return
+      }
+
+      setSelectedConversation((prev) => {
+        if (!prev || prev.id !== event.conversationId) return prev
+        if (prev.messages.some((msg) => msg.id === incomingMessage.id)) return prev
+
+        return {
+          ...prev,
+          messages: [...prev.messages, incomingMessage],
+          lastMessage:
+            event.conversation.lastMessagePreview ||
+            incomingMessage.content ||
+            prev.lastMessage,
+          lastActivity: lastActivityAt,
+          unreadCount: 0,
+        }
+      })
+
+      const shouldAutoscroll = chatViewRef.current?.isNearBottom() ?? true
+      if (shouldAutoscroll) {
+        setTimeout(() => {
+          chatViewRef.current?.scrollToBottom("smooth")
+        }, 50)
+      }
+    },
+    [
+      mapIncomingSseMessageToDomainMessage,
+      openConversationById,
+      parseApiTimestamp,
+      selectedConversation?.id,
+    ],
+  )
+
+  const sseEnabled = isAuthenticated && !!authToken
+
+  const handleConversationAssignedSse = useCallback(
+    (event: ConversationAssignedRealtimeEvent) => {
+      const toastKey = `${event.conversationId}:${event.timestamp}`
+      if (shownAssignmentToastIdsRef.current.has(toastKey)) return
+      shownAssignmentToastIdsRef.current.add(toastKey)
+
+      refetchConversations()
+
+      addToast({
+        title: "Se te asignó una nueva conversación",
+        description:
+          event.assignmentSource === "AUTO"
+            ? "Asignación automática recibida"
+            : "Asignación manual recibida",
+        severity: "success",
+        endContent: (
+          <Button
+            size="sm"
+            variant="light"
+            color="primary"
+            onPress={() => {
+              void openConversationById(event.conversationId)
+            }}
+          >
+            Abrir
+          </Button>
+        ),
+      })
+      notifyBrowser(
+        "Nueva conversación asignada",
+        event.assignmentSource === "AUTO"
+          ? "Asignación automática recibida"
+          : "Asignación manual recibida",
+        event.conversationId,
+      )
+    },
+    [notifyBrowser, openConversationById, refetchConversations],
+  )
+
+  const handleNotificationSse = useCallback(
+    (event: UserNotificationRealtimeEvent) => {
+      const rawType = String(event.type || event.eventType || "").toUpperCase()
+      const conversationId =
+        (typeof event.conversationId === "string" && event.conversationId) ||
+        (typeof event.entityId === "string" && event.entityId) ||
+        ""
+
+      if (!rawType || !conversationId) return
+
+      if (rawType === "NEW_MESSAGE") {
+        void refetchConversations()
+
+        const isAppInForeground =
+          typeof document !== "undefined" &&
+          document.visibilityState === "visible" &&
+          document.hasFocus()
+        const isSelectedConversationInForeground =
+          selectedConversation?.id === conversationId && isAppInForeground
+
+        if (isSelectedConversationInForeground) {
+          void refreshSelectedConversationMessages(conversationId, "replace")
+          return
+        }
+
+        const toastKey = `NEW_MESSAGE:${conversationId}:${event.timestamp || "no-ts"}`
+        if (shownGenericToastIdsRef.current.has(toastKey)) return
+        shownGenericToastIdsRef.current.add(toastKey)
+
+        addToast({
+          title: event.title || "Nuevo mensaje",
+          description: event.message || "Tienes un nuevo mensaje en una conversación",
+          severity: "primary",
+          endContent: (
+            <Button
+              size="sm"
+              variant="light"
+              color="primary"
+              onPress={() => {
+                void openConversationById(conversationId)
+              }}
+            >
+              Abrir
+            </Button>
+          ),
+        })
+        notifyBrowser(
+          event.title || "Nuevo mensaje",
+          event.message || "Tienes un nuevo mensaje en una conversación",
+          conversationId,
+        )
+        return
+      }
+
+      if (rawType === "CONVERSATION_ASSIGNED") {
+        const assignmentEvent: ConversationAssignedRealtimeEvent = {
+          eventType: "CONVERSATION_ASSIGNED",
+          clientId: "",
+          agentId: "",
+          conversationId,
+          assignmentSource:
+            event.assignmentSource === "AUTO" ? "AUTO" : "MANUAL",
+          timestamp:
+            typeof event.timestamp === "string"
+              ? event.timestamp
+              : new Date().toISOString(),
+        }
+        handleConversationAssignedSse(assignmentEvent)
+      }
+    },
+    [
+      handleConversationAssignedSse,
+      openConversationById,
+      notifyBrowser,
+      refetchConversations,
+      refreshSelectedConversationMessages,
+      selectedConversation?.id,
+    ],
+  )
+
+  const {
+    connectionState: rawSseConnectionState,
+    lastHeartbeatAt: sseLastHeartbeatAt,
+  } = useIncomingMessagesSse({
+    enabled: sseEnabled,
+    token: authToken,
+    reconnectKey: sseReconnectKey,
+    streamUrl: apiService.getRealtimeNotificationsUrl(),
+    onIncomingMessage: handleIncomingMessageSse,
+    onConversationAssigned: handleConversationAssignedSse,
+    onNotification: handleNotificationSse,
+  })
+
+  const sseConnectionState: SseConnectionState =
+    isFallbackActive && rawSseConnectionState !== "connected"
+      ? "degraded"
+      : rawSseConnectionState
+
+  const handleManualSseReconnect = useCallback(() => {
+    setIsSseReconnectRequested(true)
+    setSseReconnectKey((prev) => prev + 1)
+    setTimeout(() => {
+      setIsSseReconnectRequested(false)
+    }, 1200)
+  }, [])
+
+  const previousSseStateRef = useRef<SseConnectionState>("connecting")
+  const fallbackActivationTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const fallbackIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
+
+  useEffect(() => {
+    const previousState = previousSseStateRef.current
+
+    if (previousState !== rawSseConnectionState) {
+      console.info(
+        `[SSE] Connection state changed: ${previousState} -> ${rawSseConnectionState}`,
+      )
+      previousSseStateRef.current = rawSseConnectionState
+    }
+
+    if (rawSseConnectionState === "connected") {
+      setSseFailureSince(null)
+      setIsFallbackActive(false)
+
+      if (previousState !== "connected") {
+        refetchConversations()
+        if (selectedConversation?.id) {
+          refreshSelectedConversationMessages(selectedConversation.id, "replace")
+        }
+      }
+      return
+    }
+
+    if (
+      rawSseConnectionState === "error" ||
+      rawSseConnectionState === "degraded"
+    ) {
+      setSseFailureSince((prev) => prev ?? Date.now())
+    }
+  }, [
+    rawSseConnectionState,
+    refetchConversations,
+    refreshSelectedConversationMessages,
+    selectedConversation?.id,
+  ])
+
+  useEffect(() => {
+    if (fallbackActivationTimeoutRef.current) {
+      clearTimeout(fallbackActivationTimeoutRef.current)
+      fallbackActivationTimeoutRef.current = null
+    }
+
+    if (
+      !sseEnabled ||
+      !(rawSseConnectionState === "error" || rawSseConnectionState === "degraded") ||
+      sseFailureSince === null
+    ) {
+      return
+    }
+
+    const elapsed = Date.now() - sseFailureSince
+    const remaining = 30000 - elapsed
+
+    if (remaining <= 0) {
+      setIsFallbackActive(true)
+      return
+    }
+
+    fallbackActivationTimeoutRef.current = setTimeout(() => {
+      setIsFallbackActive(true)
+    }, remaining)
+
+    return () => {
+      if (fallbackActivationTimeoutRef.current) {
+        clearTimeout(fallbackActivationTimeoutRef.current)
+        fallbackActivationTimeoutRef.current = null
+      }
+    }
+  }, [rawSseConnectionState, sseEnabled, sseFailureSince])
+
+  useEffect(() => {
+    if (fallbackIntervalRef.current) {
+      clearInterval(fallbackIntervalRef.current)
+      fallbackIntervalRef.current = null
+    }
+
+    if (!isFallbackActive || !sseEnabled || currentView !== "conversations") {
+      return
+    }
+
+    const runFallbackSync = () => {
+      console.warn("[SSE] Running fallback REST sync")
+      refetchConversations()
+      if (selectedConversation?.id) {
+        refreshSelectedConversationMessages(selectedConversation.id, "replace")
+      }
+    }
+
+    runFallbackSync()
+    fallbackIntervalRef.current = setInterval(runFallbackSync, 15000)
+
+    return () => {
+      if (fallbackIntervalRef.current) {
+        clearInterval(fallbackIntervalRef.current)
+        fallbackIntervalRef.current = null
+      }
+    }
+  }, [
+    currentView,
+    isFallbackActive,
+    refetchConversations,
+    refreshSelectedConversationMessages,
+    selectedConversation?.id,
+    sseEnabled,
+  ])
 
   // Actualizar conversaciones cuando lleguen de la API
   useEffect(() => {
@@ -267,54 +850,14 @@ export default function Home() {
 
   const handleRefreshMessages = useCallback(async () => {
     if (!selectedConversation) return
-
-    try {
-      // Obtener mensajes más recientes usando API v1
-      const response = await apiService.getMessages(selectedConversation.id, 0, 20)
-
-      if (response && response.content.length > 0) {
-        const mappedMessages = response.content.map(mapApiMessageToDomain).reverse()
-        
-        setSelectedConversation((prev) => {
-          if (!prev) return null
-
-          // Comparar con los mensajes actuales para ver si hay nuevos
-          const currentLastMessageId = prev.messages[prev.messages.length - 1]?.id
-          const newLastMessageId = mappedMessages[mappedMessages.length - 1]?.id
-
-          // Si hay nuevos mensajes, actualizar
-          if (currentLastMessageId !== newLastMessageId) {
-            // Encontrar mensajes que no están en la lista actual
-            const currentMessageIds = new Set(prev.messages.map(m => m.id))
-            const newMessages = mappedMessages.filter(m => !currentMessageIds.has(m.id))
-
-            if (newMessages.length > 0) {
-              // Hacer scroll automático solo si el usuario está cerca del final
-              setTimeout(() => {
-                chatViewRef.current?.scrollToBottom("smooth")
-              }, 100)
-
-              return {
-                ...prev,
-                messages: [...prev.messages, ...newMessages],
-                lastMessage: mappedMessages[mappedMessages.length - 1]?.content || prev.lastMessage,
-              }
-            }
-          }
-
-          return prev
-        })
-      }
-    } catch (error) {
-      console.error("Error refreshing messages:", error)
-      // No mostrar toast para evitar spam, solo log silencioso
-    }
-  }, [mapApiMessageToDomain, selectedConversation])
+    await refreshSelectedConversationMessages(selectedConversation.id, "replace")
+  }, [refreshSelectedConversationMessages, selectedConversation])
 
   const handleLogout = async () => {
     try {
       await apiService.logout()
       setIsAuthenticated(false)
+      setAuthToken(null)
       router.push("/login")
     } catch (error) {
       console.error("Logout error:", error)
@@ -322,6 +865,7 @@ export default function Home() {
       localStorage.removeItem("chadbot_token")
       localStorage.removeItem("chadbot_user")
       setIsAuthenticated(false)
+      setAuthToken(null)
       router.push("/login")
     }
   }
@@ -330,70 +874,122 @@ export default function Home() {
     async (content: string, attachments?: File[]) => {
       if (!selectedConversation || !user) return
 
-      const newMessage = {
-        id: Date.now().toString(),
-        content,
-        sender: "agent" as const,
-        senderId: user.id,
-        senderName: user.name,
-        timestamp: new Date(),
-        status: "sent" as const,
-        type: "text" as const,
-        attachments: attachments?.map((file) => ({
+      // Si hay attachments, enviar cada uno como mensaje multimedia
+      if (attachments && attachments.length > 0) {
+        for (const file of attachments) {
+          const messageType = getMessageTypeFromFile(file);
+          const newMessage = {
+            id: Date.now().toString() + Math.random().toString(36).substr(2, 9),
+            content: content || file.name,
+            sender: "agent" as const,
+            senderId: user.id,
+            senderName: user.name,
+            timestamp: new Date(),
+            status: "sent" as const,
+            type: messageType,
+            file: {
+              id: Date.now().toString(),
+              filename: file.name,
+              fileUrl: URL.createObjectURL(file),
+              mimeType: file.type,
+              sizeBytes: file.size,
+            },
+          }
+
+          try {
+            // Crear el mensaje localmente primero para UX inmediata
+            setSelectedConversation((prev) =>
+              prev
+                ? {
+                    ...prev,
+                    messages: [...prev.messages, newMessage],
+                    lastMessage: content || file.name,
+                  }
+                : null,
+            )
+
+            // Enviar a la API
+            await apiService.sendMessage({
+              conversationId: selectedConversation.id,
+              type: messageType,
+              text: content,
+              file: file,
+              caption: content,
+            })
+
+          } catch (error) {
+            console.error("Error sending file message:", error)
+            // Revertir el mensaje optimista en caso de error
+            setSelectedConversation((prev) =>
+              prev
+                ? {
+                    ...prev,
+                    messages: prev.messages.filter((msg) => msg.id !== newMessage.id),
+                  }
+                : null,
+            )
+          }
+        }
+      } else if (content.trim()) {
+        // Enviar mensaje de texto normal
+        const newMessage = {
           id: Date.now().toString(),
-          name: file.name,
-          type: file.type,
-          url: URL.createObjectURL(file),
-        })),
-      }
+          content,
+          sender: "agent" as const,
+          senderId: user.id,
+          senderName: user.name,
+          timestamp: new Date(),
+          status: "sent" as const,
+          type: "text" as const,
+        }
 
-      try {
-        // Crear el mensaje localmente primero para UX inmediata
-        setSelectedConversation((prev) =>
-          prev
-            ? {
-                ...prev,
-                messages: [...prev.messages, newMessage],
-                lastMessage: content,
-              }
-            : null,
-        )
+        try {
+          // Crear el mensaje localmente primero para UX inmediata
+          setSelectedConversation((prev) =>
+            prev
+              ? {
+                  ...prev,
+                  messages: [...prev.messages, newMessage],
+                  lastMessage: content,
+                }
+              : null,
+          )
 
-        // Enviar a la API
-        await apiService.sendMessage({
-          conversationId: selectedConversation.id,
-          type: "text",
-          text: content,
-        })
+          // Enviar a la API
+          await apiService.sendMessage({
+            conversationId: selectedConversation.id,
+            type: "text",
+            text: content,
+          })
 
-        // Refrescar mensajes después de enviar y hacer scroll
-        setTimeout(() => {
-          refetchMessages()
-          // Hacer scroll al final después de enviar el mensaje
-          setTimeout(() => {
-            chatViewRef.current?.scrollToBottom("smooth")
-          }, 200)
-        }, 1000)
-      } catch (error) {
-        console.error("Error sending message:", error)
-        // Revertir el mensaje optimista en caso de error
-        setSelectedConversation((prev) =>
-          prev
-            ? {
+        } catch (error) {
+          console.error("Error sending text message:", error)
+          // Revertir el mensaje optimista en caso de error
+          setSelectedConversation((prev) =>
+            prev
+              ? {
                 ...prev,
                 messages: prev.messages.filter((msg) => msg.id !== newMessage.id),
               }
-            : null,
-        )
+              : null,
+          )
+        }
       }
+
+      // Refrescar mensajes después de enviar y hacer scroll
+      setTimeout(() => {
+        refetchMessages()
+        // Hacer scroll al final después de enviar el mensaje
+        setTimeout(() => {
+          chatViewRef.current?.scrollToBottom("smooth")
+        }, 200)
+      }, 1000)
     },
     [selectedConversation, user, refetchMessages],
   )
 
   const handleSelectConversation = useCallback((conversation: Conversation) => {
     setSelectedConversation(conversation)
-    // Forzar refresco de mensajes incluso si es la misma conversación
-    setMessagesRefreshKey(prev => prev + 1)
   }, [])
 
   const handleCloseChat = useCallback(() => {
@@ -510,6 +1106,7 @@ export default function Home() {
                 currentPage={currentPage}
                 totalPages={totalPages}
                 onPageChange={handlePageChange}
+                sseConnectionState={sseConnectionState}
               />
             </div>
 
@@ -531,7 +1128,6 @@ export default function Home() {
                   onLoadOlderMessages={handleLoadOlderMessages}
                   onRefreshMessages={handleRefreshMessages}
                   initialPaginationInfo={null}
-                  refreshKey={messagesRefreshKey}
                   currentUser={user}
                 />
               </div>
@@ -586,7 +1182,12 @@ export default function Home() {
 
         {currentView === "settings" && (
           <div className="flex-1 bg-slate-50 dark:bg-slate-900 overflow-x-hidden overflow-y-auto pt-16 md:pt-0">
-            <SettingsView />
+            <SettingsView
+              sseState={sseConnectionState}
+              sseLastHeartbeatAt={sseLastHeartbeatAt}
+              onSseReconnect={handleManualSseReconnect}
+              isSseReconnecting={isSseReconnectRequested}
+            />
           </div>
         )}
 

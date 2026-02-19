@@ -21,6 +21,7 @@ import {
   Divider,
   type SelectedItems,
 } from "@heroui/react"
+import { toast } from "sonner"
 import Image from "next/image"
 import { Avatar } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
@@ -43,6 +44,7 @@ import type {
   UserDto,
   Tag,
   MessagingServiceDto,
+  SseConnectionState,
 } from "@/lib/api-types"
 import { formatConversationTime, generatePastelColor } from "@/lib/utils"
 import { getChannelDisplayName, getChannelIcon } from "@/lib/messaging-channels"
@@ -59,6 +61,7 @@ interface ConversationListProps {
   currentPage?: number
   totalPages?: number
   onPageChange?: (page: number) => void
+  sseConnectionState?: SseConnectionState
 }
 
 const statusOptions: { key: ConversationStatus | "all"; label: string; color: "default" | "success" | "warning" | "danger" }[] = [
@@ -90,6 +93,7 @@ export default function ConversationList({
   currentPage = 0,
   totalPages = 1,
   onPageChange,
+  sseConnectionState = "connecting",
 }: ConversationListProps) {
   const [hoveredConversation, setHoveredConversation] = useState<string | null>(null)
   const [infoModalOpen, setInfoModalOpen] = useState(false)
@@ -200,6 +204,40 @@ export default function ConversationList({
     setTagsModalOpen(true)
   }
 
+  const handleSetTagsForConversation = async (conversationId: string, tagIds: string[]) => {
+    try {
+      await apiService.setConversationTags(conversationId, tagIds)
+      toast.success("Etiquetas actualizadas")
+    } catch (err: any) {
+      console.error(err)
+      toast.error(err?.message || "Error actualizando etiquetas")
+    }
+  }
+
+  const handleAddTagFromModal = async (label: string) => {
+    if (!selectedConvForTags) return
+    try {
+      // Create tag with default color and public visibility
+      const newTag = await apiService.createTag({ label, color: "#BDF26D", isPrivate: false })
+      await handleSetTagsForConversation(selectedConvForTags.id, [newTag.id])
+    } catch (err: any) {
+      console.error(err)
+      toast.error(err?.message || "Error creando etiqueta")
+    }
+  }
+
+  const handleRemoveTagFromModal = async (tagId: string) => {
+    if (!selectedConvForTags) return
+    try {
+      // Unassign the tag (remove single tag) by setting remaining tags (excluding tagId)
+      const remaining = (selectedConvForTags.tags || []).filter(t => t.id !== tagId).map(t => t.id)
+      await handleSetTagsForConversation(selectedConvForTags.id, remaining)
+    } catch (err: any) {
+      console.error(err)
+      toast.error(err?.message || "Error removiendo etiqueta")
+    }
+  }
+
   const handleOpenContactInfo = (e: React.MouseEvent, contactId: string) => {
     e.stopPropagation()
     setSelectedContactId(contactId)
@@ -257,6 +295,21 @@ export default function ConversationList({
     return "Sin mensajes"
   }
 
+  const getSseChipProps = (state: SseConnectionState) => {
+    switch (state) {
+      case "connected":
+        return { color: "success" as const, label: "En vivo" }
+      case "connecting":
+        return { color: "warning" as const, label: "Reconectando..." }
+      case "degraded":
+        return { color: "warning" as const, label: "Modo degradado" }
+      default:
+        return { color: "danger" as const, label: "Sin conexión" }
+    }
+  }
+
+  const sseChip = getSseChipProps(sseConnectionState)
+
   if (loading) {
     return (
       <div className="w-96 border-r border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 flex items-center justify-center">
@@ -286,6 +339,11 @@ export default function ConversationList({
               <MessageCircle className="h-5 w-5 text-blue-600 dark:text-blue-400" />
               Conversaciones
             </h2>
+            <Chip size="sm" color={sseChip.color} variant="flat">
+              {sseChip.label}
+            </Chip>
+            {/*
+            TODO: Se comenta el boton de nueva conversacion hasta que esté implementado correctamente
             <Dropdown>
               <DropdownTrigger>
                 <Button
@@ -328,7 +386,7 @@ export default function ConversationList({
                   Mensaje Masivo
                 </DropdownItem>
               </DropdownMenu>
-            </Dropdown>
+            </Dropdown> */}
           </div>
           
           {/* Search and Filter Bar */}
@@ -580,6 +638,8 @@ export default function ConversationList({
             setTagsModalOpen(false)
             setSelectedConvForTags(null)
           }}
+          onAddTag={handleAddTagFromModal}
+          onRemoveTag={handleRemoveTagFromModal}
         />
       )}
 
