@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
-import ContactManagement from "@/components/contact-management"
+import ContactManagement from "@/components/management/contact-management"
 import { apiService } from "@/lib/api"
 
 export default function ContactsPage() {
@@ -33,7 +33,7 @@ export default function ContactsPage() {
   }
 
   return (
-    <div className="h-full">
+    <div className="h-full pt-16 md:pt-0">
       <ContactManagement />
     </div>
   )

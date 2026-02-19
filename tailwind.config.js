@@ -12,12 +12,23 @@ module.exports = {
   darkMode: "class",
   theme: {
     extend: {
+      fontFamily: {
+        'bricolage': ['"Bricolage Grotesque"', 'sans-serif'],
+      },
       colors: {
         border: "hsl(var(--border))",
         input: "hsl(var(--input))",
         ring: "hsl(var(--ring))",
         background: "hsl(var(--background))",
         foreground: "hsl(var(--foreground))",
+        // Paleta de colores de la marca
+        brand: {
+          primary: '#3805F2',    // Relleno interior corazón
+          purple: '#7957F2',     // Bordes letras
+          lavender: '#977EF2',   // Contraste borde
+          lime: '#BDF26D',       // Color isotipo
+          light: '#F2F2F2',      // Fondo
+        },
       },
     },
   },

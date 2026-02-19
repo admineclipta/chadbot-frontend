@@ -22,7 +22,7 @@ import { DEBOUNCE_FILTER_MS } from "@/lib/config"
 import { toast } from "sonner"
 import { format } from "date-fns"
 import { es } from "date-fns/locale"
-import CredentialFormModal from "./credential-form-modal"
+import CredentialFormModal from "@/components/settings/credential-form-modal"
 
 export default function MessagingCredentialsPanel() {
   const [currentPage, setCurrentPage] = useState(0)
@@ -108,12 +108,14 @@ export default function MessagingCredentialsPanel() {
 
   return (
     <div className="space-y-4">
-      <div className="flex justify-between items-center">
+      <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-3">
         <p className="text-sm text-default-500">
           Gestiona tus credenciales de servicios de mensajería
         </p>
         <Button
           color="primary"
+          size="sm"
+          className="sm:size-md"
           startContent={<Plus className="h-4 w-4" />}
           onPress={handleCreate}
         >
@@ -141,9 +143,9 @@ export default function MessagingCredentialsPanel() {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {credentialsData?.content.map((credential) => (
               <Card key={credential.id}>
-                <CardHeader className="flex justify-between items-start pb-2">
-                  <div className="flex-1">
-                    <p className="font-semibold">{credential.name}</p>
+                <CardHeader className="flex justify-between items-start pb-2 p-3 md:p-4">
+                  <div className="flex-1 min-w-0">
+                    <p className="font-semibold truncate">{credential.name}</p>
                     <p className="text-sm text-default-500">
                       {getServiceName(credential.serviceTypeId)}
                     </p>
@@ -156,22 +158,23 @@ export default function MessagingCredentialsPanel() {
                     {credential.active ? "Activo" : "Inactivo"}
                   </Chip>
                 </CardHeader>
-                <CardBody className="pt-2">
+                <CardBody className="pt-2 p-3 md:p-4">
                   <div className="space-y-2 mb-4">
                     <div>
                       <p className="text-xs text-default-400">Webhook Identity</p>
-                      <p className="text-sm font-mono">{credential.webhookIdentity}</p>
+                      <p className="text-sm font-mono break-all">{credential.webhookIdentity}</p>
                     </div>
                     <div className="flex items-center gap-2 text-xs text-default-400">
                       <Calendar className="h-3 w-3" />
                       <span>Creado: {formatDate(credential.createdAt)}</span>
                     </div>
                   </div>
-                  <div className="flex gap-2">
+                  <div className="flex flex-col sm:flex-row gap-2">
                     <Button
                       size="sm"
                       variant="flat"
                       color="primary"
+                      className="w-full sm:w-auto"
                       startContent={<Edit className="h-3 w-3" />}
                       onPress={() => handleEdit(credential)}
                     >
@@ -181,6 +184,7 @@ export default function MessagingCredentialsPanel() {
                       size="sm"
                       variant="flat"
                       color="danger"
+                      className="w-full sm:w-auto"
                       startContent={<Trash2 className="h-3 w-3" />}
                       onPress={() => handleDeleteClick(credential)}
                     >

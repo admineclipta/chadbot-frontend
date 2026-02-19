@@ -3,8 +3,8 @@
 import { useState } from "react"
 import { Accordion, AccordionItem } from "@heroui/react"
 import { MessageSquare, Bot } from "lucide-react"
-import MessagingCredentialsPanel from "./messaging-credentials-panel"
-import AiCredentialsPanel from "./ai-credentials-panel"
+import MessagingCredentialsPanel from "@/components/settings/messaging-credentials-panel"
+import AiCredentialsPanel from "@/components/settings/ai-credentials-panel"
 
 export default function CredentialsSection() {
   const [selectedKeys, setSelectedKeys] = useState<Set<string>>(new Set(["messaging"]))

@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
-import TeamManagement from "@/components/team-management"
+import TeamManagement from "@/components/management/team-management"
 import { apiService } from "@/lib/api"
 
 export default function TeamsPage() {
@@ -33,7 +33,7 @@ export default function TeamsPage() {
   }
 
   return (
-    <div className="h-full">
+    <div className="h-full pt-16 md:pt-0">
       <TeamManagement />
     </div>
   )

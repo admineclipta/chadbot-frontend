@@ -86,7 +86,11 @@ export type ConversationStatus =
   | "ACTIVE"
   | "INTERVENED"
   | "NO_ANSWER"
-  | "CLOSED";
+  | "CLOSED"
+  | "active"
+  | "intervened"
+  | "no_answer"
+  | "closed";
 
 export type ConversationSortField =
   | "createdAt"
@@ -124,7 +128,13 @@ export interface ConversationDetailResponse extends Conversation {
 
 // Message Types
 export type SenderType = "contact" | "agent" | "bot" | "system";
-export type MessageType = "text" | "image" | "video" | "audio" | "document";
+export type MessageType =
+  | "text"
+  | "image"
+  | "video"
+  | "audio"
+  | "document"
+  | "sticker";
 export type MessageStatus = "sent" | "delivered" | "read" | "failed";
 
 export interface MessageSender {
@@ -141,9 +151,10 @@ export interface MessageContent {
 
 export interface MessageFile {
   id: string;
-  messageId: string;
+  messageId?: string;
   storageProvider: string;
-  storageUri: string;
+  storageUri?: string;
+  fileUrl?: string; // URL del archivo (usado por la API v1)
   storageMeta?: Record<string, any> | null;
   metadata?: {
     width?: number;
@@ -179,10 +190,67 @@ export interface MessageListResponse {
   last: boolean;
 }
 
+export type SseConnectionState =
+  | "connecting"
+  | "connected"
+  | "degraded"
+  | "error";
+
+export interface IncomingMessageRealtimeEvent {
+  eventType: "INCOMING_MESSAGE";
+  clientId: string;
+  conversationId: string;
+  message: {
+    messageId: string;
+    type:
+      | "TEXT"
+      | "IMAGE"
+      | "VIDEO"
+      | "AUDIO"
+      | "DOCUMENT"
+      | "STICKER"
+      | "LOCATION"
+      | "CONTACT"
+      | "TEMPLATE_WHATSAPP";
+    senderType: "CONTACT" | "AGENT" | "BOT" | "SYSTEM";
+    content: Record<string, unknown> | null;
+    sentAt: string;
+  };
+  conversation: {
+    lastMessageAt: string;
+    lastMessagePreview: string;
+  };
+  timestamp: string;
+}
+
+export interface ConversationAssignedRealtimeEvent {
+  eventType: "CONVERSATION_ASSIGNED";
+  clientId: string;
+  agentId: string;
+  conversationId: string;
+  assignmentSource: "AUTO" | "MANUAL";
+  timestamp: string;
+}
+
+export interface UserNotificationRealtimeEvent {
+  type?: string;
+  eventType?: string;
+  entityType?: string;
+  entityId?: string;
+  conversationId?: string;
+  assignmentSource?: "AUTO" | "MANUAL";
+  title?: string;
+  message?: string;
+  timestamp?: string;
+  [key: string]: unknown;
+}
+
 export interface SendMessageRequest {
   conversationId: string;
-  content: string;
   type?: MessageType;
+  text?: string;
+  file?: File;
+  caption?: string;
 }
 
 export interface SendImageRequest {
@@ -311,16 +379,17 @@ export interface ApiConversationResponse {
   last: boolean;
 }
 
+// Tag Request/Response Types (matching backend API docs)
 export interface CreateTagRequest {
-  name: string;
-  color: string;
-  description?: string;
+  label: string; // Tag name/label
+  color: string; // HEX color code
+  isPrivate: boolean; // true = only visible to creator, false = visible to all in client
 }
 
 export interface UpdateTagRequest {
-  name?: string;
-  color?: string;
-  description?: string;
+  label?: string; // Tag name/label
+  color?: string; // HEX color code
+  isPrivate?: boolean; // Privacy setting
 }
 
 export interface TagListResponse {
@@ -333,7 +402,7 @@ export interface TagListResponse {
 
 // Conversation Actions
 export interface AssignConversationRequest {
-  agentId: string;
+  agentIds: string[];
 }
 
 export interface ChangeConversationStatusRequest {
@@ -500,10 +569,11 @@ export interface TeamListResponse {
 export interface Assistant {
   id: string;
   clientId: string;
-  aiCredentialId: string;
+  credentialId: string;
+  teamId?: string | null;
   name: string;
   description: string;
-  systemPrompt: string;
+  metadata?: Record<string, any>;
   isDefault: boolean;
   isActive: boolean;
   createdAt: string;
@@ -661,7 +731,7 @@ export interface LegacyConversacionesResponse {
 
 // Mappers: Legacy v2 -> New v1
 export function mapLegacyConversationToNew(
-  legacy: LegacyConversacionesResponse
+  legacy: LegacyConversacionesResponse,
 ): Conversation {
   return {
     id: legacy.ConversacionId.toString(),
@@ -722,6 +792,20 @@ export interface CurrentUserResponse {
   createdAt: string;
   roles: RoleDto[];
   permissions: PermissionDto[];
+}
+
+export interface ChangePasswordRequest {
+  currentPassword: string;
+  newPassword: string;
+}
+
+export interface ResetPasswordTokenResponse {
+  id: string;
+  userId: string;
+  tokenHash: string;
+  createdAt: string;
+  expiresAt: string;
+  usedAt: string | null;
 }
 
 // ============================================
@@ -851,4 +935,176 @@ export interface UpdateTeamRequest {
 
 export interface AddTeamMembersRequest {
   agentIds: string[];
+}
+
+// Conversation Notes Types
+export interface NoteResponseDto {
+  id: string;
+  conversationId: string;
+  note: string;
+  agent?: {
+    agentId: string;
+    userId: string;
+    displayName: string;
+    active: boolean;
+  };
+  private: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CreateNoteRequest {
+  note: string;
+  isPrivate: boolean;
+}
+
+export interface UpdateNoteRequest {
+  note: string;
+  isPrivate?: boolean;
+}
+
+export interface NoteListResponse {
+  content: NoteResponseDto[];
+  page: number;
+  size: number;
+  totalElements: number;
+  totalPages: number;
+  first: boolean;
+  last: boolean;
+}
+
+// Template Types (WhatsApp Business Templates)
+export interface TemplateComponents {
+  Header: string[];
+  Body: string[];
+  Button: string[];
+}
+
+export interface TemplateHeaderComponent {
+  text: string | null;
+  parameters_count: number;
+  parameter_names: string[] | null;
+}
+
+export interface TemplateBodyComponent {
+  text: string | null;
+  parameters_count: number;
+  parameter_names: string[] | null;
+}
+
+export interface TemplateFooterComponent {
+  text: string | null;
+  parameters_count: number;
+  parameter_names: string[] | null;
+}
+
+export interface TemplateButtonComponent {
+  type: string;
+  text: string;
+}
+
+export interface PlantillaWhatsApp {
+  id: string;
+  name: string;
+  language: string;
+  status: string;
+  category: string;
+  parameter_format: string;
+  header_component: TemplateHeaderComponent;
+  body_component: TemplateBodyComponent;
+  footer_component: TemplateFooterComponent;
+  buttons_component: {
+    text: string | null;
+    parameters_count: number;
+    parameter_names: string[] | null;
+  };
+}
+
+export interface TemplateResponseDto {
+  id: string;
+  name: string;
+  language: string;
+  status: string;
+  category: string;
+  components: {
+    header?: TemplateHeaderComponent;
+    body: TemplateBodyComponent;
+    footer?: TemplateFooterComponent;
+    buttons?: TemplateButtonComponent[];
+  };
+}
+
+export interface TemplateListResponse {
+  content: PlantillaWhatsApp[];
+  page: number;
+  size: number;
+  totalElements: number;
+  totalPages: number;
+  first: boolean;
+  last: boolean;
+}
+
+export interface ContactoCSV {
+  name: string;
+  numero: string;
+}
+
+export interface EnviarMensajesPlantillaRequest {
+  Template: {
+    TemplateName: string;
+    TemplateLanguage: string;
+  };
+  Messages: Array<{
+    DestinationNumber: string;
+    FullName: string;
+    TemplateComponents: TemplateComponents;
+  }>;
+}
+
+export interface EnviarMensajesPlantillaResponse {
+  success: boolean;
+  message: string;
+  sentCount?: number;
+  failedCount?: number;
+}
+
+// ============================================
+// Dashboard Statistics Types
+// ============================================
+
+export interface ConversationStats {
+  activeCount: number;
+  intervenedsCount: number;
+  averageResponseTimeMinutes: number;
+  trends: {
+    activeCountChange: number;
+    intervenedsCountChange: number;
+    responseTimeChange: number;
+  };
+}
+
+export interface TokenUsage {
+  consumed: number;
+  total: number;
+  percentageUsed: number;
+  consumedChangePercent: number | null;
+}
+
+export interface RecentConversationItem {
+  id: string;
+  contactName: string;
+  lastMessageAt: number; // Unix timestamp in seconds (can be decimal)
+  status: ConversationStatus;
+  unreadCount: number;
+  lastMessagePreview: string;
+}
+
+export interface RecentActivity {
+  conversations: RecentConversationItem[];
+}
+
+export interface DashboardSummary {
+  conversationStats: ConversationStats;
+  tokenUsage: TokenUsage;
+  recentActivity: RecentActivity;
 }

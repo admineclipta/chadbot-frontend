@@ -9,6 +9,7 @@ import type {
   MessageType,
   MessageStatus,
 } from "./api-types";
+import { parseApiTimestamp } from "./utils";
 
 // ============================================
 // Configuración de Estados de Conversación
@@ -148,11 +149,28 @@ export interface Attachment {
   url: string;
 }
 
+export interface MessageFileInfo {
+  id: string;
+  url?: string | null;
+  fileUrl?: string | null; // URL del archivo (desde API v1)
+  status?: string;
+  mimeType?: string;
+  filename?: string;
+  sizeBytes?: number;
+  width?: number;
+  height?: number;
+}
+
 export interface Message {
   id: string;
   content: string;
   sender: "client" | "bot" | "agent";
+  senderId?: string;
+  senderName?: string;
   timestamp: Date;
+  status?: MessageStatus;
+  type?: MessageType;
+  file?: MessageFileInfo;
   attachments?: Attachment[];
 }
 
@@ -165,7 +183,7 @@ export interface Conversation {
   status: ConversationStatus; // Usar tipo del API v1
   unreadCount: number;
   tags: Tag[]; // Tags separados del status
-  integration: "whatsapp" | "telegram" | "facebook" | "instagram";
+  integration?: string;
   archived?: boolean;
   id_representante: number;
   subject?: string; // Agregado según API v1
@@ -176,7 +194,7 @@ export interface Conversation {
 
 // Funciones de mapeo para convertir datos de la API a tipos locales
 export function mapApiConversacionToConversation(
-  apiConv: Conversacion
+  apiConv: Conversacion,
 ): Conversation {
   // Determinar status basado en el estado de la API
   const status: ConversationStatus =
@@ -204,7 +222,7 @@ export function mapApiConversacionToConversation(
 }
 
 export function mapApiConversacionesResponseToConversation(
-  apiConv: ConversacionesResponse
+  apiConv: ConversacionesResponse,
 ): Conversation {
   // Mapeo de estados legacy a ConversationStatus
   const statusMap: Record<string, ConversationStatus> = {
@@ -222,7 +240,7 @@ export function mapApiConversacionesResponseToConversation(
       name: apiConv.ClienteNombreApellido,
       email: `${apiConv.ClienteNombreApellido.toLowerCase().replace(
         /\s+/g,
-        "."
+        ".",
       )}@email.com`,
       phone: apiConv.ClienteTelefono,
       avatar: `https://cdn-icons-png.flaticon.com/512/6596/6596121.png`,
@@ -274,7 +292,7 @@ export function mapApiMensajeToMessage(apiMsg: Mensaje): Message {
       ? new Date(
           apiMsg.Timestamp.includes("Z")
             ? apiMsg.Timestamp
-            : apiMsg.Timestamp + "Z"
+            : apiMsg.Timestamp + "Z",
         )
       : new Date(),
   };
@@ -310,18 +328,35 @@ export function mapApiMensajeToMessage(apiMsg: Mensaje): Message {
  * }
  */
 export function mapApiConversationToDomain(
-  apiConv: ApiConversation
+  apiConv: ApiConversation,
 ): Conversation {
   // Extract contact info with fallback
   const contactName = apiConv.contact?.fullName || "Sin nombre";
   const contactPhone =
     apiConv.contact?.messagingChannel?.externalContactId || "";
 
+  const normalizedStatus = apiConv.status
+    ? (apiConv.status.toString().toUpperCase() as ConversationStatus)
+    : ("ACTIVE" as ConversationStatus);
+
   // Parse last message content
   const lastMessageContent =
     apiConv.lastMessage?.content?.text ||
     apiConv.lastMessage?.content?.caption ||
     "";
+
+  const lastMessageType = apiConv.lastMessage?.type;
+  const lastMessagePreview = lastMessageContent
+    ? lastMessageContent
+    : lastMessageType === "image"
+      ? "Imagen"
+      : lastMessageType === "video"
+        ? "Video"
+        : lastMessageType === "audio"
+          ? "Audio"
+          : lastMessageType === "document"
+            ? "Documento"
+            : "";
 
   // Map tags from API format
   const tags: Tag[] = (apiConv.tags || []).map((apiTag: ApiTag) => ({
@@ -333,8 +368,10 @@ export function mapApiConversationToDomain(
   }));
 
   // Parse last activity date
-  const lastActivity = apiConv.lastMessage?.createdAt
-    ? new Date(apiConv.lastMessage.createdAt)
+  const lastActivitySource =
+    apiConv.lastMessage?.createdAt || apiConv.updatedAt || apiConv.createdAt;
+  const lastActivity = lastActivitySource
+    ? parseApiTimestamp(lastActivitySource)
     : new Date();
 
   // TODO: Calculate unreadCount from backend or set to 0
@@ -351,15 +388,15 @@ export function mapApiConversationToDomain(
       avatar: `https://cdn-icons-png.flaticon.com/512/6596/6596121.png`,
     },
     messages: [], // Messages loaded separately
-    lastMessage: lastMessageContent,
+    lastMessage: lastMessagePreview || "Sin mensajes",
     lastActivity: lastActivity,
-    status: apiConv.status,
+    status: normalizedStatus,
     unreadCount: unreadCount,
     tags: tags,
-    integration: "whatsapp", // Default, can be inferred from messagingChannel.serviceTypeName
+    integration: apiConv.contact?.messagingChannel?.serviceTypeName,
     id_representante: -1, // Legacy field, not used with new API
     // Store additional metadata for new features
-    lastMessageType: apiConv.lastMessage?.type,
+    lastMessageType: lastMessageType,
     lastMessageStatus: apiConv.lastMessage?.status,
   };
 }
