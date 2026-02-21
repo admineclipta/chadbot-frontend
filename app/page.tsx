@@ -33,6 +33,7 @@ import { apiService } from "@/lib/api"
 import { DEBOUNCE_SEARCH_MS } from "@/lib/config"
 import { useApi } from "@/hooks/use-api"
 import { useIsMobile } from "@/hooks/use-mobile"
+import { usePushNotifications } from "@/hooks/use-push-notifications"
 import { cn, parseApiTimestamp } from "@/lib/utils"
 import { useIncomingMessagesSse } from "@/hooks/use-incoming-messages-sse"
 
@@ -73,6 +74,7 @@ export default function Home() {
   const shownIncomingToastIdsRef = useRef<Set<string>>(new Set())
   const shownAssignmentToastIdsRef = useRef<Set<string>>(new Set())
   const shownGenericToastIdsRef = useRef<Set<string>>(new Set())
+  const openedConversationFromQueryRef = useRef<Set<string>>(new Set())
   const [selectedRepresentativeFilter, setSelectedRepresentativeFilter] = useState<"all" | "mine" | number>("all") // Filtro por representante
   const [availableRepresentatives, setAvailableRepresentatives] = useState<Array<{id: number, name: string}>>([]) // Lista de representantes disponibles
   
@@ -344,6 +346,23 @@ export default function Home() {
     [conversations],
   )
 
+  useEffect(() => {
+    if (typeof window === "undefined") return
+    if (!isAuthenticated) return
+
+    const url = new URL(window.location.href)
+    const conversationId = url.searchParams.get("openConversationId")
+    if (!conversationId) return
+    if (openedConversationFromQueryRef.current.has(conversationId)) return
+
+    openedConversationFromQueryRef.current.add(conversationId)
+    void openConversationById(conversationId)
+
+    url.searchParams.delete("openConversationId")
+    const cleanUrl = `${url.pathname}${url.search}${url.hash}`
+    window.history.replaceState({}, "", cleanUrl)
+  }, [isAuthenticated, openConversationById])
+
   const playNotificationSound = useCallback(async () => {
     if (typeof window === "undefined") return
 
@@ -405,20 +424,6 @@ export default function Home() {
         }
         return
       }
-
-      if (Notification.permission === "default") {
-        void Notification.requestPermission().then((permission) => {
-          if (permission !== "granted") return
-          const notification = new Notification(title, { body, tag: conversationId })
-          notification.onclick = () => {
-            window.focus()
-            if (conversationId) {
-              void openConversationById(conversationId)
-            }
-            notification.close()
-          }
-        })
-      }
     },
     [openConversationById, playNotificationSound],
   )
@@ -436,6 +441,20 @@ export default function Home() {
       router.push("/login")
     }
   }, [router])
+
+  const {
+    permissionState: pushPermissionState,
+    isSupported: pushSupported,
+    isSecureContext: pushSecureContext,
+    isSubscribed: pushSubscribed,
+    isBusy: pushBusy,
+    error: pushError,
+    enablePushNotifications,
+    disablePushNotifications,
+  } = usePushNotifications({
+    enabled: isAuthenticated,
+    token: authToken,
+  })
 
   const handleIncomingMessageSse = useCallback(
     (event: IncomingMessageRealtimeEvent) => {
@@ -1187,6 +1206,18 @@ export default function Home() {
               sseLastHeartbeatAt={sseLastHeartbeatAt}
               onSseReconnect={handleManualSseReconnect}
               isSseReconnecting={isSseReconnectRequested}
+              pushPermissionState={pushPermissionState}
+              pushSupported={pushSupported}
+              pushSecureContext={pushSecureContext}
+              pushSubscribed={pushSubscribed}
+              pushBusy={pushBusy}
+              pushError={pushError}
+              onEnablePush={() => {
+                void enablePushNotifications()
+              }}
+              onDisablePush={() => {
+                void disablePushNotifications()
+              }}
             />
           </div>
         )}
