@@ -1,7 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
-import { Card, CardBody, Switch, Chip, Button } from "@heroui/react"
+import { Card, CardBody, Chip, Button } from "@heroui/react"
 import { Activity, Bell, RefreshCw } from "lucide-react"
 import type { SseConnectionState } from "@/lib/api-types"
 
@@ -10,6 +9,14 @@ interface MessagesSectionProps {
   lastHeartbeatAt?: Date | null
   onReconnect?: () => void
   isReconnecting?: boolean
+  pushPermissionState?: "unsupported" | NotificationPermission
+  pushSupported?: boolean
+  pushSecureContext?: boolean
+  pushSubscribed?: boolean
+  pushBusy?: boolean
+  pushError?: string | null
+  onEnablePush?: () => void
+  onDisablePush?: () => void
 }
 
 export default function MessagesSection({
@@ -17,29 +24,15 @@ export default function MessagesSection({
   lastHeartbeatAt = null,
   onReconnect,
   isReconnecting = false,
+  pushPermissionState = "unsupported",
+  pushSupported = false,
+  pushSecureContext = false,
+  pushSubscribed = false,
+  pushBusy = false,
+  pushError = null,
+  onEnablePush,
+  onDisablePush,
 }: MessagesSectionProps) {
-  const [notificationsEnabled, setNotificationsEnabled] = useState(false)
-
-  useEffect(() => {
-    if (typeof window !== "undefined") {
-      const notificationsStoredValue = localStorage.getItem("chadbot_notifications")
-      setNotificationsEnabled(notificationsStoredValue === "true")
-    }
-  }, [])
-
-  const handleNotificationsChange = (enabled: boolean) => {
-    setNotificationsEnabled(enabled)
-    
-    if (typeof window !== "undefined") {
-      localStorage.setItem("chadbot_notifications", enabled.toString())
-    }
-
-    // Solicitar permisos de notificación si se habilita
-    if (enabled && "Notification" in window && Notification.permission === "default") {
-      Notification.requestPermission()
-    }
-  }
-
   const getSseLabel = (state: SseConnectionState): string => {
     switch (state) {
       case "connected":
@@ -49,7 +42,7 @@ export default function MessagesSection({
       case "degraded":
         return "Modo degradado"
       default:
-        return "Sin conexión"
+        return "Sin conexion"
     }
   }
 
@@ -68,12 +61,37 @@ export default function MessagesSection({
 
   const formatHeartbeat = (value: Date | null): string => {
     if (!value) return "Sin heartbeat recibido"
-    return `Último heartbeat: ${value.toLocaleTimeString()}`
+    return `Ultimo heartbeat: ${value.toLocaleTimeString()}`
+  }
+
+  const getPermissionLabel = (): string => {
+    switch (pushPermissionState) {
+      case "granted":
+        return pushSubscribed ? "Activo en este dispositivo" : "Permiso concedido"
+      case "denied":
+        return "Bloqueado por el navegador"
+      case "default":
+        return "Permiso pendiente"
+      default:
+        return "No disponible"
+    }
+  }
+
+  const getPermissionColor = () => {
+    switch (pushPermissionState) {
+      case "granted":
+        return "success" as const
+      case "denied":
+        return "danger" as const
+      case "default":
+        return "warning" as const
+      default:
+        return "default" as const
+    }
   }
 
   return (
     <div className="py-6 space-y-6">
-      {/* SSE Section */}
       <Card>
         <CardBody className="p-4 md:p-6">
           <div className="flex flex-col md:flex-row items-start gap-4">
@@ -83,7 +101,7 @@ export default function MessagesSection({
               </div>
             </div>
             <div className="flex-1">
-              <h3 className="text-lg font-semibold mb-1">Estado de conexión en tiempo real</h3>
+              <h3 className="text-lg font-semibold mb-1">Estado de conexion en tiempo real</h3>
               <p className="text-sm text-default-500 mb-4">
                 Los mensajes entrantes se actualizan por SSE en tiempo real
               </p>
@@ -111,7 +129,6 @@ export default function MessagesSection({
         </CardBody>
       </Card>
 
-      {/* Notifications Section */}
       <Card>
         <CardBody className="p-4 md:p-6">
           <div className="flex flex-col md:flex-row items-start gap-4">
@@ -125,22 +142,61 @@ export default function MessagesSection({
                 <div>
                   <h3 className="text-lg font-semibold mb-1">Notificaciones del Navegador</h3>
                   <p className="text-sm text-default-500">
-                    Recibe notificaciones cuando lleguen nuevos mensajes
+                    Recibe notificaciones push del sistema para mensajes y asignaciones
                   </p>
                 </div>
-                <Switch
-                  isSelected={notificationsEnabled}
-                  onValueChange={handleNotificationsChange}
-                  classNames={{
-                    wrapper: "group-data-[selected=true]:bg-secondary",
-                  }}
-                />
+                <Chip color={getPermissionColor()} variant="flat" size="sm">
+                  {getPermissionLabel()}
+                </Chip>
               </div>
-              {notificationsEnabled && "Notification" in window && Notification.permission === "denied" && (
+
+              <div className="mt-4 flex flex-col sm:flex-row gap-3">
+                <Button
+                  color="primary"
+                  onPress={() => onEnablePush?.()}
+                  isLoading={pushBusy}
+                  isDisabled={!pushSupported || !pushSecureContext || pushPermissionState === "denied"}
+                >
+                  Activar notificaciones push
+                </Button>
+                <Button
+                  color="default"
+                  variant="flat"
+                  onPress={() => onDisablePush?.()}
+                  isLoading={pushBusy}
+                  isDisabled={!pushSupported || !pushSecureContext || !pushSubscribed}
+                >
+                  Desactivar en este dispositivo
+                </Button>
+              </div>
+
+              {!pushSupported && (
+                <div className="mt-4 p-3 bg-danger-50 dark:bg-danger-900/20 border border-danger-200 dark:border-danger-800 rounded-lg">
+                  <p className="text-sm text-danger-600 dark:text-danger-400">
+                    Este navegador no soporta Web Push (Service Worker + Push API).
+                  </p>
+                </div>
+              )}
+
+              {pushSupported && !pushSecureContext && (
                 <div className="mt-4 p-3 bg-warning-50 dark:bg-warning-900/20 border border-warning-200 dark:border-warning-800 rounded-lg">
                   <p className="text-sm text-warning-600 dark:text-warning-400">
-                    Las notificaciones están bloqueadas. Por favor, habilítalas en la configuración de tu navegador.
+                    Web Push requiere HTTPS. En desarrollo, http://localhost si esta permitido.
                   </p>
+                </div>
+              )}
+
+              {pushPermissionState === "denied" && (
+                <div className="mt-4 p-3 bg-warning-50 dark:bg-warning-900/20 border border-warning-200 dark:border-warning-800 rounded-lg">
+                  <p className="text-sm text-warning-600 dark:text-warning-400">
+                    Las notificaciones estan bloqueadas. Habilitalas desde la configuracion del sitio en Chrome.
+                  </p>
+                </div>
+              )}
+
+              {pushError && (
+                <div className="mt-4 p-3 bg-danger-50 dark:bg-danger-900/20 border border-danger-200 dark:border-danger-800 rounded-lg">
+                  <p className="text-sm text-danger-600 dark:text-danger-400">{pushError}</p>
                 </div>
               )}
             </div>

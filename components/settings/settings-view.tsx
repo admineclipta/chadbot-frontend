@@ -14,6 +14,14 @@ interface SettingsViewProps {
   sseLastHeartbeatAt?: Date | null
   onSseReconnect?: () => void
   isSseReconnecting?: boolean
+  pushPermissionState?: "unsupported" | NotificationPermission
+  pushSupported?: boolean
+  pushSecureContext?: boolean
+  pushSubscribed?: boolean
+  pushBusy?: boolean
+  pushError?: string | null
+  onEnablePush?: () => void
+  onDisablePush?: () => void
 }
 
 export default function SettingsView({
@@ -21,6 +29,14 @@ export default function SettingsView({
   sseLastHeartbeatAt = null,
   onSseReconnect,
   isSseReconnecting = false,
+  pushPermissionState = "unsupported",
+  pushSupported = false,
+  pushSecureContext = false,
+  pushSubscribed = false,
+  pushBusy = false,
+  pushError = null,
+  onEnablePush,
+  onDisablePush,
 }: SettingsViewProps) {
   const [selectedTab, setSelectedTab] = useState<string>("about")
 
@@ -87,6 +103,14 @@ export default function SettingsView({
                 lastHeartbeatAt={sseLastHeartbeatAt}
                 onReconnect={onSseReconnect}
                 isReconnecting={isSseReconnecting}
+                pushPermissionState={pushPermissionState}
+                pushSupported={pushSupported}
+                pushSecureContext={pushSecureContext}
+                pushSubscribed={pushSubscribed}
+                pushBusy={pushBusy}
+                pushError={pushError}
+                onEnablePush={onEnablePush}
+                onDisablePush={onDisablePush}
               />
             </Tab>
 

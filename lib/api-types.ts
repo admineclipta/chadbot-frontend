@@ -245,6 +245,35 @@ export interface UserNotificationRealtimeEvent {
   [key: string]: unknown;
 }
 
+export interface PushPublicKeyResponse {
+  publicKey: string;
+}
+
+export interface PushSubscriptionUpsertRequest {
+  endpoint: string;
+  keys: {
+    p256dh: string;
+    auth: string;
+  };
+  userAgent?: string;
+  deviceLabel?: string;
+}
+
+export interface PushSubscriptionDeleteRequest {
+  endpoint: string;
+}
+
+export interface PushNotificationPayload {
+  type?: string;
+  title?: string;
+  body?: string;
+  conversationId?: string;
+  url?: string;
+  timestamp?: string;
+  notificationId?: string;
+  [key: string]: unknown;
+}
+
 export interface SendMessageRequest {
   conversationId: string;
   type?: MessageType;

@@ -69,6 +69,9 @@ import {
   type EnviarMensajesPlantillaResponse,
   type ContactoCSV,
   type DashboardSummary,
+  type PushPublicKeyResponse,
+  type PushSubscriptionUpsertRequest,
+  type PushSubscriptionDeleteRequest,
   ApiError,
 } from "./api-types";
 import { mapApiConversationToDomain } from "./types";
@@ -1259,6 +1262,34 @@ class ApiService {
     console.log("📊 [CHADBOT API] Fetching dashboard summary");
     return this.request<DashboardSummary>("dashboard/summary", {
       method: "GET",
+    });
+  }
+
+  // ============================================
+  // Push Notifications
+  // ============================================
+
+  async getPushPublicKey(
+    signal?: AbortSignal,
+  ): Promise<PushPublicKeyResponse> {
+    return this.request<PushPublicKeyResponse>("push/public-key", {}, signal);
+  }
+
+  async registerPushSubscription(
+    data: PushSubscriptionUpsertRequest,
+  ): Promise<void> {
+    await this.request<void>("push/subscriptions", {
+      method: "POST",
+      body: JSON.stringify(data),
+    });
+  }
+
+  async deletePushSubscription(
+    payload: PushSubscriptionDeleteRequest,
+  ): Promise<void> {
+    await this.request<void>("push/subscriptions", {
+      method: "DELETE",
+      body: JSON.stringify(payload),
     });
   }
 
