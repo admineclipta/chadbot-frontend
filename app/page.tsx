@@ -36,6 +36,11 @@ import { useIsMobile } from "@/hooks/use-mobile"
 import { usePushNotifications } from "@/hooks/use-push-notifications"
 import { cn, parseApiTimestamp } from "@/lib/utils"
 import { useIncomingMessagesSse } from "@/hooks/use-incoming-messages-sse"
+import { usePresenceHeartbeat } from "@/hooks/use-presence-heartbeat"
+import {
+  getOrCreatePresenceSessionId,
+  rotatePresenceSessionId,
+} from "@/lib/presence"
 
 // Función helper para determinar el tipo de mensaje basado en el tipo MIME
 const getMessageTypeFromFile = (file: File): "image" | "video" | "audio" | "document" | "sticker" => {
@@ -56,6 +61,8 @@ const getMessageTypeFromFile = (file: File): "image" | "video" | "audio" | "docu
   }
 };
 
+const PRESENCE_AUTH_TOKEN_KEY = "chadbot_presence_auth_token"
+
 export default function Home() {
   const router = useRouter()
   const chatViewRef = useRef<ChatViewRef>(null)
@@ -67,6 +74,7 @@ export default function Home() {
   const [user, setUser] = useState<User | null>(null)
   const [selectedUserId, setSelectedUserId] = useState<string | null>(null)
   const [authToken, setAuthToken] = useState<string | null>(null)
+  const [presenceSessionId, setPresenceSessionId] = useState<string | null>(null)
   const [sseReconnectKey, setSseReconnectKey] = useState<number>(0)
   const [sseFailureSince, setSseFailureSince] = useState<number | null>(null)
   const [isFallbackActive, setIsFallbackActive] = useState(false)
@@ -433,11 +441,21 @@ export default function Home() {
     const userData = localStorage.getItem("chadbot_user")
 
     if (token && userData) {
+      const lastPresenceAuthToken = sessionStorage.getItem(PRESENCE_AUTH_TOKEN_KEY)
+      const nextPresenceSessionId =
+        lastPresenceAuthToken && lastPresenceAuthToken !== token
+          ? rotatePresenceSessionId()
+          : getOrCreatePresenceSessionId()
+
+      sessionStorage.setItem(PRESENCE_AUTH_TOKEN_KEY, token)
       setIsAuthenticated(true)
       setUser(JSON.parse(userData))
       apiService.setToken(token)
       setAuthToken(token)
+      setPresenceSessionId(nextPresenceSessionId)
     } else {
+      sessionStorage.removeItem(PRESENCE_AUTH_TOKEN_KEY)
+      setPresenceSessionId(null)
       router.push("/login")
     }
   }, [router])
@@ -566,6 +584,12 @@ export default function Home() {
 
   const sseEnabled = isAuthenticated && !!authToken
 
+  usePresenceHeartbeat({
+    enabled: sseEnabled,
+    token: authToken,
+    presenceSessionId,
+  })
+
   const handleConversationAssignedSse = useCallback(
     (event: ConversationAssignedRealtimeEvent) => {
       const toastKey = `${event.conversationId}:${event.timestamp}`
@@ -691,6 +715,7 @@ export default function Home() {
   } = useIncomingMessagesSse({
     enabled: sseEnabled,
     token: authToken,
+    presenceSessionId,
     reconnectKey: sseReconnectKey,
     streamUrl: apiService.getRealtimeNotificationsUrl(),
     onIncomingMessage: handleIncomingMessageSse,
@@ -873,10 +898,13 @@ export default function Home() {
   }, [refreshSelectedConversationMessages, selectedConversation])
 
   const handleLogout = async () => {
+    const nextPresenceSessionId = rotatePresenceSessionId()
+    sessionStorage.removeItem(PRESENCE_AUTH_TOKEN_KEY)
     try {
       await apiService.logout()
       setIsAuthenticated(false)
       setAuthToken(null)
+      setPresenceSessionId(nextPresenceSessionId)
       router.push("/login")
     } catch (error) {
       console.error("Logout error:", error)
@@ -885,6 +913,7 @@ export default function Home() {
       localStorage.removeItem("chadbot_user")
       setIsAuthenticated(false)
       setAuthToken(null)
+      setPresenceSessionId(nextPresenceSessionId)
       router.push("/login")
     }
   }
