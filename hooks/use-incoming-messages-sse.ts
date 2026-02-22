@@ -13,6 +13,7 @@ import { apiService } from "@/lib/api";
 interface UseIncomingMessagesSseParams {
   enabled: boolean;
   token: string | null;
+  presenceSessionId?: string | null;
   reconnectKey?: number;
   streamUrl?: string;
   onIncomingMessage?: (event: IncomingMessageRealtimeEvent) => void;
@@ -28,6 +29,7 @@ const BACKOFF_MS = [1000, 2000, 5000, 10000];
 export function useIncomingMessagesSse({
   enabled,
   token,
+  presenceSessionId,
   reconnectKey = 0,
   streamUrl,
   onIncomingMessage,
@@ -99,6 +101,9 @@ export function useIncomingMessagesSse({
           headers: {
             Authorization: `Bearer ${token}`,
             Accept: "text/event-stream",
+            ...(presenceSessionId
+              ? { "X-Presence-Session-Id": presenceSessionId }
+              : {}),
           },
           async onopen(response) {
             if (!response.ok) {
@@ -201,6 +206,7 @@ export function useIncomingMessagesSse({
   }, [
     enabled,
     token,
+    presenceSessionId,
     reconnectKey,
     streamUrl,
   ]);

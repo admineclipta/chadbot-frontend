@@ -1293,6 +1293,22 @@ class ApiService {
     });
   }
 
+  async sendPresenceHeartbeat(
+    sessionId: string,
+    signal?: AbortSignal,
+  ): Promise<void> {
+    await this.request<void>(
+      "realtime/presence/heartbeat",
+      {
+        method: "POST",
+        headers: {
+          "X-Presence-Session-Id": sessionId,
+        },
+      },
+      signal,
+    );
+  }
+
   // ============================================
   // Utility Methods
   // ============================================
