@@ -1,8 +1,10 @@
 {
   "name": "chadbot",
-  "version": "0.1.0",
+  "version": "2.2.0",
   "private": true,
   "scripts": {
+    "prebuild": "node scripts/generate-version.js",
+    "prebuild:csr": "node scripts/generate-version.js",
     "build": "next build",
     "dev": "next dev",
     "export": "next export",
