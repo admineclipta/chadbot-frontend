@@ -103,7 +103,7 @@ export default function MessagesSection({
             <div className="flex-1">
               <h3 className="text-lg font-semibold mb-1">Estado de conexion en tiempo real</h3>
               <p className="text-sm text-default-500 mb-4">
-                Los mensajes entrantes se actualizan por SSE en tiempo real
+                El inbox/chat se sincroniza por SSE global y las notificaciones personales van por un canal separado
               </p>
               <div className="flex flex-col sm:flex-row sm:items-center gap-3">
                 <Chip color={getSseColor(sseState)} variant="flat" size="sm">

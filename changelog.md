@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+- feature: split SSE channels by responsibility (`/realtime/messages/incoming` for inbox/chat sync, `/realtime/notifications` for personal alerts) with `MESSAGE_CREATED` global message contract and smart inbox refetch fallback
+
 ## [Release]
 
 ### v2.2.0

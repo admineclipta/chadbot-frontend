@@ -1,55 +1,35 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef } from "react";
 import { fetchEventSource } from "@microsoft/fetch-event-source";
 import type {
   ConversationAssignedRealtimeEvent,
-  MessageCreatedRealtimeEvent,
-  SseConnectionState,
   UserNotificationRealtimeEvent,
 } from "@/lib/api-types";
 import { apiService } from "@/lib/api";
 
-interface UseIncomingMessagesSseParams {
+interface UseNotificationsSseParams {
   enabled: boolean;
   token: string | null;
   presenceSessionId?: string | null;
   reconnectKey?: number;
-  streamUrl?: string;
-  onIncomingMessage?: (event: MessageCreatedRealtimeEvent) => void;
-  onConversationAssigned?: (
-    event: ConversationAssignedRealtimeEvent,
-  ) => void;
+  onConversationAssigned?: (event: ConversationAssignedRealtimeEvent) => void;
   onNotification?: (event: UserNotificationRealtimeEvent) => void;
-  onHeartbeat?: () => void;
 }
 
 const BACKOFF_MS = [1000, 2000, 5000, 10000];
 
-export function useIncomingMessagesSse({
+export function useNotificationsSse({
   enabled,
   token,
   presenceSessionId,
   reconnectKey = 0,
-  streamUrl,
-  onIncomingMessage,
   onConversationAssigned,
   onNotification,
-  onHeartbeat,
-}: UseIncomingMessagesSseParams) {
-  const [connectionState, setConnectionState] =
-    useState<SseConnectionState>("connecting");
-  const [lastHeartbeatAt, setLastHeartbeatAt] = useState<Date | null>(null);
-  const abortRef = useRef<AbortController | null>(null);
+}: UseNotificationsSseParams) {
   const reconnectTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const onIncomingMessageRef = useRef(onIncomingMessage);
   const onConversationAssignedRef = useRef(onConversationAssigned);
   const onNotificationRef = useRef(onNotification);
-  const onHeartbeatRef = useRef(onHeartbeat);
-
-  useEffect(() => {
-    onIncomingMessageRef.current = onIncomingMessage;
-  }, [onIncomingMessage]);
 
   useEffect(() => {
     onConversationAssignedRef.current = onConversationAssigned;
@@ -60,24 +40,11 @@ export function useIncomingMessagesSse({
   }, [onNotification]);
 
   useEffect(() => {
-    onHeartbeatRef.current = onHeartbeat;
-  }, [onHeartbeat]);
-
-  useEffect(() => {
-    if (!enabled) {
-      setConnectionState("connecting");
-      return;
-    }
-
-    if (!token) {
-      setConnectionState("error");
-      return;
-    }
+    if (!enabled || !token) return;
 
     let isActive = true;
     let attempt = 0;
     const controller = new AbortController();
-    abortRef.current = controller;
 
     const clearReconnectTimeout = () => {
       if (reconnectTimeoutRef.current) {
@@ -89,12 +56,8 @@ export function useIncomingMessagesSse({
     const connect = async () => {
       if (!isActive || controller.signal.aborted) return;
 
-      setConnectionState("connecting");
-
       try {
-        await fetchEventSource(
-          streamUrl || apiService.getRealtimeIncomingMessagesUrl(),
-          {
+        await fetchEventSource(apiService.getRealtimeNotificationsUrl(), {
           method: "GET",
           signal: controller.signal,
           openWhenHidden: true,
@@ -110,34 +73,12 @@ export function useIncomingMessagesSse({
               throw new Error(`SSE open failed with ${response.status}`);
             }
             attempt = 0;
-            if (isActive) {
-              setConnectionState("connected");
-            }
           },
           onmessage(message) {
-            if (!isActive || controller.signal.aborted) return;
+            if (!isActive || controller.signal.aborted || !message.data) return;
 
             if (message.event === "heartbeat") {
-              const heartbeatAt = new Date();
-              setLastHeartbeatAt(heartbeatAt);
-              onHeartbeatRef.current?.();
               return;
-            }
-
-            if (message.event === "incoming-message") {
-              try {
-                const parsed = JSON.parse(
-                  message.data,
-                ) as MessageCreatedRealtimeEvent;
-                if (parsed.eventType === "MESSAGE_CREATED") {
-                  onIncomingMessageRef.current?.(parsed);
-                }
-              } catch (error) {
-                console.error(
-                  "[SSE] Failed parsing incoming-message payload",
-                  error,
-                );
-              }
             }
 
             if (message.event === "conversation-assigned") {
@@ -155,20 +96,17 @@ export function useIncomingMessagesSse({
               return;
             }
 
-            if (message.data) {
-              try {
-                const parsed = JSON.parse(
+            try {
+              const parsed = JSON.parse(message.data) as UserNotificationRealtimeEvent;
+              onNotificationRef.current?.(parsed);
+            } catch (error) {
+              if (process.env.NODE_ENV === "development") {
+                console.debug(
+                  "[SSE] Ignoring non-JSON notification payload",
+                  message.event,
                   message.data,
-                ) as UserNotificationRealtimeEvent;
-                onNotificationRef.current?.(parsed);
-              } catch (error) {
-                if (process.env.NODE_ENV === "development") {
-                  console.debug(
-                    "[SSE] Ignoring non-JSON notification payload",
-                    message.event,
-                    message.data,
-                  );
-                }
+                  error,
+                );
               }
             }
           },
@@ -180,17 +118,12 @@ export function useIncomingMessagesSse({
             if (!isActive || controller.signal.aborted) return;
             throw new Error("SSE stream closed by server");
           },
-          },
-        );
+        });
       } catch (error) {
         if (!isActive || controller.signal.aborted) return;
 
         attempt += 1;
-        const backoff =
-          BACKOFF_MS[Math.min(attempt - 1, BACKOFF_MS.length - 1)];
-
-        setConnectionState(attempt >= 4 ? "degraded" : "error");
-
+        const backoff = BACKOFF_MS[Math.min(attempt - 1, BACKOFF_MS.length - 1)];
         clearReconnectTimeout();
         reconnectTimeoutRef.current = setTimeout(() => {
           connect();
@@ -198,23 +131,12 @@ export function useIncomingMessagesSse({
       }
     };
 
-    connect();
+    void connect();
 
     return () => {
       isActive = false;
       clearReconnectTimeout();
       controller.abort();
     };
-  }, [
-    enabled,
-    token,
-    presenceSessionId,
-    reconnectKey,
-    streamUrl,
-  ]);
-
-  return {
-    connectionState,
-    lastHeartbeatAt,
-  };
+  }, [enabled, token, presenceSessionId, reconnectKey]);
 }

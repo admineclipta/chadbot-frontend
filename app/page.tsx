@@ -25,7 +25,7 @@ import type {
   ConversationSortField,
   SortDirection,
   Message as ApiMessage,
-  IncomingMessageRealtimeEvent,
+  MessageCreatedRealtimeEvent,
   SseConnectionState,
   UserNotificationRealtimeEvent,
 } from "@/lib/api-types"
@@ -35,7 +35,8 @@ import { useApi } from "@/hooks/use-api"
 import { useIsMobile } from "@/hooks/use-mobile"
 import { usePushNotifications } from "@/hooks/use-push-notifications"
 import { cn, parseApiTimestamp } from "@/lib/utils"
-import { useIncomingMessagesSse } from "@/hooks/use-incoming-messages-sse"
+import { useMessagesRealtimeSse } from "@/hooks/use-messages-realtime-sse"
+import { useNotificationsSse } from "@/hooks/use-notifications-sse"
 import { usePresenceHeartbeat } from "@/hooks/use-presence-heartbeat"
 import {
   getOrCreatePresenceSessionId,
@@ -79,10 +80,11 @@ export default function Home() {
   const [sseFailureSince, setSseFailureSince] = useState<number | null>(null)
   const [isFallbackActive, setIsFallbackActive] = useState(false)
   const [isSseReconnectRequested, setIsSseReconnectRequested] = useState(false)
-  const shownIncomingToastIdsRef = useRef<Set<string>>(new Set())
   const shownAssignmentToastIdsRef = useRef<Set<string>>(new Set())
   const shownGenericToastIdsRef = useRef<Set<string>>(new Set())
   const openedConversationFromQueryRef = useRef<Set<string>>(new Set())
+  const inboxRefetchTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const inboxDirtyRef = useRef(false)
   const [selectedRepresentativeFilter, setSelectedRepresentativeFilter] = useState<"all" | "mine" | number>("all") // Filtro por representante
   const [availableRepresentatives, setAvailableRepresentatives] = useState<Array<{id: number, name: string}>>([]) // Lista de representantes disponibles
   
@@ -257,9 +259,9 @@ export default function Home() {
     }
   }, [getMessageFileUrl, parseApiTimestamp])
 
-  const mapIncomingSseMessageToDomainMessage = useCallback(
-    (event: IncomingMessageRealtimeEvent): Message => {
-      const rawType = event.message.type?.toLowerCase()
+  const mapMessageCreatedSseToDomainMessage = useCallback(
+    (event: MessageCreatedRealtimeEvent): Message => {
+      const rawType = String(event.message?.type || event.type || "").toLowerCase()
       const normalizedType: Message["type"] =
         rawType === "text" ||
         rawType === "image" ||
@@ -270,7 +272,9 @@ export default function Home() {
           ? (rawType as Message["type"])
           : "text"
 
-      const senderType = event.message.senderType?.toUpperCase()
+      const senderType = String(
+        event.message?.senderType || event.senderType || "",
+      ).toUpperCase()
       const sender: Message["sender"] =
         senderType === "AGENT"
           ? "agent"
@@ -278,18 +282,21 @@ export default function Home() {
             ? "bot"
             : "client"
 
-      const content = ((event.message.content || {}) as Record<string, unknown>)
+      const content =
+        typeof (event.message?.content ?? event.content) === "string"
+          ? ({ text: event.message?.content ?? event.content } as Record<string, unknown>)
+          : (((event.message?.content ?? event.content) || {}) as Record<string, unknown>)
       const text =
         (typeof content.text === "string" ? content.text : "") ||
         (typeof content.caption === "string" ? content.caption : "") ||
         ""
 
       return {
-        id: event.message.messageId,
+        id: event.message?.messageId || event.messageId || crypto.randomUUID(),
         content: text,
         sender,
         senderName: sender === "client" ? "Cliente" : sender === "bot" ? "Bot" : "Agente",
-        timestamp: parseApiTimestamp(event.message.sentAt || event.timestamp),
+        timestamp: parseApiTimestamp(event.message?.sentAt || event.sentAt || event.timestamp),
         type: normalizedType,
         status: "delivered",
       }
@@ -324,25 +331,46 @@ export default function Home() {
     [mapApiMessageToDomain],
   )
 
+  const markConversationAsReadLocally = useCallback((conversationId: string) => {
+    setConversations((prev) =>
+      prev.map((conv) =>
+        conv.id === conversationId
+          ? { ...conv, unreadCount: 0 }
+          : conv,
+      ),
+    )
+
+    setSelectedConversation((prev) =>
+      prev && prev.id === conversationId
+        ? { ...prev, unreadCount: 0 }
+        : prev,
+    )
+  }, [])
+
   const openConversationById = useCallback(
     async (conversationId: string) => {
       setCurrentView("conversations")
 
       const existing = conversations.find((conv) => conv.id === conversationId)
       if (existing) {
-        setSelectedConversation(existing)
+        setSelectedConversation({ ...existing, unreadCount: 0 })
+        markConversationAsReadLocally(conversationId)
         return
       }
 
       try {
         const fetchedConversation = await apiService.getConversationById(conversationId)
+        const fetchedConversationMarkedAsRead = {
+          ...fetchedConversation,
+          unreadCount: 0,
+        }
         setConversations((prev) => {
           const withoutTarget = prev.filter((conv) => conv.id !== fetchedConversation.id)
-          const next = [fetchedConversation, ...withoutTarget]
+          const next = [fetchedConversationMarkedAsRead, ...withoutTarget]
           next.sort((a, b) => b.lastActivity.getTime() - a.lastActivity.getTime())
           return next
         })
-        setSelectedConversation(fetchedConversation)
+        setSelectedConversation(fetchedConversationMarkedAsRead)
       } catch (error) {
         console.error("[SSE] Failed opening conversation from notification", error)
         addToast({
@@ -351,7 +379,7 @@ export default function Home() {
         })
       }
     },
-    [conversations],
+    [conversations, markConversationAsReadLocally],
   )
 
   useEffect(() => {
@@ -474,40 +502,79 @@ export default function Home() {
     token: authToken,
   })
 
-  const handleIncomingMessageSse = useCallback(
-    (event: IncomingMessageRealtimeEvent) => {
-      const incomingMessage = mapIncomingSseMessageToDomainMessage(event)
+  const scheduleInboxRefetch = useCallback(() => {
+    if (inboxRefetchTimeoutRef.current) {
+      clearTimeout(inboxRefetchTimeoutRef.current)
+      inboxRefetchTimeoutRef.current = null
+    }
+
+    inboxRefetchTimeoutRef.current = setTimeout(() => {
+      void refetchConversations()
+    }, 700)
+  }, [refetchConversations])
+
+  useEffect(() => {
+    if (currentView !== "conversations") return
+    if (!inboxDirtyRef.current) return
+
+    inboxDirtyRef.current = false
+    void refetchConversations()
+  }, [currentView, refetchConversations])
+
+  useEffect(() => {
+    return () => {
+      if (inboxRefetchTimeoutRef.current) {
+        clearTimeout(inboxRefetchTimeoutRef.current)
+        inboxRefetchTimeoutRef.current = null
+      }
+    }
+  }, [])
+
+  const handleMessageCreatedSse = useCallback(
+    (event: MessageCreatedRealtimeEvent) => {
+      const incomingMessage = mapMessageCreatedSseToDomainMessage(event)
+      const conversationExistsInLocalPage = conversations.some(
+        (conv) => conv.id === event.conversationId,
+      )
       const activeConversationId = selectedConversation?.id
       const isForActiveConversation = activeConversationId === event.conversationId
       const isAppInForeground =
         typeof document !== "undefined" &&
         document.visibilityState === "visible" &&
         document.hasFocus()
-      const shouldSuppressNotification = isForActiveConversation && isAppInForeground
+      const normalizedSenderType = String(
+        event.message?.senderType || event.senderType || "",
+      ).toUpperCase()
+      const isContactMessage = normalizedSenderType === "CONTACT"
+      const eventLastMessagePreview =
+        event.conversation?.lastMessagePreview || event.lastMessagePreview
+      const shouldSuppressNotification = isForActiveConversation && isAppInForeground && isContactMessage
       const lastActivityAt = parseApiTimestamp(
-        event.conversation.lastMessageAt || event.timestamp,
+        event.conversation?.lastMessageAt ||
+          event.lastMessageAt ||
+          event.message?.sentAt ||
+          event.sentAt ||
+          event.timestamp,
       )
-      let contactNameForToast = "Cliente"
 
       setConversations((prev) => {
         const targetIndex = prev.findIndex((conv) => conv.id === event.conversationId)
         if (targetIndex === -1) return prev
 
         const targetConversation = prev[targetIndex]
-        contactNameForToast =
-          targetConversation.customer?.name ||
-          targetConversation.customer?.phone ||
-          "Cliente"
         const updatedConversation: Conversation = {
           ...targetConversation,
           lastMessage:
-            event.conversation.lastMessagePreview ||
+            eventLastMessagePreview ||
             incomingMessage.content ||
             targetConversation.lastMessage,
           lastActivity: lastActivityAt,
-          unreadCount: shouldSuppressNotification
-            ? 0
-            : (targetConversation.unreadCount || 0) + 1,
+          unreadCount:
+            !isContactMessage
+              ? targetConversation.unreadCount || 0
+              : shouldSuppressNotification
+                ? 0
+                : (targetConversation.unreadCount || 0) + 1,
         }
 
         const next = prev.map((conv) =>
@@ -517,38 +584,12 @@ export default function Home() {
         return next
       })
 
-      if (!shouldSuppressNotification) {
-        if (!shownIncomingToastIdsRef.current.has(incomingMessage.id)) {
-          shownIncomingToastIdsRef.current.add(incomingMessage.id)
-          addToast({
-            title: `Nuevo mensaje de ${contactNameForToast}`,
-            description:
-              event.conversation.lastMessagePreview ||
-              incomingMessage.content ||
-              "Tienes un nuevo mensaje",
-            severity: "primary",
-            endContent: (
-              <Button
-                size="sm"
-                variant="light"
-                color="primary"
-                onPress={() => {
-                  void openConversationById(event.conversationId)
-                }}
-              >
-                Abrir
-              </Button>
-            ),
-          })
-          notifyBrowser(
-            `Nuevo mensaje de ${contactNameForToast}`,
-            event.conversation.lastMessagePreview ||
-              incomingMessage.content ||
-              "Tienes un nuevo mensaje",
-            event.conversationId,
-          )
+      if (!conversationExistsInLocalPage) {
+        if (currentView === "conversations" || selectedConversation?.id) {
+          scheduleInboxRefetch()
+        } else {
+          inboxDirtyRef.current = true
         }
-        return
       }
 
       setSelectedConversation((prev) => {
@@ -559,11 +600,14 @@ export default function Home() {
           ...prev,
           messages: [...prev.messages, incomingMessage],
           lastMessage:
-            event.conversation.lastMessagePreview ||
+            eventLastMessagePreview ||
             incomingMessage.content ||
             prev.lastMessage,
           lastActivity: lastActivityAt,
-          unreadCount: 0,
+          unreadCount:
+            isContactMessage && shouldSuppressNotification
+              ? 0
+              : prev.unreadCount,
         }
       })
 
@@ -575,9 +619,11 @@ export default function Home() {
       }
     },
     [
-      mapIncomingSseMessageToDomainMessage,
-      openConversationById,
+      currentView,
+      conversations,
+      mapMessageCreatedSseToDomainMessage,
       parseApiTimestamp,
+      scheduleInboxRefetch,
       selectedConversation?.id,
     ],
   )
@@ -640,20 +686,6 @@ export default function Home() {
       if (!rawType || !conversationId) return
 
       if (rawType === "NEW_MESSAGE") {
-        void refetchConversations()
-
-        const isAppInForeground =
-          typeof document !== "undefined" &&
-          document.visibilityState === "visible" &&
-          document.hasFocus()
-        const isSelectedConversationInForeground =
-          selectedConversation?.id === conversationId && isAppInForeground
-
-        if (isSelectedConversationInForeground) {
-          void refreshSelectedConversationMessages(conversationId, "replace")
-          return
-        }
-
         const toastKey = `NEW_MESSAGE:${conversationId}:${event.timestamp || "no-ts"}`
         if (shownGenericToastIdsRef.current.has(toastKey)) return
         shownGenericToastIdsRef.current.add(toastKey)
@@ -703,30 +735,33 @@ export default function Home() {
       handleConversationAssignedSse,
       openConversationById,
       notifyBrowser,
-      refetchConversations,
-      refreshSelectedConversationMessages,
-      selectedConversation?.id,
     ],
   )
 
   const {
-    connectionState: rawSseConnectionState,
+    connectionState: rawMessagesSseConnectionState,
     lastHeartbeatAt: sseLastHeartbeatAt,
-  } = useIncomingMessagesSse({
+  } = useMessagesRealtimeSse({
     enabled: sseEnabled,
     token: authToken,
     presenceSessionId,
     reconnectKey: sseReconnectKey,
-    streamUrl: apiService.getRealtimeNotificationsUrl(),
-    onIncomingMessage: handleIncomingMessageSse,
+    onMessageCreated: handleMessageCreatedSse,
+  })
+
+  useNotificationsSse({
+    enabled: sseEnabled,
+    token: authToken,
+    presenceSessionId,
+    reconnectKey: sseReconnectKey,
     onConversationAssigned: handleConversationAssignedSse,
     onNotification: handleNotificationSse,
   })
 
   const sseConnectionState: SseConnectionState =
-    isFallbackActive && rawSseConnectionState !== "connected"
+    isFallbackActive && rawMessagesSseConnectionState !== "connected"
       ? "degraded"
-      : rawSseConnectionState
+      : rawMessagesSseConnectionState
 
   const handleManualSseReconnect = useCallback(() => {
     setIsSseReconnectRequested(true)
@@ -743,14 +778,14 @@ export default function Home() {
   useEffect(() => {
     const previousState = previousSseStateRef.current
 
-    if (previousState !== rawSseConnectionState) {
+    if (previousState !== rawMessagesSseConnectionState) {
       console.info(
-        `[SSE] Connection state changed: ${previousState} -> ${rawSseConnectionState}`,
+        `[SSE] Connection state changed: ${previousState} -> ${rawMessagesSseConnectionState}`,
       )
-      previousSseStateRef.current = rawSseConnectionState
+      previousSseStateRef.current = rawMessagesSseConnectionState
     }
 
-    if (rawSseConnectionState === "connected") {
+    if (rawMessagesSseConnectionState === "connected") {
       setSseFailureSince(null)
       setIsFallbackActive(false)
 
@@ -764,13 +799,13 @@ export default function Home() {
     }
 
     if (
-      rawSseConnectionState === "error" ||
-      rawSseConnectionState === "degraded"
+      rawMessagesSseConnectionState === "error" ||
+      rawMessagesSseConnectionState === "degraded"
     ) {
       setSseFailureSince((prev) => prev ?? Date.now())
     }
   }, [
-    rawSseConnectionState,
+    rawMessagesSseConnectionState,
     refetchConversations,
     refreshSelectedConversationMessages,
     selectedConversation?.id,
@@ -784,7 +819,7 @@ export default function Home() {
 
     if (
       !sseEnabled ||
-      !(rawSseConnectionState === "error" || rawSseConnectionState === "degraded") ||
+      !(rawMessagesSseConnectionState === "error" || rawMessagesSseConnectionState === "degraded") ||
       sseFailureSince === null
     ) {
       return
@@ -808,7 +843,7 @@ export default function Home() {
         fallbackActivationTimeoutRef.current = null
       }
     }
-  }, [rawSseConnectionState, sseEnabled, sseFailureSince])
+  }, [rawMessagesSseConnectionState, sseEnabled, sseFailureSince])
 
   useEffect(() => {
     if (fallbackIntervalRef.current) {
@@ -1037,8 +1072,9 @@ export default function Home() {
   )
 
   const handleSelectConversation = useCallback((conversation: Conversation) => {
-    setSelectedConversation(conversation)
-  }, [])
+    setSelectedConversation({ ...conversation, unreadCount: 0 })
+    markConversationAsReadLocally(conversation.id)
+  }, [markConversationAsReadLocally])
 
   const handleCloseChat = useCallback(() => {
     setSelectedConversation(null)
