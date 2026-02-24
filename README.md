@@ -170,26 +170,14 @@ const message = await apiService.sendMessage({
 });
 ```
 
-### WebSocket Support
+### Realtime SSE Channels
 
-Real-time updates via WebSocket (to be implemented):
+The frontend uses two SSE channels with distinct responsibilities:
 
-```typescript
-import { config } from "@/lib/config";
+- `GET /api/v1/realtime/messages/incoming`: tenant-wide stream used as source of truth for inbox/chat synchronization.
+- `GET /api/v1/realtime/notifications`: personal stream used for toasts/push notifications and assignment alerts.
 
-const socket = new SockJS(config.wsUrl);
-const stompClient = Stomp.over(socket);
-
-// Subscribe to conversation events
-stompClient.subscribe(`/topic/conversations/${clientId}`, (event) => {
-  // Handle CONVERSATION_CREATED, CONVERSATION_ASSIGNED, etc.
-});
-
-// Subscribe to messages
-stompClient.subscribe(`/topic/messages/${conversationId}`, (event) => {
-  // Handle NEW_MESSAGE
-});
-```
+This separation ensures inbox/chat stays updated even when the user is not assigned to a conversation.
 
 ## 🛠️ Development
 

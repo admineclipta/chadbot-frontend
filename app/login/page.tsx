@@ -30,6 +30,7 @@ import { motion, AnimatePresence } from "framer-motion"
 import { apiService, ApiError } from "@/lib/api"
 import type { LoginRequest } from "@/lib/api-types"
 import { config } from "@/lib/config"
+import AppVersionLabel from "@/components/shared/app-version-label"
 
 export default function Login() {
   const router = useRouter()
@@ -560,6 +561,7 @@ export default function Login() {
               </motion.span>
               .
             </p>
+            <AppVersionLabel className="mt-2 text-white/40 dark:text-white/40" />
           </div>
         </div>
 

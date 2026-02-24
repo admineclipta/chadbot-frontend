@@ -196,13 +196,29 @@ export type SseConnectionState =
   | "degraded"
   | "error";
 
-export interface IncomingMessageRealtimeEvent {
-  eventType: "INCOMING_MESSAGE";
+export interface MessageCreatedRealtimeEvent {
+  eventType: "MESSAGE_CREATED";
   clientId: string;
   conversationId: string;
-  message: {
+  messageId?: string;
+  type?:
+    | "TEXT"
+    | "IMAGE"
+    | "VIDEO"
+    | "AUDIO"
+    | "DOCUMENT"
+    | "STICKER"
+    | "LOCATION"
+    | "CONTACT"
+    | "TEMPLATE_WHATSAPP";
+  senderType?: "CONTACT" | "AGENT" | "BOT" | "SYSTEM" | string;
+  content?: Record<string, unknown> | string | null;
+  sentAt?: string | number;
+  lastMessagePreview?: string;
+  lastMessageAt?: string | number;
+  message?: {
     messageId: string;
-    type:
+    type?:
       | "TEXT"
       | "IMAGE"
       | "VIDEO"
@@ -211,16 +227,17 @@ export interface IncomingMessageRealtimeEvent {
       | "STICKER"
       | "LOCATION"
       | "CONTACT"
-      | "TEMPLATE_WHATSAPP";
-    senderType: "CONTACT" | "AGENT" | "BOT" | "SYSTEM";
-    content: Record<string, unknown> | null;
-    sentAt: string;
+      | "TEMPLATE_WHATSAPP"
+      | string;
+    senderType: "CONTACT" | "AGENT" | "BOT" | "SYSTEM" | string;
+    content?: Record<string, unknown> | string | null;
+    sentAt?: string | number;
   };
-  conversation: {
-    lastMessageAt: string;
-    lastMessagePreview: string;
+  conversation?: {
+    lastMessageAt?: string | number;
+    lastMessagePreview?: string;
   };
-  timestamp: string;
+  timestamp: string | number;
 }
 
 export interface ConversationAssignedRealtimeEvent {
@@ -242,6 +259,35 @@ export interface UserNotificationRealtimeEvent {
   title?: string;
   message?: string;
   timestamp?: string;
+  [key: string]: unknown;
+}
+
+export interface PushPublicKeyResponse {
+  publicKey: string;
+}
+
+export interface PushSubscriptionUpsertRequest {
+  endpoint: string;
+  keys: {
+    p256dh: string;
+    auth: string;
+  };
+  userAgent?: string;
+  deviceLabel?: string;
+}
+
+export interface PushSubscriptionDeleteRequest {
+  endpoint: string;
+}
+
+export interface PushNotificationPayload {
+  type?: string;
+  title?: string;
+  body?: string;
+  conversationId?: string;
+  url?: string;
+  timestamp?: string;
+  notificationId?: string;
   [key: string]: unknown;
 }
 

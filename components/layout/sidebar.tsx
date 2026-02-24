@@ -5,6 +5,7 @@ import Image from "next/image"
 import { MessageCircle, Users, Contact, Bot, Settings, Send, LogOut, ChevronDown, Menu, Tag, BarChart3 } from "lucide-react"
 import { Button as HeroButton, Dropdown, DropdownTrigger, DropdownMenu, DropdownItem } from "@heroui/react"
 import UserAvatar from "@/components/management/user-avatar"
+import AppVersionLabel from "@/components/shared/app-version-label"
 import type { User } from "@/lib/types"
 import BulkMessageModal from "@/components/modals/bulk-message-modal"
 import SettingsModal from "@/components/modals/settings-modal"
@@ -181,6 +182,10 @@ export default function Sidebar({
         </nav>
 
         {/* User Menu con HeroUI Dropdown */}
+        <div className="px-4 pb-2">
+          <AppVersionLabel enableUpdateCheck className="text-center" />
+        </div>
+
         {user && (
           <div className="p-4 border-t border-slate-200 dark:border-slate-700">
             <Dropdown placement="top-start">

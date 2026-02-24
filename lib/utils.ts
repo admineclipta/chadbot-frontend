@@ -151,6 +151,12 @@ export function safeFormatDate(
 export function isOutside24HourWindow(
   messages: Array<{ sender: string; timestamp: Date }>,
 ): boolean {
+  // Validación de ventana de 24 horas desactivada temporalmente.
+  // Mantener esta firma para poder restaurar la lógica sin afectar llamados.
+  void messages;
+  return false;
+
+  /*
   if (!messages || messages.length === 0) {
     return true; // Si no hay mensajes, está fuera de la ventana
   }
@@ -172,6 +178,7 @@ export function isOutside24HourWindow(
   const twentyFourHours = 24 * 60 * 60 * 1000;
 
   return timeDifference > twentyFourHours;
+  */
 }
 
 // Función para obtener el tiempo restante en la ventana de 24 horas
