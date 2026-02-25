@@ -2,7 +2,7 @@
 
 ## [Unreleased]
 
-- feature: rediseño de `Asistentes` a mapa visual con `reactflow` (flujo izquierda → derecha, nodo derivador destacado, conexiones automáticas estéticas)
+- feature: rediseño de `Asistentes` a mapa visual con `reactflow` (flujo izquierda → derecha, nodo derivador destacado, conexiones automáticas estéticas) [#10](https://github.com/admineclipta/chadbot-frontend/pull/10)
 
 ## [Release]
 
@@ -17,4 +17,4 @@
 
 ### v2.1.0
 
-- feature: Implementacion SSE para mensajes/conversaciones [4](https://github.com/admineclipta/chadbot-frontend/pull/4)
+- feature: Implementacion SSE para mensajes/conversaciones [#4](https://github.com/admineclipta/chadbot-frontend/pull/4)
