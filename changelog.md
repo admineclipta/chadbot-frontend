@@ -3,6 +3,7 @@
 ## [Unreleased]
 
 - feature: rediseño de `Asistentes` a mapa visual con `reactflow` (flujo izquierda → derecha, nodo derivador destacado, conexiones automáticas estéticas) [#10](https://github.com/admineclipta/chadbot-frontend/pull/10)
+- feature: Formateo markdown en los mensajes de la conversación [#]()
 
 ## [Release]
 
