@@ -18,6 +18,7 @@ import MessageInput from "./message-input"
 import AISummaryPanel from "./ai-summary-panel"
 import AssignConversationModal from "./assign-conversation-modal"
 import ContactInfoModal from "./contact-info-modal"
+import MessageMarkdown from "@/components/shared/message-markdown"
 import { apiService } from "@/lib/api"
 import type { Conversation, Message } from "@/lib/types"
 import { CONVERSATION_STATUS_CONFIG } from "@/lib/types"
@@ -447,11 +448,10 @@ const ChatView = forwardRef<ChatViewRef, ChatViewProps>(
                             : 'bg-gradient-to-r from-blue-600 to-violet-700 text-white shadow-lg shadow-blue-500/20 dark:shadow-blue-500/10 rounded-tr-sm'
                           : 'bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 shadow-sm rounded-tl-sm'
                       }`}>
-                        <p className={`text-sm leading-relaxed whitespace-pre-wrap ${
-                          isSent && !isBot ? 'text-white' : 'text-slate-900 dark:text-slate-100'
-                        }`}>
-                          {message.content}
-                        </p>
+                        <MessageMarkdown
+                          content={message.content || ""}
+                          accent={isSent && !isBot}
+                        />
 
                         {message.attachments && message.attachments.length > 0 && (
                           <div className="mt-2 space-y-1">
