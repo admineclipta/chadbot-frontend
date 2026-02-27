@@ -4,6 +4,11 @@
 
 ## [Release]
 
+### v2.3.0
+
+- feature: rediseño de `Asistentes` a mapa visual con `reactflow` (flujo izquierda → derecha, nodo derivador destacado, conexiones automáticas estéticas) [#10](https://github.com/admineclipta/chadbot-frontend/pull/10)
+- feature: Formateo markdown en los mensajes de la conversación [#11](https://github.com/admineclipta/chadbot-frontend/pull/11)
+
 ### v2.2.1
 
 - feature: split SSE channels by responsibility (`/realtime/messages/incoming` for inbox/chat sync, `/realtime/notifications` for personal alerts) with `MESSAGE_CREATED` global message contract and smart inbox refetch fallback
@@ -15,4 +20,4 @@
 
 ### v2.1.0
 
-- feature: Implementacion SSE para mensajes/conversaciones [4](https://github.com/admineclipta/chadbot-frontend/pull/4)
+- feature: Implementacion SSE para mensajes/conversaciones [#4](https://github.com/admineclipta/chadbot-frontend/pull/4)

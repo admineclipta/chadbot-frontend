@@ -22,6 +22,7 @@ import MessageStatusIcon from "./message-status-icon"
 import MessageInput from "./message-input"
 import ConversationNotes from "./conversation-notes"
 import AISummaryPanel from "@/components/shared/ai-summary-panel"
+import MessageMarkdown from "@/components/shared/message-markdown"
 import AssignConversationModal from "@/components/modals/assign-conversation-modal"
 import ContactInfoModal from "@/components/modals/contact-info-modal"
 import ConversationInfoModal from "@/components/modals/conversation-info-modal"
@@ -648,20 +649,18 @@ const ChatView = forwardRef<ChatViewRef, ChatViewProps>(
                           : 'bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 shadow-sm rounded-tl-sm'
                       }`}>
                         {message.type === "text" || !message.type ? (
-                          <p className={`text-sm leading-relaxed whitespace-pre-wrap break-words ${
-                            isSent && !isBot ? 'text-white' : 'text-slate-900 dark:text-slate-100'
-                          }`}>
-                            {message.content}
-                          </p>
+                          <MessageMarkdown
+                            content={message.content || ""}
+                            accent={isSent && !isBot}
+                          />
                         ) : (
                           <div className="space-y-2">
                             <MessageMedia message={message} isAccent={isSent && !isBot} />
                             {message.content ? (
-                              <p className={`text-sm leading-relaxed whitespace-pre-wrap break-words ${
-                                isSent && !isBot ? 'text-white' : 'text-slate-900 dark:text-slate-100'
-                              }`}>
-                                {message.content}
-                              </p>
+                              <MessageMarkdown
+                                content={message.content}
+                                accent={isSent && !isBot}
+                              />
                             ) : null}
                           </div>
                         )}
