@@ -48,7 +48,8 @@ import type { Assistant, UpdateAssistantRequest } from "@/lib/api-types"
 
 type AssistantView = "map" | "create" | "edit"
 const CREATE_ROOT_NODE_ID = "__create_root__"
-const CREATE_FROM_ROUTER_NODE_ID = "__create_from_router__"
+const CREATE_ROUTER_NODE_PREFIX = "__create_router__"
+const CREATE_SPECIALIZED_NODE_PREFIX = "__create_specialized__"
 
 interface AssistantNodeData {
   assistant: Assistant
@@ -58,6 +59,15 @@ interface AssistantNodeData {
 
 interface CreateNodeData {
   label: string
+  subtitle?: string
+  showSourceHandle?: boolean
+}
+
+interface CredentialNodeData {
+  credentialName: string
+  serviceName: string
+  serviceCode?: string
+  assistantsCount: number
 }
 
 const AssistantNode = memo(({ data }: NodeProps<AssistantNodeData>) => {
@@ -81,7 +91,7 @@ const AssistantNode = memo(({ data }: NodeProps<AssistantNodeData>) => {
       <Handle
         type="target"
         position={targetPosition}
-        className={`${isRouter ? "opacity-0" : "opacity-100"} !bg-slate-400 dark:!bg-slate-500`}
+        className="!bg-slate-400 dark:!bg-slate-500"
       />
       <div className="mb-2 flex items-start gap-2">
         <Bot className={`mt-0.5 h-4 w-4 ${isRouter ? "text-lime-700 dark:text-lime-300" : "text-primary"}`} />
@@ -124,22 +134,75 @@ const CreateAssistantNode = memo(({ data }: NodeProps<CreateNodeData>) => {
         <Plus className="h-6 w-6" />
       </div>
       <p className="text-sm font-semibold text-slate-700 dark:text-slate-200">{data.label}</p>
-      <p className="mt-1 text-xs text-slate-500 dark:text-slate-300">Click para crear</p>
+      <p className="mt-1 text-xs text-slate-500 dark:text-slate-300">{data.subtitle || "Click para crear"}</p>
       <Handle
         type="target"
         position={Position.Left}
         className="!bg-slate-400 dark:!bg-slate-500"
       />
+      {data.showSourceHandle ? (
+        <Handle
+          type="source"
+          position={Position.Right}
+          className="!bg-slate-400 dark:!bg-slate-500"
+        />
+      ) : null}
     </div>
   )
 })
 
 CreateAssistantNode.displayName = "CreateAssistantNode"
 
-const nodeTypes = { assistantNode: AssistantNode, createNode: CreateAssistantNode }
+function getServiceLogoPath(serviceCode?: string, serviceName?: string) {
+  const normalized = `${serviceCode || ""} ${serviceName || ""}`.toLowerCase()
+  if (normalized.includes("openai")) return "/openai.svg"
+  if (normalized.includes("google") || normalized.includes("gemini")) return "/gemini.svg"
+  if (normalized.includes("grok") || normalized.includes("xai")) return "/grok.svg"
+  return null
+}
+
+const CredentialNode = memo(({ data }: NodeProps<CredentialNodeData>) => {
+  const logoPath = getServiceLogoPath(data.serviceCode, data.serviceName)
+
+  return (
+    <div className="flex w-[180px] flex-col items-center gap-2 text-center">
+      <Handle
+        type="source"
+        position={Position.Right}
+        className="!bg-slate-400 dark:!bg-slate-500"
+      />
+      <div className="flex h-16 w-16 items-center justify-center rounded-full border-2 border-primary bg-white shadow-sm dark:bg-slate-900">
+        {logoPath ? (
+          <img src={logoPath} alt={data.serviceName} className="h-9 w-9 object-contain" />
+        ) : (
+          <Bot className="h-7 w-7 text-primary" />
+        )}
+      </div>
+      <div>
+        <p className="text-sm font-semibold text-slate-900 dark:text-white">{data.credentialName}</p>
+        <p className="text-xs text-slate-500 dark:text-slate-300">{data.serviceName}</p>
+        <p className="text-xs text-slate-400 dark:text-slate-400">
+          {data.assistantsCount} {data.assistantsCount === 1 ? "asistente" : "asistentes"}
+        </p>
+      </div>
+    </div>
+  )
+})
+
+CredentialNode.displayName = "CredentialNode"
+
+const nodeTypes = { assistantNode: AssistantNode, createNode: CreateAssistantNode, credentialNode: CredentialNode }
 
 function getIsRouter(assistant: Assistant) {
   return Boolean(assistant.metadata?.isRouter)
+}
+
+function getCreateRouterNodeId(credentialId: string) {
+  return `${CREATE_ROUTER_NODE_PREFIX}${credentialId}`
+}
+
+function getCreateSpecializedNodeId(credentialId: string) {
+  return `${CREATE_SPECIALIZED_NODE_PREFIX}${credentialId}`
 }
 
 function getMergedMetadata(assistant: Assistant, patch: Record<string, unknown>) {
@@ -156,6 +219,8 @@ export default function AssistantManagement() {
   const [editingAssistantId, setEditingAssistantId] = useState<string | null>(null)
 
   const [assistants, setAssistants] = useState<Assistant[]>([])
+  const [aiCredentials, setAiCredentials] = useState<import("@/lib/api-types").AiCredentialDto[]>([])
+  const [aiServices, setAiServices] = useState<import("@/lib/api-types").ServiceTypeDto[]>([])
   const [selectedAssistantId, setSelectedAssistantId] = useState<string | null>(null)
   const [searchQuery, setSearchQuery] = useState("")
 
@@ -225,15 +290,21 @@ export default function AssistantManagement() {
   const loadAssistants = useCallback(async () => {
     try {
       setLoading(true)
-      const response = await apiService.getAssistants({
-        page: 0,
-        size: 200,
-        sortBy: "created_at",
-        direction: "DESC",
-      })
+      const [response, credentialsResponse, servicesResponse] = await Promise.all([
+        apiService.getAssistants({
+          page: 0,
+          size: 200,
+          sortBy: "created_at",
+          direction: "DESC",
+        }),
+        apiService.getAiCredentials(0, 200, true),
+        apiService.getAiServices(),
+      ])
 
       const normalized = await handleNormalizeRouters(response.content)
       setAssistants(normalized)
+      setAiCredentials(credentialsResponse.content)
+      setAiServices(servicesResponse)
       setSelectedAssistantId((current) => {
         if (current && !normalized.some((assistant) => assistant.id === current)) {
           return null
@@ -276,18 +347,54 @@ export default function AssistantManagement() {
     return matches
   }, [assistants, searchQuery])
 
-  const routerAssistant = useMemo(
-    () => filteredAssistants.find(getIsRouter),
-    [filteredAssistants],
-  )
-
   const selectedAssistantModel = useMemo(() => {
     if (!selectedAssistantId) return null
     return assistants.find((assistant) => assistant.id === selectedAssistantId) || null
   }, [assistants, selectedAssistantId])
 
-  const nodes = useMemo<Node<AssistantNodeData | CreateNodeData>[]>(() => {
-    if (filteredAssistants.length === 0) {
+  const credentialGroups = useMemo(() => {
+    const credentialsById = new Map(aiCredentials.map((credential) => [credential.id, credential]))
+    const servicesById = new Map(aiServices.map((service) => [service.id, service]))
+    const assistantsByCredential = new Map<string, Assistant[]>()
+
+    filteredAssistants.forEach((assistant) => {
+      const current = assistantsByCredential.get(assistant.credentialId) || []
+      current.push(assistant)
+      assistantsByCredential.set(assistant.credentialId, current)
+    })
+
+    const groups = aiCredentials
+      .filter((credential) => credential.active || assistantsByCredential.has(credential.id))
+      .map((credential) => {
+        const service = servicesById.get(credential.serviceTypeId)
+        const groupAssistants = assistantsByCredential.get(credential.id) || []
+        return {
+          credentialId: credential.id,
+          credentialName: credential.name,
+          serviceName: service?.name || "Servicio desconocido",
+          serviceCode: service?.code,
+          assistants: groupAssistants,
+        }
+      })
+
+    assistantsByCredential.forEach((groupAssistants, credentialId) => {
+      if (credentialsById.has(credentialId)) return
+      groups.push({
+        credentialId,
+        credentialName: "Credencial desconocida",
+        serviceName: "Servicio desconocido",
+        serviceCode: undefined,
+        assistants: groupAssistants,
+      })
+    })
+
+    return groups.sort((a, b) =>
+      `${a.serviceName} ${a.credentialName}`.localeCompare(`${b.serviceName} ${b.credentialName}`),
+    )
+  }, [aiCredentials, aiServices, filteredAssistants])
+
+  const nodes = useMemo<Node<AssistantNodeData | CreateNodeData | CredentialNodeData>[]>(() => {
+    if (credentialGroups.length === 0 && filteredAssistants.length === 0) {
       return [
         {
           id: CREATE_ROOT_NODE_ID,
@@ -300,82 +407,158 @@ export default function AssistantManagement() {
       ]
     }
 
-    const nodeList: Node<AssistantNodeData | CreateNodeData>[] = []
-    const router = filteredAssistants.find(getIsRouter)
-    const nonRouter = filteredAssistants.filter((assistant) => !getIsRouter(assistant))
+    const nodeList: Node<AssistantNodeData | CreateNodeData | CredentialNodeData>[] = []
+    const credentialX = 40
+    const routerX = isMobile ? 320 : 360
+    const specializedBaseX = isMobile ? 620 : 760
+    const assistantGapY = 180
+    const sectionGapY = 90
+    let currentY = 60
 
-    if (router) {
+    credentialGroups.forEach((group) => {
+      const router = group.assistants.find(getIsRouter)
+      const specialized = group.assistants.filter((assistant) => assistant.id !== router?.id)
+      const rows = Math.max(1, specialized.length + (router ? 1 : 0))
+      const sectionHeight = Math.max(200, rows * assistantGapY)
+      const sectionMiddleY = currentY + Math.max(0, sectionHeight / 2 - 70)
+
       nodeList.push({
-        id: router.id,
-        type: "assistantNode",
-        position: { x: 0, y: 160 },
+        id: `credential-${group.credentialId}`,
+        type: "credentialNode",
+        position: { x: credentialX, y: sectionMiddleY + 10 },
         data: {
-          assistant: router,
-          isRouter: true,
-          isSelected: selectedAssistantId === router.id,
+          credentialName: group.credentialName,
+          serviceName: group.serviceName,
+          serviceCode: group.serviceCode,
+          assistantsCount: specialized.length + (router ? 1 : 0),
         },
       })
 
-      nodeList.push({
-        id: CREATE_FROM_ROUTER_NODE_ID,
-        type: "createNode",
-        position: { x: 420, y: 0 },
-        data: {
-          label: "Crear asistente",
-        },
-      })
-    }
+      if (router) {
+        nodeList.push({
+          id: router.id,
+          type: "assistantNode",
+          position: { x: routerX, y: sectionMiddleY },
+          data: {
+            assistant: router,
+            isRouter: true,
+            isSelected: selectedAssistantId === router.id,
+          },
+        })
+      } else {
+        nodeList.push({
+          id: getCreateRouterNodeId(group.credentialId),
+          type: "createNode",
+          position: { x: routerX, y: sectionMiddleY },
+          data: {
+            label: "Crear derivador",
+            subtitle: "Define el agente principal",
+            showSourceHandle: specialized.length > 0,
+          },
+        })
+      }
 
-    nonRouter.forEach((assistant, index) => {
-      const rowCount = isMobile ? 4 : 3
-      const row = index % rowCount
-      const col = Math.floor(index / rowCount)
-      const gapX = 320
-      const gapY = 190
-      const x = 420 + col * gapX
-      const y = 250 + row * gapY
-
-      nodeList.push({
-        id: assistant.id,
-        type: "assistantNode",
-        position: { x, y },
-        data: {
-          assistant,
-          isRouter: false,
-          isSelected: selectedAssistantId === assistant.id,
-        },
+      specialized.forEach((assistant, index) => {
+        const x = specializedBaseX
+        const y = currentY + index * assistantGapY
+        nodeList.push({
+          id: assistant.id,
+          type: "assistantNode",
+          position: { x, y },
+          data: {
+            assistant,
+            isRouter: getIsRouter(assistant),
+            isSelected: selectedAssistantId === assistant.id,
+          },
+        })
       })
+
+      if (router) {
+        const createRow = specialized.length
+        nodeList.push({
+          id: getCreateSpecializedNodeId(group.credentialId),
+          type: "createNode",
+          position: {
+            x: specializedBaseX,
+            y: currentY + createRow * assistantGapY,
+          },
+          data: {
+            label: "Crear especializado",
+            subtitle: "Agregar otro agente",
+          },
+        })
+      }
+
+      currentY += sectionHeight + sectionGapY
     })
 
     return nodeList
-  }, [filteredAssistants, isMobile, selectedAssistantId])
+  }, [credentialGroups, filteredAssistants.length, isMobile, selectedAssistantId])
 
   const edges = useMemo<Edge[]>(() => {
-    if (!routerAssistant) return []
+    const edgeList: Edge[] = []
 
-    const assistantEdges = filteredAssistants
-      .filter((assistant) => assistant.id !== routerAssistant.id)
-      .map((assistant) => ({
-        id: `${routerAssistant.id}-${assistant.id}`,
-        source: routerAssistant.id,
-        target: assistant.id,
-        type: "bezier",
-        animated: true,
-        markerEnd: { type: MarkerType.ArrowClosed, width: 18, height: 18 },
-        style: { strokeWidth: 2, stroke: "#7c3aed" },
-      }))
+    credentialGroups.forEach((group) => {
+      const router = group.assistants.find(getIsRouter)
+      const specialized = group.assistants.filter((assistant) => assistant.id !== router?.id)
+      const credentialNodeId = `credential-${group.credentialId}`
 
-    const createEdge: Edge = {
-      id: `${routerAssistant.id}-${CREATE_FROM_ROUTER_NODE_ID}`,
-      source: routerAssistant.id,
-      target: CREATE_FROM_ROUTER_NODE_ID,
-      type: "bezier",
-      markerEnd: { type: MarkerType.ArrowClosed, width: 18, height: 18 },
-      style: { strokeWidth: 2, stroke: "#94a3b8", strokeDasharray: "6 6" },
-    }
+      if (router) {
+        edgeList.push({
+          id: `${credentialNodeId}-${router.id}`,
+          source: credentialNodeId,
+          target: router.id,
+          type: "bezier",
+          animated: true,
+          markerEnd: { type: MarkerType.ArrowClosed, width: 18, height: 18 },
+          style: { strokeWidth: 2, stroke: "#22c55e" },
+        })
 
-    return [...assistantEdges, createEdge]
-  }, [filteredAssistants, routerAssistant])
+        specialized.forEach((assistant) => {
+          edgeList.push({
+            id: `${router.id}-${assistant.id}`,
+            source: router.id,
+            target: assistant.id,
+            type: "bezier",
+            animated: true,
+            markerEnd: { type: MarkerType.ArrowClosed, width: 18, height: 18 },
+            style: { strokeWidth: 2, stroke: "#7c3aed" },
+          })
+        })
+
+        edgeList.push({
+          id: `${router.id}-${getCreateSpecializedNodeId(group.credentialId)}`,
+          source: router.id,
+          target: getCreateSpecializedNodeId(group.credentialId),
+          type: "bezier",
+          markerEnd: { type: MarkerType.ArrowClosed, width: 18, height: 18 },
+          style: { strokeWidth: 2, stroke: "#94a3b8", strokeDasharray: "6 6" },
+        })
+      } else {
+        edgeList.push({
+          id: `${credentialNodeId}-${getCreateRouterNodeId(group.credentialId)}`,
+          source: credentialNodeId,
+          target: getCreateRouterNodeId(group.credentialId),
+          type: "bezier",
+          markerEnd: { type: MarkerType.ArrowClosed, width: 18, height: 18 },
+          style: { strokeWidth: 2, stroke: "#94a3b8", strokeDasharray: "6 6" },
+        })
+
+        specialized.forEach((assistant) => {
+          edgeList.push({
+            id: `${getCreateRouterNodeId(group.credentialId)}-${assistant.id}`,
+            source: getCreateRouterNodeId(group.credentialId),
+            target: assistant.id,
+            type: "bezier",
+            markerEnd: { type: MarkerType.ArrowClosed, width: 18, height: 18 },
+            style: { strokeWidth: 2, stroke: "#cbd5e1", strokeDasharray: "6 6" },
+          })
+        })
+      }
+    })
+
+    return edgeList
+  }, [credentialGroups])
 
   const handlePreview = (assistant: Assistant) => {
     setSelectedAssistant(assistant)
@@ -562,10 +745,15 @@ export default function AssistantManagement() {
                     edges={edges}
                     nodeTypes={nodeTypes}
                     onNodeClick={(_, node) => {
-                      if (node.id === CREATE_ROOT_NODE_ID || node.id === CREATE_FROM_ROUTER_NODE_ID) {
+                      if (
+                        node.id === CREATE_ROOT_NODE_ID ||
+                        node.id.startsWith(CREATE_ROUTER_NODE_PREFIX) ||
+                        node.id.startsWith(CREATE_SPECIALIZED_NODE_PREFIX)
+                      ) {
                         handleCreate()
                         return
                       }
+                      if (node.type === "credentialNode") return
                       setSelectedAssistantId(node.id)
                     }}
                     fitView
