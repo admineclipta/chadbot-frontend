@@ -544,17 +544,19 @@ const ChatView = forwardRef<ChatViewRef, ChatViewProps>(
 
                 {/* Selector de estado */}
                 <Dropdown placement="bottom-end">
-                  <Tooltip content="Cambiar estado">
-                    <DropdownTrigger>
-                      <button 
-                        disabled={changingStatus}
-                        className="p-2 md:p-2.5 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg transition-colors group disabled:opacity-50 disabled:cursor-not-allowed"
-                        aria-label="Cambiar estado"
-                      >
-                        <Orbit className="w-4 h-4 md:w-5 md:h-5 text-slate-600 group-hover:text-blue-600" />
-                      </button>
-                    </DropdownTrigger>
-                  </Tooltip>
+                  <DropdownTrigger>
+                    <span className="inline-flex">
+                      <Tooltip content="Cambiar de estado" placement="bottom">
+                        <button 
+                          disabled={changingStatus}
+                          className="p-2 md:p-2.5 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg transition-colors group disabled:opacity-50 disabled:cursor-not-allowed"
+                          aria-label="Cambiar estado"
+                        >
+                          <Orbit className="w-4 h-4 md:w-5 md:h-5 text-slate-600 group-hover:text-blue-600" />
+                        </button>
+                      </Tooltip>
+                    </span>
+                  </DropdownTrigger>
                   <DropdownMenu aria-label="Estados de conversación">
                     {STATUS_OPTIONS.map((status) => (
                       <DropdownItem

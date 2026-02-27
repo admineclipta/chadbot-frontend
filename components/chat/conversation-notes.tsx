@@ -182,7 +182,7 @@ export default function ConversationNotes({ conversationId, className = "" }: Co
                       size="sm"
                       className="text-xs"
                     >
-                      Nota privada (solo visible para agentes)
+                      Nota privada (solo visible para vos)
                     </Checkbox>
                     <div className="flex gap-2 justify-end">
                       <Button
@@ -306,7 +306,7 @@ export default function ConversationNotes({ conversationId, className = "" }: Co
           size="sm"
           className="text-xs"
         >
-          Nota privada (solo visible para agentes)
+          Nota privada (solo visible para vos)
         </Checkbox>
         <div className="flex justify-between items-center">
           <p className="text-xs text-slate-500 dark:text-slate-400">
