@@ -227,7 +227,7 @@ export default function ConversationList({
     isSelected: boolean,
   ) => {
     const baseClasses =
-      "inline-flex items-center gap-2 whitespace-nowrap rounded-full border px-3 py-1.5 text-sm font-medium transition-all duration-150 " +
+      "inline-flex items-center whitespace-nowrap rounded-full border px-3 py-1.5 text-sm font-medium transition-all duration-200 " +
       "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 dark:focus-visible:ring-offset-slate-900 " +
       "active:scale-[0.98] active:translate-y-0"
 
@@ -240,15 +240,15 @@ export default function ConversationList({
         violet: "hover:bg-violet-50 dark:hover:bg-violet-900/20",
       }
 
-      return `${baseClasses} bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 border-slate-200 dark:border-slate-700 hover:-translate-y-[1px] hover:shadow-sm hover:border-slate-300 dark:hover:border-slate-600 ${hoverByTone[option.tone]}`
+      return `${baseClasses} gap-0 scale-x-100 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 border-slate-200 dark:border-slate-700 hover:-translate-y-[1px] hover:shadow-sm hover:border-slate-300 dark:hover:border-slate-600 ${hoverByTone[option.tone]}`
     }
 
     const selectedByTone: Record<string, string> = {
-      amber: "bg-amber-100 dark:bg-amber-900/25 text-amber-800 dark:text-amber-200 border-amber-200 dark:border-amber-700 shadow-sm shadow-amber-500/10 focus-visible:ring-amber-300",
-      emerald: "bg-emerald-100 dark:bg-emerald-900/25 text-emerald-800 dark:text-emerald-200 border-emerald-200 dark:border-emerald-700 shadow-sm shadow-emerald-500/10 focus-visible:ring-emerald-300",
-      rose: "bg-rose-100 dark:bg-rose-900/25 text-rose-800 dark:text-rose-200 border-rose-200 dark:border-rose-700 shadow-sm shadow-rose-500/10 focus-visible:ring-rose-300",
-      slate: "bg-slate-200 dark:bg-slate-700 text-slate-800 dark:text-slate-100 border-slate-300 dark:border-slate-600 shadow-sm shadow-slate-500/10 focus-visible:ring-slate-300",
-      violet: "bg-violet-100 dark:bg-violet-900/25 text-violet-800 dark:text-violet-200 border-violet-200 dark:border-violet-700 shadow-sm shadow-violet-500/10 focus-visible:ring-violet-300",
+      amber: "gap-2 pl-3.5 pr-3.5 scale-x-[1.03] bg-amber-100 dark:bg-amber-900/25 text-amber-800 dark:text-amber-200 border-amber-200 dark:border-amber-700 shadow-sm shadow-amber-500/10 focus-visible:ring-amber-300",
+      emerald: "gap-2 pl-3.5 pr-3.5 scale-x-[1.03] bg-emerald-100 dark:bg-emerald-900/25 text-emerald-800 dark:text-emerald-200 border-emerald-200 dark:border-emerald-700 shadow-sm shadow-emerald-500/10 focus-visible:ring-emerald-300",
+      rose: "gap-2 pl-3.5 pr-3.5 scale-x-[1.03] bg-rose-100 dark:bg-rose-900/25 text-rose-800 dark:text-rose-200 border-rose-200 dark:border-rose-700 shadow-sm shadow-rose-500/10 focus-visible:ring-rose-300",
+      slate: "gap-2 pl-3.5 pr-3.5 scale-x-[1.03] bg-slate-200 dark:bg-slate-700 text-slate-800 dark:text-slate-100 border-slate-300 dark:border-slate-600 shadow-sm shadow-slate-500/10 focus-visible:ring-slate-300",
+      violet: "gap-2 pl-3.5 pr-3.5 scale-x-[1.03] bg-violet-100 dark:bg-violet-900/25 text-violet-800 dark:text-violet-200 border-violet-200 dark:border-violet-700 shadow-sm shadow-violet-500/10 focus-visible:ring-violet-300",
     }
 
     return `${baseClasses} ${selectedByTone[option.tone]}`
@@ -495,7 +495,9 @@ export default function ConversationList({
               className="overflow-x-auto scroll-smooth [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
               aria-label="Filtrar por estado"
             >
-              <div className="flex w-max min-w-full items-center gap-2 py-1 px-8">
+              <div
+                className={`flex w-max min-w-full items-center gap-2 py-1 pr-8 ${canScrollStatusLeft ? "pl-8" : "pl-1"}`}
+              >
                 {statusTrayOptions.map((option) => {
                   const isSelected = selectedStatusFilter === option.key
                   return (
@@ -506,10 +508,9 @@ export default function ConversationList({
                       onClick={() => onStatusFilterChange(option.key)}
                       className={getStatusChipClasses(option, isSelected)}
                     >
-                      <span
-                        className={`h-1.5 w-1.5 rounded-full bg-current transition-opacity ${isSelected ? "opacity-100" : "opacity-0"}`}
-                        aria-hidden="true"
-                      />
+                      {isSelected && (
+                        <span className="h-1.5 w-1.5 rounded-full bg-current" aria-hidden="true" />
+                      )}
                       <span>{option.label}</span>
                     </button>
                   )
