@@ -1,6 +1,6 @@
 "use client"
 
-import { forwardRef, useImperativeHandle, useRef, useEffect, useState, useCallback } from "react"
+import { forwardRef, useImperativeHandle, useRef, useEffect, useState, useCallback, useLayoutEffect } from "react"
 import { Phone, MoreVertical, ArrowLeft, Bot, User, X, Sparkles, UserPlus, Send, Orbit, Tag as TagIcon, Info } from "lucide-react"
 import { toast } from "sonner"
 import Image from "next/image"
@@ -221,6 +221,7 @@ const ChatView = forwardRef<ChatViewRef, ChatViewProps>(
   }, ref) => {
     const messagesEndRef = useRef<HTMLDivElement>(null)
     const scrollContainerRef = useRef<HTMLDivElement>(null)
+    const tabContentInnerRef = useRef<HTMLDivElement>(null)
     const messageInputRef = useRef<MessageInputRef>(null)
     const conversationNotesRef = useRef<ConversationNotesRef>(null)
     const [showSummaryPanel, setShowSummaryPanel] = useState(false)
@@ -231,6 +232,7 @@ const ChatView = forwardRef<ChatViewRef, ChatViewProps>(
     const [intervenirLoading, setIntervenirLoading] = useState(false)
     const [changingStatus, setChangingStatus] = useState(false)
     const [activeTab, setActiveTab] = useState<string>("responder")
+    const [tabContentHeight, setTabContentHeight] = useState<number>(220)
 
     const scrollToBottom = useCallback((behavior: ScrollBehavior = "smooth") => {
       messagesEndRef.current?.scrollIntoView({ behavior })
@@ -254,6 +256,27 @@ const ChatView = forwardRef<ChatViewRef, ChatViewProps>(
     useEffect(() => {
       setActiveTab("responder")
     }, [conversation.id])
+
+    useLayoutEffect(() => {
+      const updateHeight = () => {
+        const el = tabContentInnerRef.current
+        if (!el) return
+        setTabContentHeight(el.scrollHeight)
+      }
+
+      updateHeight()
+      const raf = window.requestAnimationFrame(updateHeight)
+
+      const observer = new ResizeObserver(() => updateHeight())
+      if (tabContentInnerRef.current) {
+        observer.observe(tabContentInnerRef.current)
+      }
+
+      return () => {
+        window.cancelAnimationFrame(raf)
+        observer.disconnect()
+      }
+    }, [activeTab, conversation.id, conversation.messages.length, conversation.status])
 
     // Event listener para cerrar con tecla ESC
     useEffect(() => {
@@ -779,7 +802,7 @@ const ChatView = forwardRef<ChatViewRef, ChatViewProps>(
             
             {/* Tabs Container */}
             <Tabs
-              aria-label="Opciones de conversación"
+              aria-label="Opciones de conversacion"
               selectedKey={activeTab}
               onSelectionChange={(key) => setActiveTab(key as string)}
               classNames={{
@@ -790,41 +813,40 @@ const ChatView = forwardRef<ChatViewRef, ChatViewProps>(
                 tabContent: "text-slate-600 group-data-[selected=true]:text-blue-600"
               }}
             >
-              <Tab 
-                key="responder" 
-                title="Responder"
-              >
-                <div className="p-0">
-                  <MessageInput 
+              <Tab key="responder" title="Responder" />
+              <Tab key="notas" title="Notas del chat" />
+            </Tabs>
+
+            <div
+              className="overflow-hidden transition-[height] duration-300 ease-out"
+              style={{ height: `${tabContentHeight}px` }}
+            >
+              <div ref={tabContentInnerRef}>
+                {activeTab === "notas" ? (
+                  <ConversationNotes
+                    ref={conversationNotesRef}
+                    conversationId={conversation.id}
+                    className="h-[300px] md:h-[400px]"
+                  />
+                ) : (
+                  <MessageInput
                     ref={messageInputRef}
-                    onSendMessage={onSendMessage} 
-                    disabled={!canSendMessages} 
+                    onSendMessage={onSendMessage}
+                    disabled={!canSendMessages}
                     isBlurred={!!canIntervene}
                     messages={conversation.messages}
                     conversationId={conversation.id}
-                    customerName={conversation.customer?.name || ''}
-                    customerPhone={conversation.customer?.phone || ''}
+                    customerName={conversation.customer?.name || ""}
+                    customerPhone={conversation.customer?.phone || ""}
                     onMessageSent={() => {
                       if (onRefreshMessages) {
                         onRefreshMessages()
                       }
                     }}
                   />
-                </div>
-              </Tab>
-              <Tab 
-                key="notas" 
-                title="Notas del chat"
-              >
-                <div className="h-[300px] md:h-[400px]">
-                  <ConversationNotes 
-                    ref={conversationNotesRef}
-                    conversationId={conversation.id}
-                    className="h-full"
-                  />
-                </div>
-              </Tab>
-            </Tabs>
+                )}
+              </div>
+            </div>
           </div>
 
           {/* Conversation Tags Modal */}
@@ -878,3 +900,6 @@ const ChatView = forwardRef<ChatViewRef, ChatViewProps>(
 ChatView.displayName = "ChatView"
 
 export default ChatView
+
+
+
