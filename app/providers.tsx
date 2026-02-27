@@ -6,6 +6,8 @@ import { HeroUIProvider, ToastProvider } from "@heroui/react"
 import { ThemeProvider as NextThemesProvider } from "next-themes"
 import type { ThemeProviderProps } from "next-themes"
 import { CSRConfig } from "@/components/shared/csr-config"
+import AuthRouteGuard from "@/components/shared/auth-route-guard"
+import AuthFeedbackListener from "@/components/shared/auth-feedback-listener"
 import { Toaster } from "sonner"
 
 export interface ProvidersProps {
@@ -18,7 +20,8 @@ export function Providers({ children, themeProps }: ProvidersProps) {
     <HeroUIProvider>
       <NextThemesProvider {...themeProps} attribute="class" defaultTheme="light">
         <CSRConfig />
-        {children}
+        <AuthFeedbackListener />
+        <AuthRouteGuard>{children}</AuthRouteGuard>
         <ToastProvider placement="bottom-right" />
         <Toaster />
       </NextThemesProvider>

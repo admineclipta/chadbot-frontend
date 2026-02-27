@@ -1,6 +1,6 @@
 "use client"
 
-import { forwardRef, useImperativeHandle, useRef, useEffect, useState, useCallback } from "react"
+import { forwardRef, useImperativeHandle, useRef, useEffect, useState, useCallback, useLayoutEffect } from "react"
 import { Phone, MoreVertical, ArrowLeft, Bot, User, X, Sparkles, UserPlus, Send, Orbit, Tag as TagIcon, Info } from "lucide-react"
 import { toast } from "sonner"
 import Image from "next/image"
@@ -21,6 +21,8 @@ import { Badge } from "@/components/ui/badge"
 import MessageStatusIcon from "./message-status-icon"
 import MessageInput from "./message-input"
 import ConversationNotes from "./conversation-notes"
+import type { MessageInputRef } from "./message-input"
+import type { ConversationNotesRef } from "./conversation-notes"
 import AISummaryPanel from "@/components/shared/ai-summary-panel"
 import MessageMarkdown from "@/components/shared/message-markdown"
 import AssignConversationModal from "@/components/modals/assign-conversation-modal"
@@ -219,6 +221,9 @@ const ChatView = forwardRef<ChatViewRef, ChatViewProps>(
   }, ref) => {
     const messagesEndRef = useRef<HTMLDivElement>(null)
     const scrollContainerRef = useRef<HTMLDivElement>(null)
+    const tabContentInnerRef = useRef<HTMLDivElement>(null)
+    const messageInputRef = useRef<MessageInputRef>(null)
+    const conversationNotesRef = useRef<ConversationNotesRef>(null)
     const [showSummaryPanel, setShowSummaryPanel] = useState(false)
     const [showAssignModal, setShowAssignModal] = useState(false)
     const [tagsModalOpen, setTagsModalOpen] = useState(false)
@@ -227,6 +232,7 @@ const ChatView = forwardRef<ChatViewRef, ChatViewProps>(
     const [intervenirLoading, setIntervenirLoading] = useState(false)
     const [changingStatus, setChangingStatus] = useState(false)
     const [activeTab, setActiveTab] = useState<string>("responder")
+    const [tabContentHeight, setTabContentHeight] = useState<number>(220)
 
     const scrollToBottom = useCallback((behavior: ScrollBehavior = "smooth") => {
       messagesEndRef.current?.scrollIntoView({ behavior })
@@ -246,6 +252,31 @@ const ChatView = forwardRef<ChatViewRef, ChatViewProps>(
     useEffect(() => {
       scrollToBottom("auto")
     }, [conversation.id, conversation.messages, scrollToBottom])
+
+    useEffect(() => {
+      setActiveTab("responder")
+    }, [conversation.id])
+
+    useLayoutEffect(() => {
+      const updateHeight = () => {
+        const el = tabContentInnerRef.current
+        if (!el) return
+        setTabContentHeight(el.scrollHeight)
+      }
+
+      updateHeight()
+      const raf = window.requestAnimationFrame(updateHeight)
+
+      const observer = new ResizeObserver(() => updateHeight())
+      if (tabContentInnerRef.current) {
+        observer.observe(tabContentInnerRef.current)
+      }
+
+      return () => {
+        window.cancelAnimationFrame(raf)
+        observer.disconnect()
+      }
+    }, [activeTab, conversation.id, conversation.messages.length, conversation.status])
 
     // Event listener para cerrar con tecla ESC
     useEffect(() => {
@@ -274,6 +305,23 @@ const ChatView = forwardRef<ChatViewRef, ChatViewProps>(
     const isActive = normalizedStatus === 'active'
     const canIntervene = normalizedStatus === 'active' && currentUser
     const canSendMessages = normalizedStatus !== 'closed'
+
+    useEffect(() => {
+      if (loading || error) return
+
+      const rafId = window.requestAnimationFrame(() => {
+        if (activeTab === "notas") {
+          conversationNotesRef.current?.focus()
+          return
+        }
+
+        if (canSendMessages && !canIntervene) {
+          messageInputRef.current?.focus()
+        }
+      })
+
+      return () => window.cancelAnimationFrame(rafId)
+    }, [activeTab, conversation.id, loading, error, canSendMessages, canIntervene])
 
     const getStatusBadgeType = (status: string): 'active' | 'intervened' | 'closed' | 'pending' => {
       switch (normalizeStatus(status)) {
@@ -544,17 +592,19 @@ const ChatView = forwardRef<ChatViewRef, ChatViewProps>(
 
                 {/* Selector de estado */}
                 <Dropdown placement="bottom-end">
-                  <Tooltip content="Cambiar estado">
-                    <DropdownTrigger>
-                      <button 
-                        disabled={changingStatus}
-                        className="p-2 md:p-2.5 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg transition-colors group disabled:opacity-50 disabled:cursor-not-allowed"
-                        aria-label="Cambiar estado"
-                      >
-                        <Orbit className="w-4 h-4 md:w-5 md:h-5 text-slate-600 group-hover:text-blue-600" />
-                      </button>
-                    </DropdownTrigger>
-                  </Tooltip>
+                  <DropdownTrigger>
+                    <span className="inline-flex">
+                      <Tooltip content="Cambiar de estado" placement="bottom">
+                        <button 
+                          disabled={changingStatus}
+                          className="p-2 md:p-2.5 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg transition-colors group disabled:opacity-50 disabled:cursor-not-allowed"
+                          aria-label="Cambiar estado"
+                        >
+                          <Orbit className="w-4 h-4 md:w-5 md:h-5 text-slate-600 group-hover:text-blue-600" />
+                        </button>
+                      </Tooltip>
+                    </span>
+                  </DropdownTrigger>
                   <DropdownMenu aria-label="Estados de conversación">
                     {STATUS_OPTIONS.map((status) => (
                       <DropdownItem
@@ -752,7 +802,7 @@ const ChatView = forwardRef<ChatViewRef, ChatViewProps>(
             
             {/* Tabs Container */}
             <Tabs
-              aria-label="Opciones de conversación"
+              aria-label="Opciones de conversacion"
               selectedKey={activeTab}
               onSelectionChange={(key) => setActiveTab(key as string)}
               classNames={{
@@ -763,39 +813,40 @@ const ChatView = forwardRef<ChatViewRef, ChatViewProps>(
                 tabContent: "text-slate-600 group-data-[selected=true]:text-blue-600"
               }}
             >
-              <Tab 
-                key="responder" 
-                title="Responder"
-              >
-                <div className="p-0">
-                  <MessageInput 
-                    onSendMessage={onSendMessage} 
-                    disabled={!canSendMessages} 
+              <Tab key="responder" title="Responder" />
+              <Tab key="notas" title="Notas del chat" />
+            </Tabs>
+
+            <div
+              className="overflow-hidden transition-[height] duration-300 ease-out"
+              style={{ height: `${tabContentHeight}px` }}
+            >
+              <div ref={tabContentInnerRef}>
+                {activeTab === "notas" ? (
+                  <ConversationNotes
+                    ref={conversationNotesRef}
+                    conversationId={conversation.id}
+                    className="h-[300px] md:h-[400px]"
+                  />
+                ) : (
+                  <MessageInput
+                    ref={messageInputRef}
+                    onSendMessage={onSendMessage}
+                    disabled={!canSendMessages}
                     isBlurred={!!canIntervene}
                     messages={conversation.messages}
                     conversationId={conversation.id}
-                    customerName={conversation.customer?.name || ''}
-                    customerPhone={conversation.customer?.phone || ''}
+                    customerName={conversation.customer?.name || ""}
+                    customerPhone={conversation.customer?.phone || ""}
                     onMessageSent={() => {
                       if (onRefreshMessages) {
                         onRefreshMessages()
                       }
                     }}
                   />
-                </div>
-              </Tab>
-              <Tab 
-                key="notas" 
-                title="Notas del chat"
-              >
-                <div className="h-[300px] md:h-[400px]">
-                  <ConversationNotes 
-                    conversationId={conversation.id}
-                    className="h-full"
-                  />
-                </div>
-              </Tab>
-            </Tabs>
+                )}
+              </div>
+            </div>
           </div>
 
           {/* Conversation Tags Modal */}
@@ -849,3 +900,6 @@ const ChatView = forwardRef<ChatViewRef, ChatViewProps>(
 ChatView.displayName = "ChatView"
 
 export default ChatView
+
+
+

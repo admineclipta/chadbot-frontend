@@ -69,6 +69,13 @@ export function useNotificationsSse({
               : {}),
           },
           async onopen(response) {
+            if (response.status === 401 || response.status === 403) {
+              apiService.handleAuthFailure("unauthorized");
+              isActive = false;
+              controller.abort();
+              throw new Error("SSE unauthorized");
+            }
+
             if (!response.ok) {
               throw new Error(`SSE open failed with ${response.status}`);
             }

@@ -2,7 +2,7 @@
 
 import type React from "react"
 
-import { useState, useRef } from "react"
+import { forwardRef, useImperativeHandle, useRef, useState } from "react"
 import { Button, Textarea, Dropdown, DropdownTrigger, DropdownMenu, DropdownItem, Card, CardBody } from "@heroui/react"
 import { SendIcon, PaperclipIcon, SmileIcon, BoldIcon, ItalicIcon, ListIcon, ImageIcon, FileIcon, MessageSquare, AlertTriangle, VideoIcon, MusicIcon, Type } from "lucide-react"
 import { isOutside24HourWindow } from "@/lib/utils"
@@ -20,7 +20,11 @@ interface MessageInputProps {
   onMessageSent?: () => void
 }
 
-export default function MessageInput({ 
+export interface MessageInputRef {
+  focus: () => void
+}
+
+const MessageInput = forwardRef<MessageInputRef, MessageInputProps>(({ 
   onSendMessage, 
   disabled = false, 
   isBlurred = false,
@@ -29,7 +33,7 @@ export default function MessageInput({
   customerName = "",
   customerPhone = "",
   onMessageSent
-}: MessageInputProps) {
+}, ref) => {
   const [message, setMessage] = useState("")
   const [attachments, setAttachments] = useState<File[]>([])
   const [showTemplateModal, setShowTemplateModal] = useState(false)
@@ -39,6 +43,16 @@ export default function MessageInput({
   const videoInputRef = useRef<HTMLInputElement>(null)
   const audioInputRef = useRef<HTMLInputElement>(null)
   const stickerInputRef = useRef<HTMLInputElement>(null)
+  const composerContainerRef = useRef<HTMLDivElement>(null)
+
+  useImperativeHandle(ref, () => ({
+    focus: () => {
+      const textarea = composerContainerRef.current?.querySelector("textarea")
+      if (textarea instanceof HTMLTextAreaElement && !textarea.disabled) {
+        textarea.focus()
+      }
+    },
+  }), [])
 
   // Validar si está fuera de la ventana de 24 horas
   const isOutsideWindow = isOutside24HourWindow(messages)
@@ -218,7 +232,7 @@ export default function MessageInput({
       )}
 
       {/* Message Input */}
-      <div className="flex gap-2">
+      <div ref={composerContainerRef} className="flex gap-2">
         {/* TODO: Botón de Plantillas - Comentar por el momento */}
         {/*
         <Button
@@ -362,4 +376,8 @@ export default function MessageInput({
       />
     </div>
   )
-}
+})
+
+MessageInput.displayName = "MessageInput"
+
+export default MessageInput

@@ -2,10 +2,15 @@
 
 ## [Unreleased]
 
-- feature: rediseño de `Asistentes` a mapa visual con `reactflow` (flujo izquierda → derecha, nodo derivador destacado, conexiones automáticas estéticas) [#10](https://github.com/admineclipta/chadbot-frontend/pull/10)
-- feature: Formateo markdown en los mensajes de la conversación [#11](https://github.com/admineclipta/chadbot-frontend/pull/11)
+- hotfix: Refactor UI/UX en conversaciones, conversación, asistentes, configuraciones de credenciales [#13](https://github.com/admineclipta/chadbot-frontend/pull/13)
 
 ## [Release]
+
+### v2.3.0
+
+- hotfix: Se soluciona el redireccionamiento de login cuando 401 o rutas mal escritas
+- feature: rediseño de `Asistentes` a mapa visual con `reactflow` (flujo izquierda → derecha, nodo derivador destacado, conexiones automáticas estéticas) [#10](https://github.com/admineclipta/chadbot-frontend/pull/10)
+- feature: Formateo markdown en los mensajes de la conversación [#11](https://github.com/admineclipta/chadbot-frontend/pull/11)
 
 ### v2.2.1
 

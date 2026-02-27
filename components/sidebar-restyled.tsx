@@ -6,6 +6,7 @@ import { MessageCircle, Users, Contact, Bot, Settings, Send, LogOut, ChevronDown
 import { Button as HeroButton, Dropdown, DropdownTrigger, DropdownMenu, DropdownItem } from "@heroui/react"
 import UserAvatar from "./user-avatar"
 import type { User } from "@/lib/types"
+import { clearAuthSession } from "@/lib/auth-session"
 import BulkMessageModal from "./bulk-message-modal"
 import SettingsModal from "./settings-modal"
 import NewChatModal from "./new-chat-modal"
@@ -54,7 +55,7 @@ export default function Sidebar({
   const isAdmin = hasAdminPermissions(user)
 
   const handleLogout = () => {
-    localStorage.removeItem("chadbot_token")
+    clearAuthSession()
     if (onLogout) {
       onLogout()
     } else {

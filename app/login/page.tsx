@@ -1,8 +1,8 @@
 "use client"
 
 import type React from "react"
-import { useState, useRef, useCallback } from "react"
-import { useRouter } from "next/navigation"
+import { useState, useRef, useCallback, useEffect, useMemo } from "react"
+import { useRouter, useSearchParams } from "next/navigation"
 import {
   Card,
   CardBody,
@@ -30,10 +30,17 @@ import { motion, AnimatePresence } from "framer-motion"
 import { apiService, ApiError } from "@/lib/api"
 import type { LoginRequest } from "@/lib/api-types"
 import { config } from "@/lib/config"
+import {
+  buildSafeNextPath,
+  getAuthToken,
+  isTokenExpired,
+  setAuthSession,
+} from "@/lib/auth-session"
 import AppVersionLabel from "@/components/shared/app-version-label"
 
 export default function Login() {
   const router = useRouter()
+  const searchParams = useSearchParams()
   const [usuario, setUsuario] = useState("")
   const [password, setPassword] = useState("")
   const [isVisible, setIsVisible] = useState(false)
@@ -45,6 +52,18 @@ export default function Login() {
   const [showSuperAdminPrompt, setShowSuperAdminPrompt] = useState(false)
   const confettiRef = useRef<HTMLDivElement>(null)
   const currentYear = new Date().getFullYear()
+  const safeNextPath = useMemo(
+    () => buildSafeNextPath(searchParams.get("next")),
+    [searchParams],
+  )
+  const postLoginTarget = safeNextPath ?? "/"
+
+  useEffect(() => {
+    const token = getAuthToken()
+    if (token && !isTokenExpired()) {
+      router.replace(postLoginTarget)
+    }
+  }, [postLoginTarget, router])
 
   // Función para validar email
   const validateEmail = (email: string) => {
@@ -284,7 +303,11 @@ export default function Login() {
             agentId: fullUserData.agentId,
           }
 
-          localStorage.setItem("chadbot_user", JSON.stringify(frontendUserData))
+          setAuthSession({
+            accessToken: response.accessToken,
+            expiresIn: response.expiresIn,
+            user: frontendUserData,
+          })
           console.log("User data saved to localStorage, redirecting...")
 
           if (isSuperAdmin) {
@@ -293,7 +316,7 @@ export default function Login() {
           }
 
           // Redirigir al dashboard
-          router.push("/")
+          router.replace(postLoginTarget)
         } catch (userError) {
           console.error("Failed to fetch user data:", userError)
           setError("Error al cargar los datos del usuario.")
@@ -599,7 +622,7 @@ export default function Login() {
                     variant="light"
                     onPress={() => {
                       onClose()
-                      router.push("/")
+                      router.replace(postLoginTarget)
                     }}
                   >
                     Continuar en Chadbot
