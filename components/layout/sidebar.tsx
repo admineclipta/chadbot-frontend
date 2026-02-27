@@ -7,6 +7,7 @@ import { Button as HeroButton, Dropdown, DropdownTrigger, DropdownMenu, Dropdown
 import UserAvatar from "@/components/management/user-avatar"
 import AppVersionLabel from "@/components/shared/app-version-label"
 import type { User } from "@/lib/types"
+import { clearAuthSession } from "@/lib/auth-session"
 import BulkMessageModal from "@/components/modals/bulk-message-modal"
 import SettingsModal from "@/components/modals/settings-modal"
 import NewChatModal from "@/components/modals/new-chat-modal"
@@ -89,7 +90,7 @@ export default function Sidebar({
   }
 
   const handleLogout = () => {
-    localStorage.removeItem("chadbot_token")
+    clearAuthSession()
     if (onLogout) {
       onLogout()
     } else {
@@ -105,7 +106,7 @@ export default function Sidebar({
       ],
     },
     {
-      title: "Mensajeria",
+      title: "Mensajería",
       items: [
         { id: "conversations", label: "Conversaciones", icon: MessageCircle, badge: conversationsCount, show: true },
         { id: "contacts", label: "Contactos", icon: Contact, show: true },
@@ -113,13 +114,13 @@ export default function Sidebar({
       ],
     },
     {
-      title: "Automatizacion",
+      title: "Inteligencia Artificial",
       items: [
         { id: "assistants", label: "Asistentes", icon: Bot, show: true },
       ],
     },
     {
-      title: "Administracion",
+      title: "Administración",
       items: [
         { id: "users", label: "Usuarios", icon: Users, show: isAdmin },
         { id: "teams", label: "Equipos", icon: Users, show: isAdmin },

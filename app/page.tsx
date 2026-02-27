@@ -30,6 +30,7 @@ import type {
   UserNotificationRealtimeEvent,
 } from "@/lib/api-types"
 import { apiService } from "@/lib/api"
+import { clearAuthSession } from "@/lib/auth-session"
 import { DEBOUNCE_SEARCH_MS } from "@/lib/config"
 import { useApi } from "@/hooks/use-api"
 import { useIsMobile } from "@/hooks/use-mobile"
@@ -944,8 +945,7 @@ export default function Home() {
     } catch (error) {
       console.error("Logout error:", error)
       // Forzar logout local aunque falle la API
-      localStorage.removeItem("chadbot_token")
-      localStorage.removeItem("chadbot_user")
+      clearAuthSession()
       setIsAuthenticated(false)
       setAuthToken(null)
       setPresenceSessionId(nextPresenceSessionId)

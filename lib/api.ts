@@ -1,5 +1,13 @@
 import { config } from "./config";
 import {
+  AUTH_EXPIRED_EVENT,
+  buildSafeNextPath,
+  clearAuthSession,
+  getAuthToken,
+  isTokenExpired,
+  setAuthSession,
+} from "./auth-session";
+import {
   type LoginRequest,
   type LoginResponse,
   type JWTPayload,
@@ -101,13 +109,12 @@ class ApiService {
   private baseUrl: string;
   private token: string | null = null;
   private clientId: string | null = null;
+  private isHandlingAuthFailure = false;
+  private lastAuthFailureAt = 0;
 
   constructor() {
     this.baseUrl = config.apiUrl;
-    this.token =
-      typeof window !== "undefined"
-        ? localStorage.getItem("chadbot_token")
-        : null;
+    this.token = getAuthToken();
 
     // Extraer client_id del token
     if (this.token) {
@@ -137,6 +144,19 @@ class ApiService {
       defaultHeaders["Content-Type"] = "application/json";
     }
 
+    this.token = getAuthToken();
+    const isPublicAuthEndpoint =
+      endpoint === "auth/login" || endpoint.startsWith("auth/reset-password");
+
+    if (!isPublicAuthEndpoint && this.token && isTokenExpired()) {
+      this.handleAuthFailure("expired");
+      throw new ApiError({
+        message: "Sesión expirada. Por favor, inicia sesión nuevamente.",
+        status: 401,
+        errorCode: "AUTH_001",
+      });
+    }
+
     if (this.token) {
       defaultHeaders.Authorization = `Bearer ${this.token}`;
     }
@@ -163,7 +183,7 @@ class ApiService {
 
       // Manejar 401 Unauthorized
       if (response.status === 401) {
-        this.handleUnauthorized();
+        this.handleAuthFailure("unauthorized");
         throw new ApiError({
           message: "Sesión expirada. Por favor, inicia sesión nuevamente.",
           status: 401,
@@ -224,17 +244,54 @@ class ApiService {
     }
   }
 
-  private handleUnauthorized() {
-    // Limpiar credenciales
+  public handleAuthFailure(
+    reason: "expired" | "unauthorized",
+    options: { redirect?: boolean; showToastEvent?: boolean } = {},
+  ) {
+    const { redirect = true, showToastEvent = true } = options;
+    const now = Date.now();
+
+    if (this.isHandlingAuthFailure && now - this.lastAuthFailureAt < 1500) {
+      return;
+    }
+
+    this.isHandlingAuthFailure = true;
+    this.lastAuthFailureAt = now;
+
     this.token = null;
     this.clientId = null;
-    if (typeof window !== "undefined") {
-      localStorage.removeItem("chadbot_token");
-      localStorage.removeItem("chadbot_user");
+    clearAuthSession();
 
-      // Redirigir al login
-      window.location.href = "/login";
+    if (typeof window !== "undefined") {
+      if (showToastEvent) {
+        window.dispatchEvent(
+          new CustomEvent(AUTH_EXPIRED_EVENT, {
+            detail: { reason, at: now },
+          }),
+        );
+      }
+
+      if (redirect) {
+        const currentPath = `${window.location.pathname}${window.location.search}${window.location.hash}`;
+        const safeNext = buildSafeNextPath(currentPath);
+        const isPublicPath =
+          window.location.pathname === "/login" ||
+          window.location.pathname.startsWith("/reset-password");
+
+        let loginUrl = "/login";
+        if (safeNext && !isPublicPath) {
+          loginUrl += `?next=${encodeURIComponent(safeNext)}`;
+        }
+
+        if (window.location.pathname !== "/login") {
+          window.location.replace(loginUrl);
+        }
+      }
     }
+
+    setTimeout(() => {
+      this.isHandlingAuthFailure = false;
+    }, 1200);
   }
 
   // ============================================
@@ -264,21 +321,22 @@ class ApiService {
       // Decodificar token para obtener client_id y datos del usuario
       const payload = decodeJWT(response.accessToken);
       this.clientId = payload?.client_id || null;
-
-      if (typeof window !== "undefined") {
-        localStorage.setItem("chadbot_token", response.accessToken);
-
-        // Extraer datos del usuario del JWT
-        if (payload) {
-          const user = {
+      const jwtUser = payload
+        ? {
             id: payload.sub,
             email: payload.email,
             roles: Array.isArray(payload.roles)
               ? payload.roles
               : [payload.roles],
-          };
-          localStorage.setItem("chadbot_user", JSON.stringify(user));
-        }
+          }
+        : undefined;
+
+      if (typeof window !== "undefined") {
+        setAuthSession({
+          accessToken: response.accessToken,
+          expiresIn: response.expiresIn,
+          user: jwtUser,
+        });
       }
     }
 
@@ -288,11 +346,8 @@ class ApiService {
   async logout(): Promise<void> {
     this.token = null;
     this.clientId = null;
-    if (typeof window !== "undefined") {
-      localStorage.removeItem("chadbot_token");
-      localStorage.removeItem("chadbot_user");
-      console.log("👋 [CHADBOT API] Logged out");
-    }
+    clearAuthSession();
+    console.log("[CHADBOT API] Logged out");
   }
 
   getUserFromToken(token: string): JWTPayload | null {
@@ -1340,15 +1395,18 @@ class ApiService {
     const payload = decodeJWT(token);
     this.clientId = payload?.client_id || null;
 
-    if (typeof window !== "undefined") {
-      localStorage.setItem("chadbot_token", token);
-    }
+    setAuthSession({
+      accessToken: token,
+    });
   }
 
   getToken(): string | null {
-    return this.token;
+    return this.token ?? getAuthToken();
   }
 }
 
 // Singleton instance
 export const apiService = new ApiService();
+
+
+
