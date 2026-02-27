@@ -99,7 +99,7 @@ export default function Home() {
   // Estados para filtros nuevos (Fase 2 - mejorados)
   const [searchTerm, setSearchTerm] = useState<string>("")
   const [selectedChannel, setSelectedChannel] = useState<string | undefined>(undefined)
-  const [selectedStatusFilter, setSelectedStatusFilter] = useState<ConversationStatus | "all">("all")
+  const [selectedStatusFilter, setSelectedStatusFilter] = useState<ConversationStatus | "all">("INTERVENED")
   const [selectedTeam, setSelectedTeam] = useState<string>("")
   const [selectedAgent, setSelectedAgent] = useState<string>("")
   const [selectedTags, setSelectedTags] = useState<string[]>([])
@@ -186,6 +186,14 @@ export default function Home() {
   useEffect(() => {
     setCurrentPage(0)
   }, [searchTerm, selectedChannel, selectedStatusFilter, selectedTeam, selectedAgent, selectedTags, sortBy, sortDirection])
+
+  // Al abrir la vista de conversaciones, la bandeja por defecto es "Intervenida"
+  useEffect(() => {
+    if (currentView !== "conversations") return
+    setSelectedStatusFilter("INTERVENED")
+    setCurrentPage(0)
+    setSelectedConversation(null)
+  }, [currentView])
 
   // TODO: Implementar filtrado por agente en API v1
   // Hook para cargar lista de representantes disponibles
@@ -1184,6 +1192,10 @@ export default function Home() {
                 conversations={conversations}
                 selectedConversation={selectedConversation}
                 onSelectConversation={handleSelectConversation}
+                searchTerm={searchTerm}
+                onSearchChange={setSearchTerm}
+                selectedStatusFilter={selectedStatusFilter}
+                onStatusFilterChange={setSelectedStatusFilter}
                 onUserClick={handleUserClick}
                 loading={conversationsLoading}
                 error={conversationsError}

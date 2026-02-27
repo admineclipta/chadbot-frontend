@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect, useRef, useMemo } from "react"
-import { MessageCircle, Clock, Phone, MoreVertical, Info, Tag as TagIcon, Search, SlidersHorizontal, Users, ChevronDown } from "lucide-react"
+import { MessageCircle, Clock, Phone, MoreVertical, Info, Tag as TagIcon, Search, SlidersHorizontal, Users, ChevronLeft, ChevronRight } from "lucide-react"
 import { 
   Dropdown, 
   DropdownTrigger, 
@@ -24,7 +24,6 @@ import {
 import { toast } from "sonner"
 import Image from "next/image"
 import { Avatar } from "@/components/ui/avatar"
-import { Badge } from "@/components/ui/badge"
 import MessageStatusIcon from "./message-status-icon"
 import MessageTypeIndicator from "./message-type-indicator"
 import ConversationTagsPopover from "@/components/modals/conversation-tags-popover"
@@ -55,6 +54,10 @@ interface ConversationListProps {
   conversations: Conversation[]
   selectedConversation: Conversation | null
   onSelectConversation: (conversation: Conversation) => void
+  searchTerm: string
+  onSearchChange: (value: string) => void
+  selectedStatusFilter: ConversationStatus | "all"
+  onStatusFilterChange: (value: ConversationStatus | "all") => void
   onUserClick?: (userId: string) => void
   loading?: boolean
   error?: string | null
@@ -69,6 +72,14 @@ const statusOptions: { key: ConversationStatus | "all"; label: string; color: "d
   { key: "INTERVENED", label: "Intervenida", color: "warning" },
   { key: "CLOSED", label: "Cerrada", color: "default" },
   { key: "NO_ANSWER", label: "Sin respuesta", color: "danger" },
+]
+
+const statusTrayOptions: { key: ConversationStatus | "all"; label: string; tone: "amber" | "emerald" | "rose" | "slate" | "violet" }[] = [
+  { key: "INTERVENED", label: "Intervenida", tone: "amber" },
+  { key: "ACTIVE", label: "Activa", tone: "emerald" },
+  { key: "NO_ANSWER", label: "Sin respuesta", tone: "rose" },
+  { key: "CLOSED", label: "Cerrada", tone: "slate" },
+  { key: "all", label: "Todos", tone: "violet" },
 ]
 
 const sortFieldOptions: { key: ConversationSortField; label: string }[] = [
@@ -87,6 +98,10 @@ export default function ConversationList({
   conversations,
   selectedConversation,
   onSelectConversation,
+  searchTerm,
+  onSearchChange,
+  selectedStatusFilter,
+  onStatusFilterChange,
   onUserClick,
   loading,
   error,
@@ -102,14 +117,16 @@ export default function ConversationList({
   const [selectedConvForInfo, setSelectedConvForInfo] = useState<Conversation | null>(null)
   const [selectedConvForTags, setSelectedConvForTags] = useState<Conversation | null>(null)
   const [selectedContactId, setSelectedContactId] = useState<string | null>(null)
-  const [searchTerm, setSearchTerm] = useState("")
   const searchInputRef = useRef<HTMLInputElement>(null)
+  const statusTrayRef = useRef<HTMLDivElement>(null)
   const { isOpen: isFiltersOpen, onOpen: onFiltersOpen, onOpenChange: onFiltersOpenChange } = useDisclosure()
   const [newChatModalOpen, setNewChatModalOpen] = useState(false)
   const [bulkMessageModalOpen, setBulkMessageModalOpen] = useState(false)
+  const [canScrollStatusLeft, setCanScrollStatusLeft] = useState(false)
+  const [canScrollStatusRight, setCanScrollStatusRight] = useState(false)
 
   // Estados temporales para el modal de filtros
-  const [tempStatus, setTempStatus] = useState<ConversationStatus | "all">("all")
+  const [tempStatus, setTempStatus] = useState<ConversationStatus | "all">(selectedStatusFilter)
   const [tempChannel, setTempChannel] = useState<string | undefined>(undefined)
   const [tempTeam, setTempTeam] = useState("")
   const [tempAgent, setTempAgent] = useState("")
@@ -166,8 +183,80 @@ export default function ConversationList({
     return () => document.removeEventListener('keydown', handleKeyDown)
   }, [])
 
-  // Aplicar filtros del modal (por ahora solo cierra el modal)
+  useEffect(() => {
+    if (!isFiltersOpen) return
+    setTempStatus(selectedStatusFilter)
+  }, [isFiltersOpen, selectedStatusFilter])
+
+  const updateStatusTrayScrollState = () => {
+    const tray = statusTrayRef.current
+    if (!tray) return
+    const maxScrollLeft = tray.scrollWidth - tray.clientWidth
+    setCanScrollStatusLeft(tray.scrollLeft > 4)
+    setCanScrollStatusRight(maxScrollLeft - tray.scrollLeft > 4)
+  }
+
+  useEffect(() => {
+    const tray = statusTrayRef.current
+    if (!tray) return
+    updateStatusTrayScrollState()
+
+    tray.addEventListener("scroll", updateStatusTrayScrollState)
+    window.addEventListener("resize", updateStatusTrayScrollState)
+
+    return () => {
+      tray.removeEventListener("scroll", updateStatusTrayScrollState)
+      window.removeEventListener("resize", updateStatusTrayScrollState)
+    }
+  }, [])
+
+  useEffect(() => {
+    updateStatusTrayScrollState()
+  }, [selectedStatusFilter])
+
+  const scrollStatusTray = (direction: "left" | "right") => {
+    const tray = statusTrayRef.current
+    if (!tray) return
+    const delta = direction === "left" ? -180 : 180
+    tray.scrollBy({ left: delta, behavior: "smooth" })
+    setTimeout(updateStatusTrayScrollState, 180)
+  }
+
+  const getStatusChipClasses = (
+    option: { key: ConversationStatus | "all"; tone: "amber" | "emerald" | "rose" | "slate" | "violet" },
+    isSelected: boolean,
+  ) => {
+    const baseClasses =
+      "inline-flex items-center gap-2 whitespace-nowrap rounded-full border px-3 py-1.5 text-sm font-medium transition-all duration-150 " +
+      "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 dark:focus-visible:ring-offset-slate-900 " +
+      "active:scale-[0.98] active:translate-y-0"
+
+    if (!isSelected) {
+      const hoverByTone: Record<string, string> = {
+        amber: "hover:bg-amber-50 dark:hover:bg-amber-900/20",
+        emerald: "hover:bg-emerald-50 dark:hover:bg-emerald-900/20",
+        rose: "hover:bg-rose-50 dark:hover:bg-rose-900/20",
+        slate: "hover:bg-slate-100 dark:hover:bg-slate-700",
+        violet: "hover:bg-violet-50 dark:hover:bg-violet-900/20",
+      }
+
+      return `${baseClasses} bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 border-slate-200 dark:border-slate-700 hover:-translate-y-[1px] hover:shadow-sm hover:border-slate-300 dark:hover:border-slate-600 ${hoverByTone[option.tone]}`
+    }
+
+    const selectedByTone: Record<string, string> = {
+      amber: "bg-amber-100 dark:bg-amber-900/25 text-amber-800 dark:text-amber-200 border-amber-200 dark:border-amber-700 shadow-sm shadow-amber-500/10 focus-visible:ring-amber-300",
+      emerald: "bg-emerald-100 dark:bg-emerald-900/25 text-emerald-800 dark:text-emerald-200 border-emerald-200 dark:border-emerald-700 shadow-sm shadow-emerald-500/10 focus-visible:ring-emerald-300",
+      rose: "bg-rose-100 dark:bg-rose-900/25 text-rose-800 dark:text-rose-200 border-rose-200 dark:border-rose-700 shadow-sm shadow-rose-500/10 focus-visible:ring-rose-300",
+      slate: "bg-slate-200 dark:bg-slate-700 text-slate-800 dark:text-slate-100 border-slate-300 dark:border-slate-600 shadow-sm shadow-slate-500/10 focus-visible:ring-slate-300",
+      violet: "bg-violet-100 dark:bg-violet-900/25 text-violet-800 dark:text-violet-200 border-violet-200 dark:border-violet-700 shadow-sm shadow-violet-500/10 focus-visible:ring-violet-300",
+    }
+
+    return `${baseClasses} ${selectedByTone[option.tone]}`
+  }
+
+  // Aplicar filtros del modal (estado sincronizado con filtro principal)
   const handleApplyFilters = () => {
+    onStatusFilterChange(tempStatus)
     // TODO: Implementar lógica de filtrado
     console.log("Filtros aplicados:", {
       status: tempStatus,
@@ -244,36 +333,6 @@ export default function ConversationList({
     setContactInfoModalOpen(true)
   }
 
-  const normalizeStatus = (status: string): string => status.toLowerCase()
-
-  const getStatusBadgeType = (status: string): 'active' | 'intervened' | 'closed' | 'pending' => {
-    switch (normalizeStatus(status)) {
-      case 'active':
-        return 'active'
-      case 'intervened':
-        return 'intervened'
-      case 'closed':
-        return 'closed'
-      default:
-        return 'pending'
-    }
-  }
-
-  const getStatusLabel = (status: string): string => {
-    switch (normalizeStatus(status)) {
-      case 'active':
-        return 'Activa'
-      case 'intervened':
-        return 'Intervenida'
-      case 'closed':
-        return 'Cerrada'
-      case 'no_answer':
-        return 'Sin respuesta'
-      default:
-        return status
-    }
-  }
-
   const getLastMessagePreview = (conversation: Conversation): string => {
     if (conversation.lastMessage) return conversation.lastMessage
 
@@ -295,20 +354,20 @@ export default function ConversationList({
     return "Sin mensajes"
   }
 
-  const getSseChipProps = (state: SseConnectionState) => {
+  const getSseIndicatorProps = (state: SseConnectionState) => {
     switch (state) {
       case "connected":
-        return { color: "success" as const, label: "En vivo" }
+        return { dotClass: "bg-emerald-500", label: "En vivo" }
       case "connecting":
-        return { color: "warning" as const, label: "Reconectando..." }
+        return { dotClass: "bg-amber-500", label: "Reconectando..." }
       case "degraded":
-        return { color: "warning" as const, label: "Modo degradado" }
+        return { dotClass: "bg-amber-500", label: "Modo degradado" }
       default:
-        return { color: "danger" as const, label: "Sin conexión" }
+        return { dotClass: "bg-rose-500", label: "Sin conexión" }
     }
   }
 
-  const sseChip = getSseChipProps(sseConnectionState)
+  const sseIndicator = getSseIndicatorProps(sseConnectionState)
 
   if (loading) {
     return (
@@ -339,9 +398,15 @@ export default function ConversationList({
               <MessageCircle className="h-5 w-5 text-blue-600 dark:text-blue-400" />
               Conversaciones
             </h2>
-            <Chip size="sm" color={sseChip.color} variant="flat">
-              {sseChip.label}
-            </Chip>
+            <div className="relative group">
+              <span
+                className={`block h-2.5 w-2.5 rounded-full ${sseIndicator.dotClass}`}
+                aria-label={sseIndicator.label}
+              />
+              <div className="pointer-events-none absolute left-1/2 top-5 z-20 -translate-x-1/2 whitespace-nowrap rounded-md bg-slate-900 px-2 py-1 text-xs text-white opacity-0 shadow-sm transition-opacity duration-150 group-hover:opacity-100 dark:bg-slate-700">
+                {sseIndicator.label}
+              </div>
+            </div>
             {/*
             TODO: Se comenta el boton de nueva conversacion hasta que esté implementado correctamente
             <Dropdown>
@@ -398,8 +463,8 @@ export default function ConversationList({
                 type="text"
                 placeholder="Buscar conversaciones..."
                 value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="w-full pl-10 pr-16 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                onChange={(e) => onSearchChange(e.target.value)}
+                className="w-full pl-10 pr-16 py-2 text-sm border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               />
               <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none hidden sm:flex items-center gap-1">
                 <Kbd keys={["command"]}>K</Kbd>
@@ -407,10 +472,61 @@ export default function ConversationList({
             </div>
             <button 
               onClick={onFiltersOpen}
-              className="p-2 hover:bg-slate-100 rounded-lg transition-colors"
+              className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-colors"
             >
-              <SlidersHorizontal className="h-5 w-5 text-slate-600" />
+              <SlidersHorizontal className="h-5 w-5 text-slate-600 dark:text-slate-300" />
             </button>
+          </div>
+
+          <div className="relative mt-3">
+            {canScrollStatusLeft && (
+              <button
+                type="button"
+                aria-label="Desplazar estados a la izquierda"
+                onClick={() => scrollStatusTray("left")}
+                className="absolute left-0 top-1/2 z-10 -translate-y-1/2 h-7 w-7 rounded-full bg-white/85 dark:bg-slate-900/85 backdrop-blur-sm text-slate-400 hover:text-slate-600 hover:bg-white dark:text-slate-500 dark:hover:text-slate-200 dark:hover:bg-slate-900 shadow-sm transition-colors"
+              >
+                <ChevronLeft className="mx-auto h-4 w-4" />
+              </button>
+            )}
+
+            <div
+              ref={statusTrayRef}
+              className="overflow-x-auto scroll-smooth [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+              aria-label="Filtrar por estado"
+            >
+              <div className="flex w-max min-w-full items-center gap-2 py-1 px-8">
+                {statusTrayOptions.map((option) => {
+                  const isSelected = selectedStatusFilter === option.key
+                  return (
+                    <button
+                      key={option.key}
+                      type="button"
+                      aria-pressed={isSelected}
+                      onClick={() => onStatusFilterChange(option.key)}
+                      className={getStatusChipClasses(option, isSelected)}
+                    >
+                      <span
+                        className={`h-1.5 w-1.5 rounded-full bg-current transition-opacity ${isSelected ? "opacity-100" : "opacity-0"}`}
+                        aria-hidden="true"
+                      />
+                      <span>{option.label}</span>
+                    </button>
+                  )
+                })}
+              </div>
+            </div>
+
+            {canScrollStatusRight && (
+              <button
+                type="button"
+                aria-label="Desplazar estados a la derecha"
+                onClick={() => scrollStatusTray("right")}
+                className="absolute right-0 top-1/2 z-10 -translate-y-1/2 h-7 w-7 rounded-full bg-white/85 dark:bg-slate-900/85 backdrop-blur-sm text-slate-400 hover:text-slate-600 hover:bg-white dark:text-slate-500 dark:hover:text-slate-200 dark:hover:bg-slate-900 shadow-sm transition-colors"
+              >
+                <ChevronRight className="mx-auto h-4 w-4" />
+              </button>
+            )}
           </div>
         </div>
 
@@ -507,11 +623,6 @@ export default function ConversationList({
 
                         {/* Tags and Channel */}
                         <div className="flex items-center gap-2 flex-wrap">
-                          {/* Status Badge */}
-                          <Badge status={getStatusBadgeType(conversation.status)}>
-                            {getStatusLabel(conversation.status)}
-                          </Badge>
-
                           {/* Channel */}
                           {conversation.integration && (
                             <span className="text-xs text-slate-500 flex items-center gap-1">
