@@ -3,26 +3,29 @@
 import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
 import {
+  Accordion,
+  AccordionItem,
+  Avatar,
+  Button,
   Card,
   CardBody,
   CardHeader,
-  Button,
+  Chip,
   Input,
-  Textarea,
   Select,
   SelectItem,
   SelectSection,
   Spinner,
-  Chip,
-  Avatar,
+  Switch,
+  Textarea,
 } from "@heroui/react"
-import { ArrowLeft, Save, Bot } from "lucide-react"
+import { ArrowLeft, Bot, Save } from "lucide-react"
 import { apiService } from "@/lib/api"
 import type {
-  Assistant,
   AiCredentialResponseDto,
-  Team,
+  Assistant,
   CreateAssistantRequest,
+  Team,
   UpdateAssistantRequest,
 } from "@/lib/api-types"
 import { toast } from "sonner"
@@ -30,11 +33,20 @@ import { toast } from "sonner"
 interface AssistantFormProps {
   assistantId?: string
   onBack?: () => void
+  onSuccess?: () => void
+  mode?: "page" | "drawer-create" | "drawer-edit"
 }
 
-export default function AssistantForm({ assistantId, onBack }: AssistantFormProps) {
+export default function AssistantForm({
+  assistantId,
+  onBack,
+  onSuccess,
+  mode = "page",
+}: AssistantFormProps) {
   const router = useRouter()
   const isEditMode = !!assistantId
+  const isDrawerMode = mode === "drawer-create" || mode === "drawer-edit"
+  const isDrawerCreateMode = mode === "drawer-create" && !isEditMode
 
   const modelSections = [
     {
@@ -85,21 +97,20 @@ export default function AssistantForm({ assistantId, onBack }: AssistantFormProp
     modelSections.flatMap((section) => section.models.map((model) => model.value)),
   )
 
-  // Form states
   const [name, setName] = useState("")
   const [description, setDescription] = useState("")
   const [credentialId, setCredentialId] = useState("")
-  const [teamId, setTeamId] = useState<string>("")
+  const [teamId, setTeamId] = useState("")
   const [systemPrompt, setSystemPrompt] = useState("")
   const [temperature, setTemperature] = useState("")
-  const [model, setModel] = useState("")
+  const [model, setModel] = useState("gpt-5.2")
   const [maxTokens, setMaxTokens] = useState("")
   const [topP, setTopP] = useState("")
   const [presencePenalty, setPresencePenalty] = useState("")
   const [frequencyPenalty, setFrequencyPenalty] = useState("")
   const [isCustomModel, setIsCustomModel] = useState(false)
+  const [isRouter, setIsRouter] = useState(false)
 
-  // Data states
   const [credentials, setCredentials] = useState<AiCredentialResponseDto[]>([])
   const [teams, setTeams] = useState<Team[]>([])
   const [loading, setLoading] = useState(false)
@@ -107,24 +118,20 @@ export default function AssistantForm({ assistantId, onBack }: AssistantFormProp
   const [assistant, setAssistant] = useState<Assistant | null>(null)
 
   useEffect(() => {
-    loadFormData()
+    void loadFormData()
   }, [assistantId])
 
   const loadFormData = async () => {
     try {
       setLoadingData(true)
-
-      // Cargar credenciales y equipos en paralelo
       const [credentialsResponse, teamsResponse] = await Promise.all([
         apiService.getAiCredentials(),
         apiService.getTeams(0, 100),
       ])
 
-      // Filtrar solo credenciales activas
-      setCredentials(credentialsResponse.content.filter(cred => cred.active))
+      setCredentials(credentialsResponse.content.filter((cred) => cred.active))
       setTeams(teamsResponse.content)
 
-      // Si es modo edición, cargar datos del asistente
       if (assistantId) {
         const assistantData = await apiService.getAssistantById(assistantId)
         setAssistant(assistantData)
@@ -151,14 +158,12 @@ export default function AssistantForm({ assistantId, onBack }: AssistantFormProp
             : "",
         )
         setPresencePenalty(
-          metadata.presence_penalty !== undefined &&
-          metadata.presence_penalty !== null
+          metadata.presence_penalty !== undefined && metadata.presence_penalty !== null
             ? String(metadata.presence_penalty)
             : "",
         )
         setFrequencyPenalty(
-          metadata.frequency_penalty !== undefined &&
-          metadata.frequency_penalty !== null
+          metadata.frequency_penalty !== undefined && metadata.frequency_penalty !== null
             ? String(metadata.frequency_penalty)
             : "",
         )
@@ -166,6 +171,22 @@ export default function AssistantForm({ assistantId, onBack }: AssistantFormProp
         const incomingModel = metadata.model || ""
         setModel(incomingModel)
         setIsCustomModel(Boolean(incomingModel && !modelValues.has(incomingModel)))
+        setIsRouter(Boolean(metadata.isRouter))
+      } else {
+        setAssistant(null)
+        setName("")
+        setDescription("")
+        setCredentialId("")
+        setTeamId("")
+        setSystemPrompt("")
+        setTemperature("")
+        setModel("gpt-5.2")
+        setMaxTokens("")
+        setTopP("")
+        setPresencePenalty("")
+        setFrequencyPenalty("")
+        setIsCustomModel(false)
+        setIsRouter(false)
       }
     } catch (error) {
       console.error("Error loading form data:", error)
@@ -188,18 +209,19 @@ export default function AssistantForm({ assistantId, onBack }: AssistantFormProp
       return
     }
 
+    const trimmedSystemPrompt = systemPrompt.trim()
+    if (!isEditMode && !trimmedSystemPrompt) {
+      toast.error("Las instrucciones son obligatorias")
+      return
+    }
+
     try {
       setLoading(true)
 
       const metadata: Record<string, any> = {}
-      const trimmedSystemPrompt = systemPrompt.trim()
       const trimmedModel = model.trim()
-      const parsedTemperature = temperature.trim()
-        ? Number.parseFloat(temperature)
-        : null
-      const parsedMaxTokens = maxTokens.trim()
-        ? Number.parseInt(maxTokens, 10)
-        : null
+      const parsedTemperature = temperature.trim() ? Number.parseFloat(temperature) : null
+      const parsedMaxTokens = maxTokens.trim() ? Number.parseInt(maxTokens, 10) : null
       const parsedTopP = topP.trim() ? Number.parseFloat(topP) : null
       const parsedPresencePenalty = presencePenalty.trim()
         ? Number.parseFloat(presencePenalty)
@@ -208,18 +230,30 @@ export default function AssistantForm({ assistantId, onBack }: AssistantFormProp
         ? Number.parseFloat(frequencyPenalty)
         : null
 
-      if (trimmedSystemPrompt) metadata.system_prompt = trimmedSystemPrompt
-      if (trimmedModel) metadata.model = trimmedModel
-      if (parsedTemperature !== null && !Number.isNaN(parsedTemperature))
+      if (isEditMode) {
+        if (trimmedSystemPrompt) metadata.system_prompt = trimmedSystemPrompt
+        if (trimmedModel) metadata.model = trimmedModel
+      } else {
+        metadata.system_prompt = trimmedSystemPrompt
+        metadata.model = trimmedModel || "gpt-5.2"
+        metadata.isRouter = isRouter
+      }
+
+      if (parsedTemperature !== null && !Number.isNaN(parsedTemperature)) {
         metadata.temperature = parsedTemperature
-      if (parsedMaxTokens !== null && !Number.isNaN(parsedMaxTokens))
+      }
+      if (parsedMaxTokens !== null && !Number.isNaN(parsedMaxTokens)) {
         metadata.max_tokens = parsedMaxTokens
-      if (parsedTopP !== null && !Number.isNaN(parsedTopP))
+      }
+      if (parsedTopP !== null && !Number.isNaN(parsedTopP)) {
         metadata.top_p = parsedTopP
-      if (parsedPresencePenalty !== null && !Number.isNaN(parsedPresencePenalty))
+      }
+      if (parsedPresencePenalty !== null && !Number.isNaN(parsedPresencePenalty)) {
         metadata.presence_penalty = parsedPresencePenalty
-      if (parsedFrequencyPenalty !== null && !Number.isNaN(parsedFrequencyPenalty))
+      }
+      if (parsedFrequencyPenalty !== null && !Number.isNaN(parsedFrequencyPenalty)) {
         metadata.frequency_penalty = parsedFrequencyPenalty
+      }
 
       if (isEditMode) {
         const updateData: UpdateAssistantRequest = {
@@ -237,13 +271,15 @@ export default function AssistantForm({ assistantId, onBack }: AssistantFormProp
           description: description.trim(),
           credentialId,
           ...(teamId && { teamId }),
-          ...(Object.keys(metadata).length > 0 && { metadata }),
+          metadata,
         }
         await apiService.createAssistant(createData)
         toast.success("Asistente creado exitosamente")
       }
 
-      if (onBack) {
+      if (onSuccess) {
+        onSuccess()
+      } else if (onBack) {
         onBack()
       } else {
         router.push("/")
@@ -253,21 +289,122 @@ export default function AssistantForm({ assistantId, onBack }: AssistantFormProp
       toast.error(
         isEditMode
           ? "Error al actualizar el asistente"
-          : "Error al crear el asistente"
+          : "Error al crear el asistente",
       )
     } finally {
       setLoading(false)
     }
   }
 
-  const getTeamInitials = (name: string) => {
-    return name
+  const getTeamInitials = (teamName: string) =>
+    teamName
       .split(" ")
       .map((word) => word[0])
       .join("")
       .toUpperCase()
       .substring(0, 2)
-  }
+
+  const advancedFields = (
+    <div className="grid grid-cols-1 gap-3">
+      <Input
+        label="Temperatura"
+        placeholder="0.7"
+        value={temperature}
+        onValueChange={setTemperature}
+        type="number"
+        step="0.1"
+        min="0"
+        max="2"
+        variant="bordered"
+      />
+
+      <Select
+        label="Modelo"
+        placeholder="Selecciona un modelo"
+        selectedKeys={isCustomModel ? ["custom"] : model ? [model] : []}
+        onSelectionChange={(keys) => {
+          const selected = Array.from(keys)[0] as string
+          if (selected === "custom") {
+            setIsCustomModel(true)
+            setModel("")
+            return
+          }
+          setIsCustomModel(false)
+          setModel(selected || "")
+        }}
+        variant="bordered"
+        description="Por defecto se usa gpt-5.2"
+      >
+        {modelSections.map((section) => (
+          <SelectSection key={section.label} title={section.label}>
+            {section.models.map((option) => (
+              <SelectItem key={option.value}>{option.label}</SelectItem>
+            ))}
+          </SelectSection>
+        ))}
+        <SelectSection title="Personalizado">
+          <SelectItem key="custom">Otro modelo</SelectItem>
+        </SelectSection>
+      </Select>
+
+      {isCustomModel && (
+        <Input
+          label="Modelo personalizado"
+          placeholder="gpt-5.2"
+          value={model}
+          onValueChange={setModel}
+          variant="bordered"
+        />
+      )}
+
+      <Input
+        label="Max tokens"
+        placeholder="2048"
+        value={maxTokens}
+        onValueChange={setMaxTokens}
+        type="number"
+        step="1"
+        min="1"
+        variant="bordered"
+      />
+
+      <Input
+        label="Top P"
+        placeholder="1.0"
+        value={topP}
+        onValueChange={setTopP}
+        type="number"
+        step="0.1"
+        min="0"
+        max="1"
+        variant="bordered"
+      />
+
+      <Input
+        label="Presence penalty"
+        placeholder="0"
+        value={presencePenalty}
+        onValueChange={setPresencePenalty}
+        type="number"
+        step="0.1"
+        min="-2"
+        max="2"
+        variant="bordered"
+      />
+
+      <Input
+        label="Frequency penalty"
+        placeholder="0"
+        value={frequencyPenalty}
+        onValueChange={setFrequencyPenalty}
+        type="number"
+        step="0.1"
+        min="-2"
+        max="2"
+        variant="bordered"
+      />
+    </div>
+  )
 
   if (loadingData) {
     return (
@@ -278,47 +415,46 @@ export default function AssistantForm({ assistantId, onBack }: AssistantFormProp
   }
 
   return (
-    <div className="space-y-6 pb-8">
-      {/* Header */}
-      <div className="flex items-center gap-4">
-        <Button
-          isIconOnly
-          variant="flat"
-          onPress={() => {
-            if (onBack) {
-              onBack()
-            } else {
-              router.push("/")
-            }
-          }}
-        >
-          <ArrowLeft className="w-4 h-4" />
-        </Button>
-        <div>
-          <h1 className="text-3xl font-bold">
-            {isEditMode ? "Editar Asistente" : "Nuevo Asistente"}
-          </h1>
-          <p className="text-default-500 mt-1">
-            {isEditMode
-              ? "Modifica la configuración del asistente"
-              : "Configura un nuevo asistente de IA"}
-          </p>
+    <div className={isDrawerMode ? "space-y-4 pb-2" : "space-y-6 pb-8"}>
+      {!isDrawerMode && (
+        <div className="flex items-center gap-4">
+          <Button
+            isIconOnly
+            variant="flat"
+            onPress={() => {
+              if (onBack) {
+                onBack()
+              } else {
+                router.push("/")
+              }
+            }}
+          >
+            <ArrowLeft className="w-4 h-4" />
+          </Button>
+          <div>
+            <h1 className="text-3xl font-bold">
+              {isEditMode ? "Editar Asistente" : "Nuevo Asistente"}
+            </h1>
+            <p className="text-default-500 mt-1">
+              {isEditMode
+                ? "Modifica la configuracion del asistente"
+                : "Configura un nuevo asistente de IA"}
+            </p>
+          </div>
         </div>
-      </div>
+      )}
 
-      {/* Form */}
       <form onSubmit={handleSubmit}>
-        <Card>
-          <CardHeader>
-            <div className="flex items-center gap-2">
-              <Bot className="w-5 h-5 text-primary" />
-              <span className="text-lg font-semibold">
-                Información del Asistente
-              </span>
-            </div>
-          </CardHeader>
+        <Card className={isDrawerMode ? "border-none shadow-none bg-transparent" : ""}>
+          {!isDrawerMode && (
+            <CardHeader>
+              <div className="flex items-center gap-2">
+                <Bot className="w-5 h-5 text-primary" />
+                <span className="text-lg font-semibold">Informacion del Asistente</span>
+              </div>
+            </CardHeader>
+          )}
           <CardBody className="gap-4">
-            {/* Nombre */}
             <Input
               label="Nombre"
               placeholder="Ej: Asistente de Ventas"
@@ -328,17 +464,15 @@ export default function AssistantForm({ assistantId, onBack }: AssistantFormProp
               variant="bordered"
             />
 
-            {/* Descripción */}
             <Textarea
-              label="Descripción"
-              placeholder="Describe la función de este asistente..."
+              label="Descripcion"
+              placeholder="Describe la funcion de este asistente..."
               value={description}
               onValueChange={setDescription}
               minRows={3}
               variant="bordered"
             />
 
-            {/* Credencial de IA */}
             <Select
               label="Credencial de IA"
               placeholder={
@@ -354,209 +488,96 @@ export default function AssistantForm({ assistantId, onBack }: AssistantFormProp
               isRequired
               variant="bordered"
               isDisabled={credentials.length === 0}
-              renderValue={(items) => {
-                return items.map((item) => {
-                  const credential = credentials.find((c) => c.id === item.key)
-                  if (!credential) return null
-                  return (
-                    <div key={item.key} className="flex items-center gap-2">
-                      <span>{credential.name}</span>
-                      <span className="text-default-500 text-sm">
-                        ({credential.metadata?.model || "Sin modelo"})
-                      </span>
-                    </div>
-                  )
-                })
-              }}
             >
               {credentials.map((credential) => (
-                <SelectItem key={credential.id}>
-                  {credential.name} ({credential.metadata?.model || "Sin modelo"})
-                </SelectItem>
+                <SelectItem key={credential.id}>{credential.name}</SelectItem>
               ))}
             </Select>
 
             {credentials.length === 0 && (
               <p className="text-sm text-warning">
-                No tienes credenciales de IA configuradas. Por favor, configura
-                una antes de crear un asistente.
+                No tienes credenciales de IA configuradas. Configura una antes de crear un asistente.
               </p>
             )}
 
-            {/* Equipo (opcional) */}
-            <Select
-              label="Equipo (Opcional)"
-              placeholder="Selecciona un equipo"
-              selectedKeys={teamId ? [teamId] : []}
-              onSelectionChange={(keys) => {
-                const selected = Array.from(keys)[0] as string
-                setTeamId(selected || "")
-              }}
-              variant="bordered"
-              renderValue={(items) => {
-                return items.map((item) => {
-                  const team = teams.find((t) => t.id === item.key)
-                  if (!team) return null
-                  return (
-                    <div key={item.key} className="flex items-center gap-2">
+            {!isDrawerCreateMode && (
+              <Select
+                label="Equipo (Opcional)"
+                placeholder="Selecciona un equipo"
+                selectedKeys={teamId ? [teamId] : []}
+                onSelectionChange={(keys) => {
+                  const selected = Array.from(keys)[0] as string
+                  setTeamId(selected || "")
+                }}
+                variant="bordered"
+                renderValue={(items) =>
+                  items.map((item) => {
+                    const team = teams.find((t) => t.id === item.key)
+                    if (!team) return null
+                    return (
+                      <div key={item.key} className="flex items-center gap-2">
+                        <Avatar
+                          name={getTeamInitials(team.name)}
+                          size="sm"
+                          className="flex-shrink-0"
+                        />
+                        <span>{team.name}</span>
+                      </div>
+                    )
+                  })
+                }
+              >
+                {teams.map((team) => (
+                  <SelectItem
+                    key={team.id}
+                    startContent={
                       <Avatar
                         name={getTeamInitials(team.name)}
                         size="sm"
                         className="flex-shrink-0"
                       />
-                      <span>{team.name}</span>
-                    </div>
-                  )
-                })
-              }}
-            >
-              {teams.map((team) => (
-                <SelectItem
-                  key={team.id}
-                  startContent={
-                    <Avatar
-                      name={getTeamInitials(team.name)}
-                      size="sm"
-                      className="flex-shrink-0"
-                    />
-                  }
-                >
-                  {team.name}
-                </SelectItem>
-              ))}
-            </Select>
+                    }
+                  >
+                    {team.name}
+                  </SelectItem>
+                ))}
+              </Select>
+            )}
 
-            {/* Metadata - System Prompt */}
             <Textarea
-              label="System Prompt (Opcional)"
-              placeholder="Eres un asistente experto en..."
+              label={isEditMode ? "Instrucciones (Opcional)" : "Instrucciones"}
+              placeholder="Define instrucciones claras para el asistente..."
               value={systemPrompt}
               onValueChange={setSystemPrompt}
               minRows={4}
               variant="bordered"
-              description="Instrucciones base para el comportamiento del asistente"
+              isRequired={!isEditMode}
+              description="Estas instrucciones guian el comportamiento del agente."
             />
 
-            {/* Metadata - Temperature */}
-            <Input
-              label="Temperature (Opcional)"
-              placeholder="0.7"
-              value={temperature}
-              onValueChange={setTemperature}
-              type="number"
-              step="0.1"
-              min="0"
-              max="2"
-              variant="bordered"
-              description="Controla la creatividad (0 = determinista, 2 = muy creativo)"
-            />
+            {isDrawerCreateMode && (
+              <>
+                <div className="rounded-xl border border-slate-200 bg-white/60 p-3 dark:border-slate-700 dark:bg-slate-800/40">
+                  <Switch isSelected={isRouter} onValueChange={setIsRouter}>
+                    Es un agente derivador
+                  </Switch>
+                </div>
 
-            {/* Metadata - Model */}
-            <Select
-              label="Modelo (Opcional)"
-              placeholder="Selecciona un modelo"
-              selectedKeys={
-                isCustomModel
-                  ? ["custom"]
-                  : model
-                  ? [model]
-                  : []
-              }
-              onSelectionChange={(keys) => {
-                const selected = Array.from(keys)[0] as string
-                if (selected === "custom") {
-                  setIsCustomModel(true)
-                  setModel("")
-                  return
-                }
-                setIsCustomModel(false)
-                setModel(selected || "")
-              }}
-              variant="bordered"
-              description="Sobrescribe el modelo de la credencial seleccionada"
-              isClearable
-              onClear={() => {
-                setIsCustomModel(false)
-                setModel("")
-              }}
-            >
-              {modelSections.map((section) => (
-                <SelectSection key={section.label} title={section.label}>
-                  {section.models.map((option) => (
-                    <SelectItem key={option.value}>
-                      {option.label}
-                    </SelectItem>
-                  ))}
-                </SelectSection>
-              ))}
-              <SelectSection title="Personalizado">
-                <SelectItem key="custom">Otro modelo</SelectItem>
-              </SelectSection>
-            </Select>
-
-            {isCustomModel && (
-              <Input
-                label="Modelo personalizado"
-                placeholder="gpt-5.2"
-                value={model}
-                onValueChange={setModel}
-                variant="bordered"
-                description="Ingresa el codigo exacto del modelo"
-              />
+                <Accordion variant="splitted">
+                  <AccordionItem
+                    key="advanced"
+                    aria-label="Opciones avanzadas"
+                    title="Opciones avanzadas"
+                    subtitle="Temperatura, modelo, tokens y penalties"
+                  >
+                    {advancedFields}
+                  </AccordionItem>
+                </Accordion>
+              </>
             )}
 
-            {/* Metadata - Max tokens */}
-            <Input
-              label="Max tokens (Opcional)"
-              placeholder="2048"
-              value={maxTokens}
-              onValueChange={setMaxTokens}
-              type="number"
-              step="1"
-              min="1"
-              variant="bordered"
-            />
+            {!isDrawerCreateMode && advancedFields}
 
-            {/* Metadata - Top P */}
-            <Input
-              label="Top P (Opcional)"
-              placeholder="1.0"
-              value={topP}
-              onValueChange={setTopP}
-              type="number"
-              step="0.1"
-              min="0"
-              max="1"
-              variant="bordered"
-            />
-
-            {/* Metadata - Presence penalty */}
-            <Input
-              label="Presence penalty (Opcional)"
-              placeholder="0"
-              value={presencePenalty}
-              onValueChange={setPresencePenalty}
-              type="number"
-              step="0.1"
-              min="-2"
-              max="2"
-              variant="bordered"
-            />
-
-            {/* Metadata - Frequency penalty */}
-            <Input
-              label="Frequency penalty (Opcional)"
-              placeholder="0"
-              value={frequencyPenalty}
-              onValueChange={setFrequencyPenalty}
-              type="number"
-              step="0.1"
-              min="-2"
-              max="2"
-              variant="bordered"
-            />
-
-            {/* Actions */}
             <div className="flex justify-end gap-2 pt-4">
               <Button
                 variant="flat"
@@ -580,16 +601,15 @@ export default function AssistantForm({ assistantId, onBack }: AssistantFormProp
                 {loading
                   ? "Guardando..."
                   : isEditMode
-                  ? "Actualizar Asistente"
-                  : "Crear Asistente"}
+                    ? "Actualizar Asistente"
+                    : "Crear Asistente"}
               </Button>
             </div>
           </CardBody>
         </Card>
       </form>
 
-      {/* Status Info (solo en modo edición) */}
-      {isEditMode && assistant && (
+      {isEditMode && assistant && !isDrawerCreateMode && (
         <Card>
           <CardHeader>
             <span className="text-lg font-semibold">Estado del Asistente</span>

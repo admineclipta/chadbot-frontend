@@ -10,6 +10,10 @@ import {
   CardHeader,
   Chip,
   Divider,
+  Drawer,
+  DrawerBody,
+  DrawerContent,
+  DrawerHeader,
   Input,
   Modal,
   ModalBody,
@@ -45,8 +49,6 @@ import AssistantForm from "@/components/management/assistant-form"
 import { useIsMobile } from "@/hooks/use-mobile"
 import { apiService } from "@/lib/api"
 import type { Assistant, UpdateAssistantRequest } from "@/lib/api-types"
-
-type AssistantView = "map" | "create" | "edit"
 const CREATE_ROOT_NODE_ID = "__create_root__"
 const CREATE_ROUTER_NODE_PREFIX = "__create_router__"
 const CREATE_SPECIALIZED_NODE_PREFIX = "__create_specialized__"
@@ -215,7 +217,6 @@ function getMergedMetadata(assistant: Assistant, patch: Record<string, unknown>)
 export default function AssistantManagement() {
   const isMobile = useIsMobile()
 
-  const [currentAssistantView, setCurrentAssistantView] = useState<AssistantView>("map")
   const [editingAssistantId, setEditingAssistantId] = useState<string | null>(null)
 
   const [assistants, setAssistants] = useState<Assistant[]>([])
@@ -234,15 +235,16 @@ export default function AssistantManagement() {
   const [isPreviewModalOpen, setIsPreviewModalOpen] = useState(false)
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false)
   const [isDefaultModalOpen, setIsDefaultModalOpen] = useState(false)
+  const [isCreateDrawerOpen, setIsCreateDrawerOpen] = useState(false)
 
   const handleEdit = useCallback((id: string) => {
     setEditingAssistantId(id)
-    setCurrentAssistantView("edit")
+    setIsCreateDrawerOpen(true)
   }, [])
 
   const handleCreate = useCallback(() => {
     setEditingAssistantId(null)
-    setCurrentAssistantView("create")
+    setIsCreateDrawerOpen(true)
   }, [])
 
   const updateAssistantMetadata = useCallback(
@@ -318,12 +320,6 @@ export default function AssistantManagement() {
       setLoading(false)
     }
   }, [handleNormalizeRouters])
-
-  const handleBackToMap = useCallback(() => {
-    setCurrentAssistantView("map")
-    setEditingAssistantId(null)
-    void loadAssistants()
-  }, [loadAssistants])
 
   useEffect(() => {
     void loadAssistants()
@@ -662,19 +658,6 @@ export default function AssistantManagement() {
     })
   }
 
-  if (currentAssistantView === "create" || currentAssistantView === "edit") {
-    return (
-      <div className="p-6 h-full overflow-y-auto">
-        <div className="mx-auto max-w-7xl">
-          <AssistantForm
-            assistantId={editingAssistantId || undefined}
-            onBack={handleBackToMap}
-          />
-        </div>
-      </div>
-    )
-  }
-
   return (
     <div className="p-4 md:p-6 h-full overflow-y-auto">
       <div className="mx-auto flex h-full max-w-7xl flex-col gap-4">
@@ -736,7 +719,11 @@ export default function AssistantManagement() {
             <Spinner size="lg" color="primary" />
           </div>
         ) : (
-          <div className={`grid flex-1 grid-cols-1 gap-4 ${selectedAssistantModel ? "lg:grid-cols-[1fr_320px]" : ""}`}>
+          <div
+            className={`grid flex-1 grid-cols-1 gap-4 ${
+              selectedAssistantModel ? "lg:grid-cols-[1fr_320px]" : ""
+            }`}
+          >
             <Card className="min-h-[520px] border border-slate-200 dark:border-slate-700">
               <CardBody className="p-0">
                 <div className={isMobile ? "h-[560px]" : "h-[calc(100vh-260px)] min-h-[540px]"}>
@@ -772,6 +759,13 @@ export default function AssistantManagement() {
               </CardBody>
             </Card>
 
+            <div
+              className={`overflow-hidden transition-all duration-300 ease-out ${
+                selectedAssistantModel
+                  ? "w-full opacity-100 translate-x-0 lg:min-w-[320px]"
+                  : "w-0 opacity-0 translate-x-4 pointer-events-none"
+              }`}
+            >
             {selectedAssistantModel && (
             <Card className="border border-slate-200 dark:border-slate-700">
               <CardHeader className="flex flex-col items-start gap-1">
@@ -866,9 +860,55 @@ export default function AssistantManagement() {
               </CardBody>
             </Card>
             )}
+            </div>
           </div>
         )}
       </div>
+
+      <Drawer
+        isOpen={isCreateDrawerOpen}
+        placement="right"
+        size={isMobile ? "full" : "xl"}
+        onOpenChange={(open) => {
+          setIsCreateDrawerOpen(open)
+          if (!open) {
+            setEditingAssistantId(null)
+          }
+        }}
+      >
+        <DrawerContent>
+          {(onClose) => (
+            <>
+              <div className="pointer-events-none absolute left-0 top-0 h-full w-6 bg-gradient-to-r from-white/70 to-transparent backdrop-blur-sm dark:from-slate-900/70" />
+              <DrawerHeader className="border-b border-slate-200 dark:border-slate-700">
+                <div>
+                  <p className="text-lg font-semibold text-slate-900 dark:text-white">
+                    {editingAssistantId ? "Editar Asistente" : "Nuevo Asistente"}
+                  </p>
+                  <p className="text-sm text-slate-500 dark:text-slate-300">
+                    Configura opciones basicas y avanzadas del agente.
+                  </p>
+                </div>
+              </DrawerHeader>
+              <DrawerBody className="py-4">
+                <AssistantForm
+                  assistantId={editingAssistantId || undefined}
+                  mode={editingAssistantId ? "drawer-edit" : "drawer-create"}
+                  onBack={() => {
+                    setEditingAssistantId(null)
+                    onClose()
+                  }}
+                  onSuccess={() => {
+                    setEditingAssistantId(null)
+                    onClose()
+                    void loadAssistants()
+                  }}
+                />
+              </DrawerBody>
+            </>
+          )}
+        </DrawerContent>
+      </Drawer>
 
       <Modal
         isOpen={isPreviewModalOpen}
