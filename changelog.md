@@ -2,9 +2,11 @@
 
 ## [Unreleased]
 
-- hotfix: Refactor UI/UX en conversaciones, conversación, asistentes, configuraciones de credenciales [#13](https://github.com/admineclipta/chadbot-frontend/pull/13)
-
 ## [Release]
+
+### v2.4.0
+
+- hotfix: Refactor UI/UX en conversaciones, conversación, asistentes, configuraciones de credenciales [#13](https://github.com/admineclipta/chadbot-frontend/pull/13)
 
 ### v2.3.0
 
