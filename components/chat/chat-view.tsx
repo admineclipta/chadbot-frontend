@@ -21,6 +21,8 @@ import { Badge } from "@/components/ui/badge"
 import MessageStatusIcon from "./message-status-icon"
 import MessageInput from "./message-input"
 import ConversationNotes from "./conversation-notes"
+import type { MessageInputRef } from "./message-input"
+import type { ConversationNotesRef } from "./conversation-notes"
 import AISummaryPanel from "@/components/shared/ai-summary-panel"
 import MessageMarkdown from "@/components/shared/message-markdown"
 import AssignConversationModal from "@/components/modals/assign-conversation-modal"
@@ -219,6 +221,8 @@ const ChatView = forwardRef<ChatViewRef, ChatViewProps>(
   }, ref) => {
     const messagesEndRef = useRef<HTMLDivElement>(null)
     const scrollContainerRef = useRef<HTMLDivElement>(null)
+    const messageInputRef = useRef<MessageInputRef>(null)
+    const conversationNotesRef = useRef<ConversationNotesRef>(null)
     const [showSummaryPanel, setShowSummaryPanel] = useState(false)
     const [showAssignModal, setShowAssignModal] = useState(false)
     const [tagsModalOpen, setTagsModalOpen] = useState(false)
@@ -247,6 +251,10 @@ const ChatView = forwardRef<ChatViewRef, ChatViewProps>(
       scrollToBottom("auto")
     }, [conversation.id, conversation.messages, scrollToBottom])
 
+    useEffect(() => {
+      setActiveTab("responder")
+    }, [conversation.id])
+
     // Event listener para cerrar con tecla ESC
     useEffect(() => {
       const handleEscape = (event: KeyboardEvent) => {
@@ -274,6 +282,23 @@ const ChatView = forwardRef<ChatViewRef, ChatViewProps>(
     const isActive = normalizedStatus === 'active'
     const canIntervene = normalizedStatus === 'active' && currentUser
     const canSendMessages = normalizedStatus !== 'closed'
+
+    useEffect(() => {
+      if (loading || error) return
+
+      const rafId = window.requestAnimationFrame(() => {
+        if (activeTab === "notas") {
+          conversationNotesRef.current?.focus()
+          return
+        }
+
+        if (canSendMessages && !canIntervene) {
+          messageInputRef.current?.focus()
+        }
+      })
+
+      return () => window.cancelAnimationFrame(rafId)
+    }, [activeTab, conversation.id, loading, error, canSendMessages, canIntervene])
 
     const getStatusBadgeType = (status: string): 'active' | 'intervened' | 'closed' | 'pending' => {
       switch (normalizeStatus(status)) {
@@ -771,6 +796,7 @@ const ChatView = forwardRef<ChatViewRef, ChatViewProps>(
               >
                 <div className="p-0">
                   <MessageInput 
+                    ref={messageInputRef}
                     onSendMessage={onSendMessage} 
                     disabled={!canSendMessages} 
                     isBlurred={!!canIntervene}
@@ -792,6 +818,7 @@ const ChatView = forwardRef<ChatViewRef, ChatViewProps>(
               >
                 <div className="h-[300px] md:h-[400px]">
                   <ConversationNotes 
+                    ref={conversationNotesRef}
                     conversationId={conversation.id}
                     className="h-full"
                   />

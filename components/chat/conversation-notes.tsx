@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from "react"
 import { Textarea, Button, Card, Spinner, Avatar, Checkbox } from "@heroui/react"
 import { Trash2, Edit2, Plus, Save, X } from "lucide-react"
 import { toast } from "sonner"
@@ -13,7 +13,11 @@ interface ConversationNotesProps {
   className?: string
 }
 
-export default function ConversationNotes({ conversationId, className = "" }: ConversationNotesProps) {
+export interface ConversationNotesRef {
+  focus: () => void
+}
+
+const ConversationNotes = forwardRef<ConversationNotesRef, ConversationNotesProps>(({ conversationId, className = "" }, ref) => {
   const [notes, setNotes] = useState<NoteResponseDto[]>([])
   const [loading, setLoading] = useState(false)
   const [newNoteContent, setNewNoteContent] = useState("")
@@ -25,6 +29,16 @@ export default function ConversationNotes({ conversationId, className = "" }: Co
   const [page, setPage] = useState(0)
   const [hasMore, setHasMore] = useState(false)
   const [totalElements, setTotalElements] = useState(0)
+  const composerContainerRef = useRef<HTMLDivElement>(null)
+
+  useImperativeHandle(ref, () => ({
+    focus: () => {
+      const textarea = composerContainerRef.current?.querySelector("textarea")
+      if (textarea instanceof HTMLTextAreaElement && !textarea.disabled) {
+        textarea.focus()
+      }
+    },
+  }), [])
 
   useEffect(() => {
     loadNotes()
@@ -283,7 +297,7 @@ export default function ConversationNotes({ conversationId, className = "" }: Co
       </div>
 
       {/* Input para nueva nota */}
-      <div className="p-4 border-t border-slate-200 dark:border-slate-700 space-y-2">
+      <div ref={composerContainerRef} className="p-4 border-t border-slate-200 dark:border-slate-700 space-y-2">
         <Textarea
           value={newNoteContent}
           onChange={(e) => setNewNoteContent(e.target.value)}
@@ -326,4 +340,8 @@ export default function ConversationNotes({ conversationId, className = "" }: Co
       </div>
     </div>
   )
-}
+})
+
+ConversationNotes.displayName = "ConversationNotes"
+
+export default ConversationNotes
