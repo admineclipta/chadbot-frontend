@@ -126,3 +126,14 @@ export function buildSafeNextPath(input: string | null): string | null {
     return null;
   }
 }
+
+function normalizePathname(pathname: string): string {
+  if (!pathname) return "/";
+  if (pathname === "/") return "/";
+  return pathname.endsWith("/") ? pathname.slice(0, -1) : pathname;
+}
+
+export function isPublicAuthPath(pathname: string): boolean {
+  const normalized = normalizePathname(pathname);
+  return normalized === "/login" || normalized === "/reset-password";
+}
