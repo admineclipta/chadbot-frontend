@@ -223,9 +223,9 @@ export default function UserManagement() {
   }
 
   const buildResetUrl = (tokenHash: string) => {
-    if (typeof window === "undefined") return `/reset-password?h=${tokenHash}`
+    if (typeof window === "undefined") return `/reset-password/?h=${tokenHash}`
     const { origin } = window.location
-    return `${origin}/reset-password?h=${tokenHash}`
+    return `${origin}/reset-password/?h=${tokenHash}`
   }
 
   const handleResetPasswordToken = async (user: UserDto) => {

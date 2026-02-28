@@ -22,8 +22,8 @@ export default function ResetPasswordClient({ token }: ResetPasswordClientProps)
 
   const resetUrl = useMemo(() => {
     if (!token) return ""
-    if (typeof window === "undefined") return `/reset-password?h=${token}`
-    return `${window.location.origin}/reset-password?h=${token}`
+    if (typeof window === "undefined") return `/reset-password/?h=${token}`
+    return `${window.location.origin}/reset-password/?h=${token}`
   }, [token])
 
   const validate = () => {

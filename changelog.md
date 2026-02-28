@@ -4,6 +4,10 @@
 
 ## [Release]
 
+### v2.4.1
+
+- hotfix: Redireccionamiento de reiniciar contraseña no funcionaba
+
 ### v2.4.0
 
 - hotfix: Refactor UI/UX en conversaciones, conversación, asistentes, configuraciones de credenciales [#13](https://github.com/admineclipta/chadbot-frontend/pull/13)
