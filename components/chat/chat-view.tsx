@@ -21,6 +21,7 @@ import { Badge } from "@/components/ui/badge"
 import MessageStatusIcon from "./message-status-icon"
 import MessageInput from "./message-input"
 import ConversationNotes from "./conversation-notes"
+import ChatViewSkeleton, { OlderMessagesSkeleton } from "./chat-view-skeleton"
 import type { MessageInputRef } from "./message-input"
 import type { ConversationNotesRef } from "./conversation-notes"
 import AISummaryPanel from "@/components/shared/ai-summary-panel"
@@ -549,12 +550,11 @@ const ChatView = forwardRef<ChatViewRef, ChatViewProps>(
       }
     }
 
-    if (loading) {
-      return (
-        <div className="flex-1 flex items-center justify-center bg-slate-50 dark:bg-slate-900">
-          <div className="w-12 h-12 border-4 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
-        </div>
-      )
+    const isInitialMessagesLoading =
+      Boolean(loading) && (!conversation.messages || conversation.messages.length === 0)
+
+    if (isInitialMessagesLoading) {
+      return <ChatViewSkeleton showBackButton={Boolean(onCloseChat)} />
     }
 
     if (error) {
@@ -656,6 +656,11 @@ const ChatView = forwardRef<ChatViewRef, ChatViewProps>(
 
               {/* Acciones */}
               <div className="flex items-center gap-1 md:gap-2 flex-shrink-0">
+                {loading && (
+                  <span className="text-xs text-slate-500 dark:text-slate-400 animate-pulse hidden sm:inline">
+                    Actualizando...
+                  </span>
+                )}
                 {/* TODO: Botón de IA - Comentar por el momento */}
                 {/*
                 <button 
@@ -733,9 +738,7 @@ const ChatView = forwardRef<ChatViewRef, ChatViewProps>(
             className="flex-1 overflow-y-auto p-4 md:p-6 space-y-4 min-h-0"
           >
             {loadingOlderMessages && (
-              <div className="flex items-center justify-center py-2">
-                <div className="h-5 w-5 animate-spin rounded-full border-2 border-blue-600 border-t-transparent" />
-              </div>
+              <OlderMessagesSkeleton />
             )}
             {conversation.messages && conversation.messages.length > 0 ? (
               conversation.messages.map((message) => {

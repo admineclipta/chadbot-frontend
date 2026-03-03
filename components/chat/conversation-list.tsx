@@ -34,6 +34,8 @@ import NewChatModal from "@/components/modals/new-chat-modal"
 import BulkMessageModal from "@/components/modals/bulk-message-modal"
 import SearchableSelect from "@/components/shared/searchable-select"
 import SearchableMultiSelect from "@/components/shared/searchable-multi-select"
+import ConversationListSkeleton from "./conversation-list-skeleton"
+import FilterControlsSkeleton from "./filter-controls-skeleton"
 import type { Conversation } from "@/lib/types"
 import type {
   ConversationStatus,
@@ -375,6 +377,7 @@ export default function ConversationList({
   }
 
   const sseIndicator = getSseIndicatorProps(sseConnectionState)
+  const isInitialLoading = Boolean(loading) && conversations.length === 0
 
   useEffect(() => {
     const container = conversationsContainerRef.current
@@ -398,14 +401,6 @@ export default function ConversationList({
     }
   }, [conversations.length, hasMore, loadingMore, onLoadMore])
 
-  if (loading) {
-    return (
-      <div className="w-96 border-r border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 flex items-center justify-center">
-        <div className="w-8 h-8 border-4 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
-      </div>
-    )
-  }
-
   if (error) {
     return (
       <div className="w-96 border-r border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 flex items-center justify-center p-4">
@@ -427,6 +422,11 @@ export default function ConversationList({
               <MessageCircle className="h-5 w-5 text-blue-600 dark:text-blue-400" />
               Conversaciones
             </h2>
+            {loading && !isInitialLoading && (
+              <span className="text-xs text-slate-500 dark:text-slate-400 animate-pulse">
+                Actualizando...
+              </span>
+            )}
             <div className="relative group">
               <span
                 className={`block h-2.5 w-2.5 rounded-full ${sseIndicator.dotClass}`}
@@ -562,7 +562,9 @@ export default function ConversationList({
 
       {/* Conversations List */}
       <div ref={conversationsContainerRef} className="flex-1 overflow-y-auto">
-        {conversations.length === 0 ? (
+        {isInitialLoading ? (
+          <ConversationListSkeleton />
+        ) : conversations.length === 0 ? (
           <div className="flex items-center justify-center h-full p-4">
             <div className="text-center">
               <MessageCircle className="h-12 w-12 text-slate-300 mx-auto mb-3" />
@@ -731,8 +733,11 @@ export default function ConversationList({
               )
             })}
             {loadingMore && (
-              <div className="flex items-center justify-center py-4">
-                <div className="h-6 w-6 animate-spin rounded-full border-2 border-blue-600 border-t-transparent" />
+              <div className="py-4 px-4">
+                <div className="animate-pulse space-y-2">
+                  <div className="h-3 w-24 mx-auto rounded bg-slate-200 dark:bg-slate-700/70" />
+                  <div className="h-2 w-36 mx-auto rounded bg-slate-200 dark:bg-slate-700/70" />
+                </div>
               </div>
             )}
             {!hasMore && conversations.length > 0 && (
@@ -826,8 +831,8 @@ export default function ConversationList({
                 <div>
                   <label className="text-sm font-medium mb-2 block">Canal de Mensajería</label>
                   {channelsLoading ? (
-                    <div className="flex items-center justify-center py-8">
-                      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+                    <div className="py-2">
+                      <FilterControlsSkeleton />
                     </div>
                   ) : (
                     <Select

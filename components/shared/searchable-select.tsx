@@ -9,7 +9,6 @@ import {
   PopoverContent,
   Listbox,
   ListboxItem,
-  Spinner,
 } from "@heroui/react"
 import { Search, ChevronDown, X } from "lucide-react"
 
@@ -147,10 +146,13 @@ export default function SearchableSelect<T>({
                 <ChevronDown className={`w-4 h-4 text-default-400 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
               </div>
             }
-            isLoading={isLoading}
           >
             <div className="flex-1 text-left truncate text-sm">
-              {displayValue}
+              {isLoading ? (
+                <div className="h-4 w-4/5 rounded bg-slate-200 dark:bg-slate-700/70 animate-pulse" />
+              ) : (
+                displayValue
+              )}
             </div>
           </Button>
         </PopoverTrigger>
@@ -177,9 +179,7 @@ export default function SearchableSelect<T>({
             {/* Lista de items */}
             <div className="max-h-[300px] overflow-y-auto">
               {isLoading ? (
-                <div className="flex justify-center items-center py-6">
-                  <Spinner size="sm" />
-                </div>
+                renderListSkeleton()
               ) : filteredItems.length === 0 ? (
                 <div className="py-6 text-center text-sm text-default-400">
                   {searchValue ? "No se encontraron resultados" : "No hay elementos disponibles"}
@@ -190,6 +190,7 @@ export default function SearchableSelect<T>({
                   selectionMode="single"
                   selectedKeys={selectedKey ? [selectedKey] : []}
                   onSelectionChange={(keys) => {
+                    if (isLoading) return
                     const key = Array.from(keys)[0] as string
                     if (key) handleSelect(key)
                   }}
@@ -198,6 +199,7 @@ export default function SearchableSelect<T>({
                     <ListboxItem
                       key={getKey(item)}
                       textValue={getTextValue(item)}
+                      isDisabled={isLoading}
                     >
                       {renderItem(item)}
                     </ListboxItem>
@@ -220,3 +222,10 @@ export default function SearchableSelect<T>({
     </div>
   )
 }
+  const renderListSkeleton = () => (
+    <div className="space-y-2 p-3" aria-hidden="true">
+      {Array.from({ length: 5 }).map((_, index) => (
+        <div key={index} className="h-8 w-full rounded bg-slate-200 dark:bg-slate-700/70 animate-pulse" />
+      ))}
+    </div>
+  )
