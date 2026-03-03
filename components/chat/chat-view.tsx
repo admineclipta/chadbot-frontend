@@ -21,6 +21,7 @@ import { Badge } from "@/components/ui/badge"
 import MessageStatusIcon from "./message-status-icon"
 import MessageInput from "./message-input"
 import ConversationNotes from "./conversation-notes"
+import ChatViewSkeleton, { OlderMessagesSkeleton } from "./chat-view-skeleton"
 import type { MessageInputRef } from "./message-input"
 import type { ConversationNotesRef } from "./conversation-notes"
 import AISummaryPanel from "@/components/shared/ai-summary-panel"
@@ -193,7 +194,9 @@ interface ChatViewProps {
   error?: string | null
   onConversationUpdate?: (conversation: Conversation) => void
   onCloseChat?: () => void
-  onLoadOlderMessages?: (messages: Message[]) => void
+  onLoadOlderMessages?: () => Promise<number>
+  hasMoreMessages?: boolean
+  loadingOlderMessages?: boolean
   onRefreshMessages?: () => void
   autoRefreshInterval?: number
   onAutoRefreshIntervalChange?: (interval: number) => void
@@ -216,6 +219,9 @@ const ChatView = forwardRef<ChatViewRef, ChatViewProps>(
     error, 
     onConversationUpdate, 
     onCloseChat, 
+    onLoadOlderMessages,
+    hasMoreMessages = false,
+    loadingOlderMessages = false,
     onRefreshMessages,
     currentUser,
   }, ref) => {
@@ -224,6 +230,10 @@ const ChatView = forwardRef<ChatViewRef, ChatViewProps>(
     const tabContentInnerRef = useRef<HTMLDivElement>(null)
     const messageInputRef = useRef<MessageInputRef>(null)
     const conversationNotesRef = useRef<ConversationNotesRef>(null)
+    const pendingScrollAdjustRef = useRef<{ prevScrollHeight: number; prevScrollTop: number } | null>(null)
+    const loadingOlderRef = useRef(false)
+    const prevConversationIdRef = useRef<string>(conversation.id)
+    const prevMessageCountRef = useRef<number>(conversation.messages.length)
     const [showSummaryPanel, setShowSummaryPanel] = useState(false)
     const [showAssignModal, setShowAssignModal] = useState(false)
     const [tagsModalOpen, setTagsModalOpen] = useState(false)
@@ -250,8 +260,77 @@ const ChatView = forwardRef<ChatViewRef, ChatViewProps>(
     }))
 
     useEffect(() => {
-      scrollToBottom("auto")
-    }, [conversation.id, conversation.messages, scrollToBottom])
+      const conversationChanged = prevConversationIdRef.current !== conversation.id
+      const previousCount = prevMessageCountRef.current
+      const currentCount = conversation.messages.length
+      const initialMessagesLoaded = previousCount === 0 && currentCount > 0
+
+      if (
+        (conversationChanged || initialMessagesLoaded) &&
+        !pendingScrollAdjustRef.current
+      ) {
+        scrollToBottom("auto")
+      }
+
+      prevConversationIdRef.current = conversation.id
+      prevMessageCountRef.current = currentCount
+    }, [conversation.id, conversation.messages.length, scrollToBottom])
+
+    const tryLoadOlderMessages = useCallback(async () => {
+      if (
+        !onLoadOlderMessages ||
+        !hasMoreMessages ||
+        loadingOlderMessages ||
+        loadingOlderRef.current
+      ) {
+        return
+      }
+
+      const container = scrollContainerRef.current
+      if (!container) return
+
+      loadingOlderRef.current = true
+      pendingScrollAdjustRef.current = {
+        prevScrollHeight: container.scrollHeight,
+        prevScrollTop: container.scrollTop,
+      }
+
+      try {
+        const added = await onLoadOlderMessages()
+        if (!added) {
+          pendingScrollAdjustRef.current = null
+        }
+      } finally {
+        loadingOlderRef.current = false
+      }
+    }, [hasMoreMessages, loadingOlderMessages, onLoadOlderMessages])
+
+    useEffect(() => {
+      const container = scrollContainerRef.current
+      if (!container || !onLoadOlderMessages) return
+
+      const topThresholdPx = 80
+      const handleScroll = () => {
+        if (container.scrollTop <= topThresholdPx) {
+          void tryLoadOlderMessages()
+        }
+      }
+
+      container.addEventListener("scroll", handleScroll)
+      return () => {
+        container.removeEventListener("scroll", handleScroll)
+      }
+    }, [onLoadOlderMessages, tryLoadOlderMessages])
+
+    useLayoutEffect(() => {
+      const pending = pendingScrollAdjustRef.current
+      const container = scrollContainerRef.current
+      if (!pending || !container) return
+
+      const heightDiff = container.scrollHeight - pending.prevScrollHeight
+      container.scrollTop = pending.prevScrollTop + Math.max(heightDiff, 0)
+      pendingScrollAdjustRef.current = null
+    }, [conversation.messages.length])
 
     useEffect(() => {
       setActiveTab("responder")
@@ -471,12 +550,11 @@ const ChatView = forwardRef<ChatViewRef, ChatViewProps>(
       }
     }
 
-    if (loading) {
-      return (
-        <div className="flex-1 flex items-center justify-center bg-slate-50 dark:bg-slate-900">
-          <div className="w-12 h-12 border-4 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
-        </div>
-      )
+    const isInitialMessagesLoading =
+      Boolean(loading) && (!conversation.messages || conversation.messages.length === 0)
+
+    if (isInitialMessagesLoading) {
+      return <ChatViewSkeleton showBackButton={Boolean(onCloseChat)} />
     }
 
     if (error) {
@@ -578,6 +656,11 @@ const ChatView = forwardRef<ChatViewRef, ChatViewProps>(
 
               {/* Acciones */}
               <div className="flex items-center gap-1 md:gap-2 flex-shrink-0">
+                {loading && (
+                  <span className="text-xs text-slate-500 dark:text-slate-400 animate-pulse hidden sm:inline">
+                    Actualizando...
+                  </span>
+                )}
                 {/* TODO: Botón de IA - Comentar por el momento */}
                 {/*
                 <button 
@@ -654,6 +737,9 @@ const ChatView = forwardRef<ChatViewRef, ChatViewProps>(
             ref={scrollContainerRef}
             className="flex-1 overflow-y-auto p-4 md:p-6 space-y-4 min-h-0"
           >
+            {loadingOlderMessages && (
+              <OlderMessagesSkeleton />
+            )}
             {conversation.messages && conversation.messages.length > 0 ? (
               conversation.messages.map((message) => {
                 const isSent = message.sender === 'agent' || message.sender === 'bot'

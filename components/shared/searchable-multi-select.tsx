@@ -10,7 +10,6 @@ import {
   Checkbox,
   Chip,
   ScrollShadow,
-  Spinner,
 } from "@heroui/react"
 import { Search, ChevronDown, X } from "lucide-react"
 
@@ -172,10 +171,13 @@ export default function SearchableMultiSelect<T>({
                 <ChevronDown className={`w-4 h-4 text-default-400 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
               </div>
             }
-            isLoading={isLoading}
           >
             <div className="flex-1 text-left text-sm">
-              {displayValue}
+              {isLoading ? (
+                <div className="h-4 w-4/5 rounded bg-slate-200 dark:bg-slate-700/70 animate-pulse" />
+              ) : (
+                displayValue
+              )}
             </div>
           </Button>
         </PopoverTrigger>
@@ -202,9 +204,7 @@ export default function SearchableMultiSelect<T>({
             {/* Lista de items */}
             <ScrollShadow className="max-h-[300px]">
               {isLoading ? (
-                <div className="flex justify-center items-center py-6">
-                  <Spinner size="sm" />
-                </div>
+                renderListSkeleton()
               ) : filteredItems.length === 0 ? (
                 <div className="py-6 text-center text-sm text-default-400">
                   {searchValue ? "No se encontraron resultados" : "No hay elementos disponibles"}
@@ -219,10 +219,14 @@ export default function SearchableMultiSelect<T>({
                       <div
                         key={key}
                         className="flex items-center gap-2 px-3 py-2 hover:bg-default-100 cursor-pointer transition-colors"
-                        onClick={() => handleToggle(key)}
+                        onClick={() => {
+                          if (isLoading) return
+                          handleToggle(key)
+                        }}
                       >
                         <Checkbox
                           isSelected={isSelected}
+                          isDisabled={isLoading}
                           size="sm"
                           classNames={{
                             wrapper: "shrink-0",
@@ -261,3 +265,10 @@ export default function SearchableMultiSelect<T>({
     </div>
   )
 }
+  const renderListSkeleton = () => (
+    <div className="space-y-2 p-3" aria-hidden="true">
+      {Array.from({ length: 5 }).map((_, index) => (
+        <div key={index} className="h-8 w-full rounded bg-slate-200 dark:bg-slate-700/70 animate-pulse" />
+      ))}
+    </div>
+  )

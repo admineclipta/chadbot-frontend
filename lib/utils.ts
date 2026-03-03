@@ -32,6 +32,19 @@ export function generatePastelColor(seed: string): string {
 // Funciones de formateo de fecha centralizadas para Argentina
 const ARGENTINA_TIMEZONE = "America/Argentina/Buenos_Aires";
 
+function getDayKeyInTimezone(date: Date, timeZone: string): string {
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(date);
+}
+
+function dayKeyToUtcTimestamp(dayKey: string): number {
+  return new Date(`${dayKey}T00:00:00.000Z`).getTime();
+}
+
 export function formatMessageTime(date: Date): string {
   const formatted = new Intl.DateTimeFormat("es-AR", {
     day: "2-digit",
@@ -50,38 +63,53 @@ export function formatMessageTime(date: Date): string {
 }
 
 export function formatConversationTime(date: Date): string {
-  // Validar que la fecha sea válida
+  // Validar que la fecha sea valida
   if (!date || isNaN(date.getTime())) {
     return "--";
   }
 
-  const now = new Date();
+  const todayKey = getDayKeyInTimezone(new Date(), ARGENTINA_TIMEZONE);
+  const messageKey = getDayKeyInTimezone(date, ARGENTINA_TIMEZONE);
+  const dayDiff = Math.floor(
+    (dayKeyToUtcTimestamp(todayKey) - dayKeyToUtcTimestamp(messageKey)) /
+      86_400_000,
+  );
 
-  // Obtener fecha de hoy en Argentina
-  const todayInArgentina = new Date().toLocaleDateString("en-CA", {
-    timeZone: ARGENTINA_TIMEZONE,
-  }); // formato YYYY-MM-DD
-  const messageDateInArgentina = date.toLocaleDateString("en-CA", {
-    timeZone: ARGENTINA_TIMEZONE,
-  });
-
-  const isSameDay = todayInArgentina === messageDateInArgentina;
-
-  if (isSameDay) {
-    // Si es hoy, mostrar solo la hora
+  if (dayDiff === 0) {
+    // Hoy: mostrar solo la hora en 24h
     return new Intl.DateTimeFormat("es-AR", {
       hour: "2-digit",
       minute: "2-digit",
-      timeZone: ARGENTINA_TIMEZONE,
-    }).format(date);
-  } else {
-    // Si es otro día, mostrar día/mes
-    return new Intl.DateTimeFormat("es-AR", {
-      day: "2-digit",
-      month: "2-digit",
+      hour12: false,
       timeZone: ARGENTINA_TIMEZONE,
     }).format(date);
   }
+
+  if (dayDiff === 1) {
+    return "Ayer";
+  }
+
+  if (dayDiff >= 2 && dayDiff <= 6) {
+    const weekday = new Intl.DateTimeFormat("es-AR", {
+      weekday: "long",
+      timeZone: ARGENTINA_TIMEZONE,
+    }).format(date);
+
+    return weekday.charAt(0).toUpperCase() + weekday.slice(1);
+  }
+
+  const parts = new Intl.DateTimeFormat("es-AR", {
+    day: "2-digit",
+    month: "numeric",
+    year: "numeric",
+    timeZone: ARGENTINA_TIMEZONE,
+  }).formatToParts(date);
+
+  const day = parts.find((part) => part.type === "day")?.value ?? "--";
+  const month = parts.find((part) => part.type === "month")?.value ?? "--";
+  const year = parts.find((part) => part.type === "year")?.value ?? "----";
+
+  return `${day}/${month}/${year}`;
 }
 
 export function formatDate(date: Date): string {
@@ -215,3 +243,4 @@ export function getRemainingTimeIn24HourWindow(
     return `${minutes}m`;
   }
 }
+

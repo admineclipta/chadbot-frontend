@@ -34,6 +34,8 @@ import NewChatModal from "@/components/modals/new-chat-modal"
 import BulkMessageModal from "@/components/modals/bulk-message-modal"
 import SearchableSelect from "@/components/shared/searchable-select"
 import SearchableMultiSelect from "@/components/shared/searchable-multi-select"
+import ConversationListSkeleton from "./conversation-list-skeleton"
+import FilterControlsSkeleton from "./filter-controls-skeleton"
 import type { Conversation } from "@/lib/types"
 import type {
   ConversationStatus,
@@ -61,6 +63,9 @@ interface ConversationListProps {
   onUserClick?: (userId: string) => void
   loading?: boolean
   error?: string | null
+  hasMore?: boolean
+  loadingMore?: boolean
+  onLoadMore?: () => void
   currentPage?: number
   totalPages?: number
   onPageChange?: (page: number) => void
@@ -105,6 +110,9 @@ export default function ConversationList({
   onUserClick,
   loading,
   error,
+  hasMore = false,
+  loadingMore = false,
+  onLoadMore,
   currentPage = 0,
   totalPages = 1,
   onPageChange,
@@ -118,6 +126,7 @@ export default function ConversationList({
   const [selectedConvForTags, setSelectedConvForTags] = useState<Conversation | null>(null)
   const [selectedContactId, setSelectedContactId] = useState<string | null>(null)
   const searchInputRef = useRef<HTMLInputElement>(null)
+  const conversationsContainerRef = useRef<HTMLDivElement>(null)
   const statusTrayRef = useRef<HTMLDivElement>(null)
   const { isOpen: isFiltersOpen, onOpen: onFiltersOpen, onOpenChange: onFiltersOpenChange } = useDisclosure()
   const [newChatModalOpen, setNewChatModalOpen] = useState(false)
@@ -368,14 +377,29 @@ export default function ConversationList({
   }
 
   const sseIndicator = getSseIndicatorProps(sseConnectionState)
+  const isInitialLoading = Boolean(loading) && conversations.length === 0
 
-  if (loading) {
-    return (
-      <div className="w-96 border-r border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 flex items-center justify-center">
-        <div className="w-8 h-8 border-4 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
-      </div>
-    )
-  }
+  useEffect(() => {
+    const container = conversationsContainerRef.current
+    if (!container || !onLoadMore) return
+
+    const thresholdPx = 120
+    const handleScroll = () => {
+      if (loadingMore || !hasMore) return
+      const distanceToBottom =
+        container.scrollHeight - container.scrollTop - container.clientHeight
+      if (distanceToBottom <= thresholdPx) {
+        onLoadMore()
+      }
+    }
+
+    container.addEventListener("scroll", handleScroll)
+    handleScroll()
+
+    return () => {
+      container.removeEventListener("scroll", handleScroll)
+    }
+  }, [conversations.length, hasMore, loadingMore, onLoadMore])
 
   if (error) {
     return (
@@ -398,6 +422,11 @@ export default function ConversationList({
               <MessageCircle className="h-5 w-5 text-blue-600 dark:text-blue-400" />
               Conversaciones
             </h2>
+            {loading && !isInitialLoading && (
+              <span className="text-xs text-slate-500 dark:text-slate-400 animate-pulse">
+                Actualizando...
+              </span>
+            )}
             <div className="relative group">
               <span
                 className={`block h-2.5 w-2.5 rounded-full ${sseIndicator.dotClass}`}
@@ -532,8 +561,10 @@ export default function ConversationList({
         </div>
 
       {/* Conversations List */}
-      <div className="flex-1 overflow-y-auto">
-        {conversations.length === 0 ? (
+      <div ref={conversationsContainerRef} className="flex-1 overflow-y-auto">
+        {isInitialLoading ? (
+          <ConversationListSkeleton />
+        ) : conversations.length === 0 ? (
           <div className="flex items-center justify-center h-full p-4">
             <div className="text-center">
               <MessageCircle className="h-12 w-12 text-slate-300 mx-auto mb-3" />
@@ -701,35 +732,22 @@ export default function ConversationList({
                 </div>
               )
             })}
+            {loadingMore && (
+              <div className="py-4 px-4">
+                <div className="animate-pulse space-y-2">
+                  <div className="h-3 w-24 mx-auto rounded bg-slate-200 dark:bg-slate-700/70" />
+                  <div className="h-2 w-36 mx-auto rounded bg-slate-200 dark:bg-slate-700/70" />
+                </div>
+              </div>
+            )}
+            {!hasMore && conversations.length > 0 && (
+              <div className="py-4 text-center text-xs text-slate-500 dark:text-slate-400">
+                No hay mas conversaciones
+              </div>
+            )}
           </div>
         )}
       </div>
-
-      {/* Pagination */}
-      {totalPages > 1 && onPageChange && (
-        <div className="p-4 border-t border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900">
-          <div className="flex items-center justify-between">
-            <button
-              onClick={() => onPageChange(currentPage)}
-              disabled={currentPage === 0}
-              className="px-3 py-1.5 text-sm font-medium text-slate-700 bg-slate-100 rounded-lg hover:bg-slate-200 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-            >
-              Anterior
-            </button>
-            <span className="text-sm text-slate-600">
-              Página {currentPage + 1} de {totalPages}
-            </span>
-            <button
-              onClick={() => onPageChange(currentPage + 2)}
-              disabled={currentPage >= totalPages - 1}
-              className="px-3 py-1.5 text-sm font-medium text-slate-700 bg-slate-100 rounded-lg hover:bg-slate-200 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-            >
-              Siguiente
-            </button>
-          </div>
-        </div>
-      )}
-
       {/* Modals */}
       {infoModalOpen && selectedConvForInfo && (
         <ConversationInfoModal
@@ -813,8 +831,8 @@ export default function ConversationList({
                 <div>
                   <label className="text-sm font-medium mb-2 block">Canal de Mensajería</label>
                   {channelsLoading ? (
-                    <div className="flex items-center justify-center py-8">
-                      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+                    <div className="py-2">
+                      <FilterControlsSkeleton />
                     </div>
                   ) : (
                     <Select
@@ -1065,3 +1083,4 @@ export default function ConversationList({
     </>
   )
 }
+

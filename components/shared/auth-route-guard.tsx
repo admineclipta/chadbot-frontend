@@ -6,6 +6,7 @@ import {
   AUTH_STORAGE_KEYS,
   buildSafeNextPath,
   getAuthToken,
+  isPublicAuthPath,
   isTokenExpired,
 } from "@/lib/auth-session";
 
@@ -14,7 +15,8 @@ interface AuthRouteGuardProps {
 }
 
 function isPublicPath(pathname: string): boolean {
-  return pathname === "/login" || pathname.startsWith("/reset-password");
+  if (isPublicAuthPath(pathname)) return true;
+  return pathname.startsWith("/reset-password/");
 }
 
 function buildCurrentPath(pathname: string, search: string): string {
@@ -36,7 +38,7 @@ export default function AuthRouteGuard({ children }: AuthRouteGuardProps) {
     const hasValidSession = Boolean(token) && !isTokenExpired();
 
     if (publicPath) {
-      if (pathname === "/login" && hasValidSession) {
+      if (isPublicAuthPath(pathname) && pathname.replace(/\/+$/, "") === "/login" && hasValidSession) {
         const requestedNext = buildSafeNextPath(nextFromQuery);
         router.replace(requestedNext ?? "/");
         return;

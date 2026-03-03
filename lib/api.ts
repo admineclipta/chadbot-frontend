@@ -4,6 +4,7 @@ import {
   buildSafeNextPath,
   clearAuthSession,
   getAuthToken,
+  isPublicAuthPath,
   isTokenExpired,
   setAuthSession,
 } from "./auth-session";
@@ -275,15 +276,15 @@ class ApiService {
         const currentPath = `${window.location.pathname}${window.location.search}${window.location.hash}`;
         const safeNext = buildSafeNextPath(currentPath);
         const isPublicPath =
-          window.location.pathname === "/login" ||
-          window.location.pathname.startsWith("/reset-password");
+          isPublicAuthPath(window.location.pathname) ||
+          window.location.pathname.startsWith("/reset-password/");
 
         let loginUrl = "/login";
         if (safeNext && !isPublicPath) {
           loginUrl += `?next=${encodeURIComponent(safeNext)}`;
         }
 
-        if (window.location.pathname !== "/login") {
+        if (!isPublicAuthPath(window.location.pathname)) {
           window.location.replace(loginUrl);
         }
       }
