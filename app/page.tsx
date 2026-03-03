@@ -93,8 +93,11 @@ export default function Home() {
   const [currentPage, setCurrentPage] = useState<number>(0)
   const [totalPages, setTotalPages] = useState<number>(0)
   const [totalElements, setTotalElements] = useState<number>(0)
-  const [hasMoreConversations, setHasMoreConversations] = useState<boolean>(false)
+  const [hasMoreConversations, setHasMoreConversations] = useState<boolean>(true)
   const [loadingMore, setLoadingMore] = useState<boolean>(false)
+  const [messagesPage, setMessagesPage] = useState<number>(0)
+  const [hasMoreMessages, setHasMoreMessages] = useState<boolean>(false)
+  const [loadingOlderMessages, setLoadingOlderMessages] = useState<boolean>(false)
 
   // Estados para filtros nuevos (Fase 2 - mejorados)
   const [searchTerm, setSearchTerm] = useState<string>("")
@@ -163,11 +166,12 @@ export default function Home() {
     DEBOUNCE_SEARCH_MS
   )
 
-  // Función para cambiar de página
-  const handlePageChange = useCallback((page: number) => {
-    setCurrentPage(page - 1) // HeroUI Pagination es 1-indexed, API es 0-indexed
-    setSelectedConversation(null) // Limpiar conversación seleccionada al cambiar de página
-  }, [])
+  const handleLoadMoreConversations = useCallback(() => {
+    if (conversations.length === 0) return
+    if (loadingMore || conversationsLoading || !hasMoreConversations) return
+    setLoadingMore(true)
+    setCurrentPage((prev) => prev + 1)
+  }, [conversations.length, conversationsLoading, hasMoreConversations, loadingMore])
 
   // Función para limpiar todos los filtros
   const handleClearFilters = useCallback(() => {
@@ -179,19 +183,28 @@ export default function Home() {
     setSelectedTags([])
     setSortBy("updatedAt")
     setSortDirection("DESC")
+    setConversations([])
     setCurrentPage(0)
+    setHasMoreConversations(true)
+    setLoadingMore(false)
   }, [])
 
   // Resetear a página 0 cuando cambian los filtros
   useEffect(() => {
+    setConversations([])
     setCurrentPage(0)
+    setHasMoreConversations(true)
+    setLoadingMore(false)
   }, [searchTerm, selectedChannel, selectedStatusFilter, selectedTeam, selectedAgent, selectedTags, sortBy, sortDirection])
 
   // Al abrir la vista de conversaciones, la bandeja por defecto es "Intervenida"
   useEffect(() => {
     if (currentView !== "conversations") return
     setSelectedStatusFilter("INTERVENED")
+    setConversations([])
     setCurrentPage(0)
+    setHasMoreConversations(true)
+    setLoadingMore(false)
     setSelectedConversation(null)
   }, [currentView])
 
@@ -215,6 +228,12 @@ export default function Home() {
       selectedConversation ? apiService.getMessages(selectedConversation.id, 0, 20) : Promise.resolve(null),
     [selectedConversation?.id],
   )
+
+  useEffect(() => {
+    setMessagesPage(0)
+    setHasMoreMessages(false)
+    setLoadingOlderMessages(false)
+  }, [selectedConversation?.id])
 
   const getMessageFileUrl = useCallback((file?: any): string | null => {
     if (!file) return null
@@ -333,6 +352,8 @@ export default function Home() {
             lastMessage: nextMessages[nextMessages.length - 1]?.content || prev.lastMessage,
           }
         })
+        setMessagesPage(response.page)
+        setHasMoreMessages(!response.last)
       } catch (error) {
         console.error("[SSE] Failed re-syncing selected conversation messages", error)
       }
@@ -893,25 +914,44 @@ export default function Home() {
   // Actualizar conversaciones cuando lleguen de la API
   useEffect(() => {
     if (apiConversaciones) {
-      // API v1 con mapper automático - ya viene en formato domain
-      setConversations(apiConversaciones.content)
-      
-      // Actualizar información de paginación
+      // API v1 con mapper automatico - ya viene en formato domain
+      setConversations((prev) => {
+        if (apiConversaciones.page === 0) {
+          return apiConversaciones.content
+        }
+
+        const merged = [...prev, ...apiConversaciones.content]
+        const deduped = new Map<string, Conversation>()
+        merged.forEach((conv) => {
+          deduped.set(conv.id, conv)
+        })
+
+        return Array.from(deduped.values())
+      })
+
+      // Actualizar informacion de paginacion
       setTotalPages(apiConversaciones.totalPages)
       setTotalElements(apiConversaciones.totalElements)
       setHasMoreConversations(apiConversaciones.page < apiConversaciones.totalPages - 1)
+      setLoadingMore(false)
     }
   }, [apiConversaciones])
+
+  useEffect(() => {
+    if (conversationsError) {
+      setLoadingMore(false)
+    }
+  }, [conversationsError])
 
   // Actualizar mensajes cuando lleguen de la API
   useEffect(() => {
     if (apiMensajesResponse && selectedConversation) {
       // API v1 retorna MessageListResponse con nueva estructura
       const mappedMessages = apiMensajesResponse.content.map(mapApiMessageToDomain)
-      
-      // Como vienen ordenados DESC (más reciente primero), invertimos para orden cronológico
-      const sortedMessages = mappedMessages.reverse();
-      
+
+      // Como vienen ordenados DESC (mas reciente primero), invertimos para orden cronologico
+      const sortedMessages = mappedMessages.reverse()
+
       setSelectedConversation((prev) =>
         prev
           ? {
@@ -921,20 +961,52 @@ export default function Home() {
             }
           : null,
       )
+      setMessagesPage(apiMensajesResponse.page)
+      setHasMoreMessages(!apiMensajesResponse.last)
+      setLoadingOlderMessages(false)
     }
-  }, [apiMensajesResponse, mapApiMessageToDomain]) // Remover selectedConversation de las dependencias para evitar el loop infinito
+  }, [apiMensajesResponse, mapApiMessageToDomain, selectedConversation?.id])
 
-  // Función para manejar la carga de mensajes más antiguos
-  const handleLoadOlderMessages = useCallback((olderMessages: Message[]) => {
-    setSelectedConversation((prev) =>
-      prev
-        ? {
-            ...prev,
-            messages: [...olderMessages, ...prev.messages], // Agregar al inicio
-          }
-        : null,
-    )
-  }, [])
+  const handleLoadOlderMessages = useCallback(async (): Promise<number> => {
+    if (!selectedConversation || loadingOlderMessages || !hasMoreMessages) {
+      return 0
+    }
+
+    const nextPage = messagesPage + 1
+
+    try {
+      setLoadingOlderMessages(true)
+      const response = await apiService.getMessages(
+        selectedConversation.id,
+        nextPage,
+        20,
+      )
+      const olderMessages = response.content.map(mapApiMessageToDomain).reverse()
+      let added = 0
+
+      setSelectedConversation((prev) => {
+        if (!prev || prev.id !== selectedConversation.id) return prev
+
+        const existingIds = new Set(prev.messages.map((msg) => msg.id))
+        const uniqueOlder = olderMessages.filter((msg) => !existingIds.has(msg.id))
+        added = uniqueOlder.length
+
+        return {
+          ...prev,
+          messages: [...uniqueOlder, ...prev.messages],
+        }
+      })
+
+      setMessagesPage(response.page)
+      setHasMoreMessages(!response.last)
+      return added
+    } catch (error) {
+      console.error("Error loading older messages:", error)
+      return 0
+    } finally {
+      setLoadingOlderMessages(false)
+    }
+  }, [hasMoreMessages, loadingOlderMessages, mapApiMessageToDomain, messagesPage, selectedConversation])
 
   const handleRefreshMessages = useCallback(async () => {
     if (!selectedConversation) return
@@ -1146,6 +1218,8 @@ export default function Home() {
     setConversations([])
     // Resetear paginación
     setCurrentPage(0)
+    setHasMoreConversations(true)
+    setLoadingMore(false)
     setSelectedChannel(channel)
   }, [])
 
@@ -1197,11 +1271,11 @@ export default function Home() {
                 selectedStatusFilter={selectedStatusFilter}
                 onStatusFilterChange={setSelectedStatusFilter}
                 onUserClick={handleUserClick}
-                loading={conversationsLoading}
+                loading={conversationsLoading && currentPage === 0}
                 error={conversationsError}
-                currentPage={currentPage}
-                totalPages={totalPages}
-                onPageChange={handlePageChange}
+                hasMore={hasMoreConversations}
+                loadingMore={loadingMore}
+                onLoadMore={handleLoadMoreConversations}
                 sseConnectionState={sseConnectionState}
               />
             </div>
@@ -1222,6 +1296,8 @@ export default function Home() {
                   onConversationUpdate={handleConversationUpdate}
                   onCloseChat={handleCloseChat}
                   onLoadOlderMessages={handleLoadOlderMessages}
+                  hasMoreMessages={hasMoreMessages}
+                  loadingOlderMessages={loadingOlderMessages}
                   onRefreshMessages={handleRefreshMessages}
                   initialPaginationInfo={null}
                   currentUser={user}
@@ -1316,3 +1392,4 @@ export default function Home() {
     </div>
   )
 }
+

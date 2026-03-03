@@ -61,6 +61,9 @@ interface ConversationListProps {
   onUserClick?: (userId: string) => void
   loading?: boolean
   error?: string | null
+  hasMore?: boolean
+  loadingMore?: boolean
+  onLoadMore?: () => void
   currentPage?: number
   totalPages?: number
   onPageChange?: (page: number) => void
@@ -105,6 +108,9 @@ export default function ConversationList({
   onUserClick,
   loading,
   error,
+  hasMore = false,
+  loadingMore = false,
+  onLoadMore,
   currentPage = 0,
   totalPages = 1,
   onPageChange,
@@ -118,6 +124,7 @@ export default function ConversationList({
   const [selectedConvForTags, setSelectedConvForTags] = useState<Conversation | null>(null)
   const [selectedContactId, setSelectedContactId] = useState<string | null>(null)
   const searchInputRef = useRef<HTMLInputElement>(null)
+  const conversationsContainerRef = useRef<HTMLDivElement>(null)
   const statusTrayRef = useRef<HTMLDivElement>(null)
   const { isOpen: isFiltersOpen, onOpen: onFiltersOpen, onOpenChange: onFiltersOpenChange } = useDisclosure()
   const [newChatModalOpen, setNewChatModalOpen] = useState(false)
@@ -369,6 +376,28 @@ export default function ConversationList({
 
   const sseIndicator = getSseIndicatorProps(sseConnectionState)
 
+  useEffect(() => {
+    const container = conversationsContainerRef.current
+    if (!container || !onLoadMore) return
+
+    const thresholdPx = 120
+    const handleScroll = () => {
+      if (loadingMore || !hasMore) return
+      const distanceToBottom =
+        container.scrollHeight - container.scrollTop - container.clientHeight
+      if (distanceToBottom <= thresholdPx) {
+        onLoadMore()
+      }
+    }
+
+    container.addEventListener("scroll", handleScroll)
+    handleScroll()
+
+    return () => {
+      container.removeEventListener("scroll", handleScroll)
+    }
+  }, [conversations.length, hasMore, loadingMore, onLoadMore])
+
   if (loading) {
     return (
       <div className="w-96 border-r border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 flex items-center justify-center">
@@ -532,7 +561,7 @@ export default function ConversationList({
         </div>
 
       {/* Conversations List */}
-      <div className="flex-1 overflow-y-auto">
+      <div ref={conversationsContainerRef} className="flex-1 overflow-y-auto">
         {conversations.length === 0 ? (
           <div className="flex items-center justify-center h-full p-4">
             <div className="text-center">
@@ -701,35 +730,19 @@ export default function ConversationList({
                 </div>
               )
             })}
+            {loadingMore && (
+              <div className="flex items-center justify-center py-4">
+                <div className="h-6 w-6 animate-spin rounded-full border-2 border-blue-600 border-t-transparent" />
+              </div>
+            )}
+            {!hasMore && conversations.length > 0 && (
+              <div className="py-4 text-center text-xs text-slate-500 dark:text-slate-400">
+                No hay mas conversaciones
+              </div>
+            )}
           </div>
         )}
       </div>
-
-      {/* Pagination */}
-      {totalPages > 1 && onPageChange && (
-        <div className="p-4 border-t border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900">
-          <div className="flex items-center justify-between">
-            <button
-              onClick={() => onPageChange(currentPage)}
-              disabled={currentPage === 0}
-              className="px-3 py-1.5 text-sm font-medium text-slate-700 bg-slate-100 rounded-lg hover:bg-slate-200 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-            >
-              Anterior
-            </button>
-            <span className="text-sm text-slate-600">
-              Página {currentPage + 1} de {totalPages}
-            </span>
-            <button
-              onClick={() => onPageChange(currentPage + 2)}
-              disabled={currentPage >= totalPages - 1}
-              className="px-3 py-1.5 text-sm font-medium text-slate-700 bg-slate-100 rounded-lg hover:bg-slate-200 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-            >
-              Siguiente
-            </button>
-          </div>
-        </div>
-      )}
-
       {/* Modals */}
       {infoModalOpen && selectedConvForInfo && (
         <ConversationInfoModal
@@ -1065,3 +1078,4 @@ export default function ConversationList({
     </>
   )
 }
+
