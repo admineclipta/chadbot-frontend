@@ -2,9 +2,11 @@
 
 ## [Unreleased]
 
-- hotfix: Skeletons en conversaciones/mensajes. Inifity scroll en conversaciones/mensajes. Fixes en la hora/fecha de mensajes. Otros bugs menores [#15](https://github.com/admineclipta/chadbot-frontend/pull/15)
-
 ## [Release]
+
+### v2.5.0
+
+- hotfix: Skeletons en conversaciones/mensajes. Inifity scroll en conversaciones/mensajes. Fixes en la hora/fecha de mensajes. Otros bugs menores [#15](https://github.com/admineclipta/chadbot-frontend/pull/15)
 
 ### v2.4.1
 
