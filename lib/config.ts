@@ -33,9 +33,9 @@ function getConfig(): Config {
   }
 
   if (
-    hostname.includes(".run.app") ||
+    hostname.includes(".eclipta.ar") ||
     hostname.includes("dev") ||
-    hostname.includes("staging")
+    hostname.includes("eclipta")
   ) {
     return {
       apiUrl:
