@@ -82,6 +82,16 @@ import {
   type EnviarMensajesPlantillaResponse,
   type ContactoCSV,
   type DashboardSummary,
+  type MembershipCurrentResponseDto,
+  type MembershipUsageResponseDto,
+  type MembershipUsageAlertDto,
+  type MembershipOperationsSummaryDto,
+  type MembershipPlansResponseDto,
+  type MembershipChangePlanRequestDto,
+  type MembershipChangePlanResponseDto,
+  type MembershipFeaturePolicyResponseDto,
+  type MembershipFeaturePolicyUpdateRequestDto,
+  type BillingInvoiceDto,
   type PushPublicKeyResponse,
   type PushSubscriptionUpsertRequest,
   type PushSubscriptionDeleteRequest,
@@ -1344,6 +1354,125 @@ class ApiService {
         method: "POST",
         body: JSON.stringify(payload),
       },
+    );
+  }
+
+  // ============================================
+  // Membership & Billing (Tenant)
+  // ============================================
+
+  async getMembershipCurrent(
+    signal?: AbortSignal,
+  ): Promise<MembershipCurrentResponseDto> {
+    console.log("💳 [CHADBOT API] Fetching current membership");
+    return this.request<MembershipCurrentResponseDto>(
+      "membership/current",
+      {},
+      signal,
+    );
+  }
+
+  async getMembershipUsage(
+    signal?: AbortSignal,
+  ): Promise<MembershipUsageResponseDto> {
+    console.log("📈 [CHADBOT API] Fetching membership usage");
+    return this.request<MembershipUsageResponseDto>("membership/usage", {}, signal);
+  }
+
+  async getMembershipUsageAlerts(
+    page: number = 0,
+    size: number = 20,
+    signal?: AbortSignal,
+  ): Promise<MembershipUsageAlertDto[]> {
+    console.log(
+      `🚨 [CHADBOT API] Fetching usage alerts (page ${page}, size ${size})`,
+    );
+    return this.request<MembershipUsageAlertDto[]>(
+      `membership/usage/alerts?page=${page}&size=${size}`,
+      {},
+      signal,
+    );
+  }
+
+  async getMembershipOperationsSummary(
+    recentAlerts: number = 10,
+    recentEvents: number = 10,
+    signal?: AbortSignal,
+  ): Promise<MembershipOperationsSummaryDto> {
+    console.log("🧾 [CHADBOT API] Fetching membership operations summary");
+    return this.request<MembershipOperationsSummaryDto>(
+      `membership/operations/summary?recentAlerts=${recentAlerts}&recentEvents=${recentEvents}`,
+      {},
+      signal,
+    );
+  }
+
+  async getMembershipPlans(
+    currency: "ARS" | "USD",
+    signal?: AbortSignal,
+  ): Promise<MembershipPlansResponseDto> {
+    console.log(`🗂️ [CHADBOT API] Fetching membership plans in ${currency}`);
+    return this.request<MembershipPlansResponseDto>(
+      `membership/plans?currency=${currency}`,
+      {},
+      signal,
+    );
+  }
+
+  async requestMembershipPlanChange(
+    payload: MembershipChangePlanRequestDto,
+  ): Promise<MembershipChangePlanResponseDto> {
+    console.log(
+      `🔁 [CHADBOT API] Requesting membership plan change to ${payload.targetPlanCode}`,
+    );
+    return this.request<MembershipChangePlanResponseDto>("membership/change-plan", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    });
+  }
+
+  async getMembershipFeaturePolicy(
+    featureKey: string,
+    signal?: AbortSignal,
+  ): Promise<MembershipFeaturePolicyResponseDto> {
+    console.log(
+      `🧠 [CHADBOT API] Fetching membership feature policy for ${featureKey}`,
+    );
+    return this.request<MembershipFeaturePolicyResponseDto>(
+      `membership/features/${encodeURIComponent(featureKey)}/policy`,
+      {},
+      signal,
+    );
+  }
+
+  async updateMembershipFeaturePolicy(
+    featureKey: string,
+    payload: MembershipFeaturePolicyUpdateRequestDto,
+  ): Promise<MembershipFeaturePolicyResponseDto> {
+    console.log(
+      `🧠 [CHADBOT API] Updating membership feature policy for ${featureKey} to ${payload.mode}`,
+    );
+    return this.request<MembershipFeaturePolicyResponseDto>(
+      `membership/features/${encodeURIComponent(featureKey)}/policy`,
+      {
+        method: "PUT",
+        body: JSON.stringify(payload),
+      },
+    );
+  }
+
+  async getBillingInvoices(
+    page: number = 0,
+    size: number = 20,
+    signal?: AbortSignal,
+  ): Promise<BillingInvoiceDto[]> {
+    console.log(
+      `🧾 [CHADBOT API] Fetching billing invoices (page ${page}, size ${size})`,
+    );
+    return this.request<BillingInvoiceDto[]>(
+      `billing/invoices?page=${page}&size=${size}`,
+      {},
+      signal,
     );
   }
 
