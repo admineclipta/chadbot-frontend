@@ -1,6 +1,6 @@
 {
   "name": "chadbot",
-  "version": "2.5.0",
+  "version": "2.5.1",
   "private": true,
   "scripts": {
     "prebuild": "node scripts/generate-version.js",

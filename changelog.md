@@ -2,9 +2,11 @@
 
 ## [Unreleased]
 
-- feature: New conversation modal [#16](https://github.com/admineclipta/chadbot-frontend/pull/16)
-
 ## [Release]
+
+### v2.5.1
+
+- feature: New conversation modal [#16](https://github.com/admineclipta/chadbot-frontend/pull/16)
 
 ### v2.5.0
 
