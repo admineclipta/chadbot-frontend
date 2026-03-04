@@ -460,6 +460,72 @@ export interface CreateConversationRequest {
   initialMessage?: string;
 }
 
+export type OutboundErrorCode =
+  | "OUTBOUND_001"
+  | "OUTBOUND_002"
+  | "OUTBOUND_003"
+  | "OUTBOUND_004";
+
+export interface OutboundConfigCredential {
+  credentialId: string;
+  credentialName?: string;
+  name?: string;
+  serviceTypeCode?: string;
+  serviceTypeName?: string;
+  recipientJsonSchema?: {
+    type?: string;
+    required?: string[];
+    properties?: Record<string, any>;
+    additionalProperties?: boolean;
+  };
+  initialMessageJsonSchema?: {
+    type?: string;
+    required?: string[];
+    properties?: Record<string, any>;
+    additionalProperties?: boolean;
+  };
+  metadata?: Record<string, any>;
+}
+
+export interface OutboundConfigResponse {
+  credentials: OutboundConfigCredential[];
+  recipientSchema?: Record<string, any>;
+  messageSchema?: Record<string, any>;
+}
+
+export interface OutboundContactInput {
+  mode: "new" | "existing";
+  fullName?: string;
+  contactId?: string;
+  metadata?: Record<string, any>;
+}
+
+export interface OutboundRecipientInput {
+  externalContactId: string;
+  metadata?: Record<string, any>;
+}
+
+export interface OutboundInitialMessageInput {
+  type: "text";
+  text: string;
+}
+
+export interface CreateOutboundConversationRequest {
+  credentialId: string;
+  contact: OutboundContactInput;
+  recipient?: OutboundRecipientInput;
+  initialMessage: OutboundInitialMessageInput;
+}
+
+export interface CreateOutboundConversationResponse {
+  conversationId: string;
+  contactId: string;
+  messageId: string;
+  reusedConversation: boolean;
+  credentialId: string;
+  serviceTypeCode: string;
+}
+
 // Channel / Credentials Types
 export type MessagingServiceType = "WHATSAPP" | "TELEGRAM";
 export type AiProviderType = "OPENAI" | "GEMINI";

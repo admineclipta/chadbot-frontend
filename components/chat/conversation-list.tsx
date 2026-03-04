@@ -38,6 +38,7 @@ import ConversationListSkeleton from "./conversation-list-skeleton"
 import FilterControlsSkeleton from "./filter-controls-skeleton"
 import type { Conversation } from "@/lib/types"
 import type {
+  CreateOutboundConversationResponse,
   ConversationStatus,
   ConversationSortField,
   SortDirection,
@@ -70,6 +71,7 @@ interface ConversationListProps {
   totalPages?: number
   onPageChange?: (page: number) => void
   sseConnectionState?: SseConnectionState
+  onConversationCreated?: (result: CreateOutboundConversationResponse) => void
 }
 
 const statusOptions: { key: ConversationStatus | "all"; label: string; color: "default" | "success" | "warning" | "danger" }[] = [
@@ -117,6 +119,7 @@ export default function ConversationList({
   totalPages = 1,
   onPageChange,
   sseConnectionState = "connecting",
+  onConversationCreated,
 }: ConversationListProps) {
   const [hoveredConversation, setHoveredConversation] = useState<string | null>(null)
   const [infoModalOpen, setInfoModalOpen] = useState(false)
@@ -436,8 +439,6 @@ export default function ConversationList({
                 {sseIndicator.label}
               </div>
             </div>
-            {/*
-            TODO: Se comenta el boton de nueva conversacion hasta que esté implementado correctamente
             <Dropdown>
               <DropdownTrigger>
                 <Button
@@ -476,11 +477,12 @@ export default function ConversationList({
                   key="bulk-message"
                   startContent={<Users className="h-4 w-4" />}
                   onPress={() => setBulkMessageModalOpen(true)}
+                  isDisabled={true}
                 >
                   Mensaje Masivo
                 </DropdownItem>
               </DropdownMenu>
-            </Dropdown> */}
+            </Dropdown>
           </div>
           
           {/* Search and Filter Bar */}
@@ -1073,6 +1075,10 @@ export default function ConversationList({
       <NewChatModal 
         isOpen={newChatModalOpen}
         onClose={() => setNewChatModalOpen(false)}
+        onSuccess={(result) => {
+          setNewChatModalOpen(false)
+          onConversationCreated?.(result)
+        }}
       />
       
       <BulkMessageModal 
