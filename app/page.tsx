@@ -17,6 +17,8 @@ import SettingsView from "@/components/settings/settings-view"
 import EnvironmentIndicator from "@/components/layout/environment-indicator"
 import ContactInfoModal from "@/components/modals/contact-info-modal"
 import HomeDashboard from "@/components/home-dashboard"
+import UsageView from "@/components/usage/usage-view"
+import PlansPricingView from "@/components/plans/plans-pricing-view"
 import type { Conversation, User, Message, Tag } from "@/lib/types"
 import type {
   ConversationAssignedRealtimeEvent,
@@ -71,7 +73,7 @@ export default function Home() {
   const chatViewRef = useRef<ChatViewRef>(null)
   const isMobile = useIsMobile()
   const [isAuthenticated, setIsAuthenticated] = useState(false)
-  const [currentView, setCurrentView] = useState<"dashboard" | "welcome" | "conversations" | "profile" | "users" | "contacts" | "teams" | "assistants" | "tags" | "settings">("dashboard")
+  const [currentView, setCurrentView] = useState<"dashboard" | "welcome" | "conversations" | "profile" | "users" | "contacts" | "teams" | "assistants" | "tags" | "settings" | "usage" | "plans">("dashboard")
   const [selectedConversation, setSelectedConversation] = useState<Conversation | null>(null)
   const [conversations, setConversations] = useState<Conversation[]>([])
   const [user, setUser] = useState<User | null>(null)
@@ -1377,6 +1379,21 @@ export default function Home() {
           </div>
         )}
 
+        {currentView === "usage" && (
+          <div className="flex-1 bg-slate-50 dark:bg-slate-900 overflow-x-hidden overflow-y-auto pt-16 md:pt-0">
+            <UsageView
+              currentUser={user}
+              onOpenPlans={() => setCurrentView("plans")}
+            />
+          </div>
+        )}
+
+        {currentView === "plans" && (
+          <div className="flex-1 bg-slate-50 dark:bg-slate-900 overflow-x-hidden overflow-y-auto pt-16 md:pt-0">
+            <PlansPricingView currentUser={user} />
+          </div>
+        )}
+
         {currentView === "settings" && (
           <div className="flex-1 bg-slate-50 dark:bg-slate-900 overflow-x-hidden overflow-y-auto pt-16 md:pt-0">
             <SettingsView
@@ -1396,6 +1413,7 @@ export default function Home() {
               onDisablePush={() => {
                 void disablePushNotifications()
               }}
+              currentUser={user}
             />
           </div>
         )}

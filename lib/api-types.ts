@@ -1181,6 +1181,156 @@ export interface EnviarMensajesPlantillaResponse {
 }
 
 // ============================================
+// Membership & Billing Types
+// ============================================
+
+export interface MembershipFeatureUsageDto {
+  featureKey: string;
+  featureName?: string;
+  featureDescription?: string;
+  limitValue: number;
+  consumedValue: number;
+  remainingValue: number;
+  limitUnit: string;
+  resetPolicy: string;
+  overagePolicy: string;
+  percentageUsed: number;
+}
+
+export interface MembershipCurrentResponseDto {
+  clientId: string;
+  subscriptionId: string;
+  subscriptionStatus: string;
+  billingCycle: string;
+  timezone: string;
+  periodStartAt: string | number;
+  periodEndAt: string | number;
+  nextRenewalAt: string | number;
+  planId: string;
+  planCode: string;
+  planName: string;
+  planVersion: number;
+  features: MembershipFeatureUsageDto[];
+}
+
+export interface MembershipUsageResponseDto {
+  clientId: string;
+  periodKey: string;
+  features: MembershipFeatureUsageDto[];
+}
+
+export interface MembershipUsageAlertDto {
+  id: string;
+  clientId: string;
+  featureKey: string;
+  periodKey: string;
+  thresholdPct: number;
+  status: "open" | "closed" | string;
+  message?: string | null;
+  createdAt: string | number;
+  resolvedAt?: string | number | null;
+}
+
+export interface MembershipOperationEventDto {
+  id?: string;
+  featureKey?: string;
+  eventType?: string;
+  value?: number;
+  createdAt?: string | number;
+}
+
+export interface MembershipOperationsSummaryDto {
+  clientId: string;
+  periodKey: string;
+  openAlertsCount: number;
+  recentAlerts: MembershipUsageAlertDto[];
+  recentEvents: MembershipOperationEventDto[];
+}
+
+export interface MembershipPlanPriceDto {
+  currencyCode: "ARS" | "USD" | string;
+  amount: number;
+  billingPeriod: string;
+}
+
+export interface MembershipPlanFeatureDto {
+  featureKey: string;
+  featureName?: string;
+  featureDescription?: string;
+  limitValue: number;
+  limitUnit: string;
+  resetPolicy: string;
+  overagePolicy: string;
+}
+
+export interface MembershipPlanCatalogItemDto {
+  planId: string;
+  planCode: string;
+  planName: string;
+  description?: string | null;
+  visibilityScope: "public" | "internal" | string;
+  tenantSelectable: boolean;
+  isCurrent: boolean;
+  isScheduled: boolean;
+  canSelect: boolean;
+  versionNumber: number;
+  planVersionId: string;
+  prices: MembershipPlanPriceDto[];
+  features: MembershipPlanFeatureDto[];
+}
+
+export interface MembershipPlansResponseDto {
+  clientId: string;
+  currentPlanCode: string | null;
+  scheduledPlanCode: string | null;
+  plans: MembershipPlanCatalogItemDto[];
+}
+
+export interface MembershipChangePlanRequestDto {
+  targetPlanCode: string;
+  reason: string;
+}
+
+export interface MembershipChangePlanResponseDto {
+  clientId: string;
+  subscriptionId: string;
+  scheduledSubscriptionId: string;
+  fromPlanCode: string;
+  toPlanCode: string;
+  effectiveAt: string | number;
+  requestStatus: "scheduled" | string;
+}
+
+export interface BillingInvoiceItemDto {
+  id: string;
+  itemType: string;
+  description: string;
+  featureKey?: string | null;
+  quantity: number;
+  unitPrice: number;
+  amount: number;
+  metadata?: Record<string, unknown>;
+}
+
+export interface BillingInvoiceDto {
+  id: string;
+  clientId: string;
+  subscriptionId: string;
+  invoiceNumber: string;
+  currencyCode: string;
+  periodStart: string | number;
+  periodEnd: string | number;
+  subtotal: number;
+  taxTotal: number;
+  total: number;
+  status: string;
+  issuedAt?: string | number | null;
+  dueAt?: string | number | null;
+  paidAt?: string | number | null;
+  items: BillingInvoiceItemDto[];
+}
+
+// ============================================
 // Dashboard Statistics Types
 // ============================================
 

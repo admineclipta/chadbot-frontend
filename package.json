@@ -1,6 +1,6 @@
 {
   "name": "chadbot",
-  "version": "2.5.1",
+  "version": "3.0.0",
   "private": true,
   "scripts": {
     "prebuild": "node scripts/generate-version.js",
@@ -31,8 +31,10 @@
     "react": "^19",
     "react-dom": "^19",
     "react-hook-form": "latest",
+    "react-is": "^19.2.4",
     "react-markdown": "^10.1.0",
     "reactflow": "^11.11.4",
+    "recharts": "^3.7.0",
     "remark-breaks": "^4.0.0",
     "remark-gfm": "^4.0.1",
     "sonner": "latest",

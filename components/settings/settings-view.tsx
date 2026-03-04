@@ -1,13 +1,16 @@
-"use client"
+﻿"use client"
 
 import { useState } from "react"
-import { Tabs, Tab, Card, CardBody } from "@heroui/react"
-import { User, Palette, MessageSquare, Key } from "lucide-react"
+import { Tabs, Tab } from "@heroui/react"
+import { User, Palette, MessageSquare, Key, FileText } from "lucide-react"
 import AboutMeSection from "@/components/settings/about-me-section"
 import AppearanceSection from "@/components/settings/appearance-section"
 import MessagesSection from "@/components/settings/messages-section"
 import CredentialsSection from "@/components/settings/credentials-section"
+import BillingSection from "@/components/settings/billing-section"
 import type { SseConnectionState } from "@/lib/api-types"
+import type { User as AppUser } from "@/lib/types"
+import { canViewBilling } from "@/lib/permissions"
 
 interface SettingsViewProps {
   sseState?: SseConnectionState
@@ -22,6 +25,7 @@ interface SettingsViewProps {
   pushError?: string | null
   onEnablePush?: () => void
   onDisablePush?: () => void
+  currentUser?: AppUser | null
 }
 
 export default function SettingsView({
@@ -37,12 +41,13 @@ export default function SettingsView({
   pushError = null,
   onEnablePush,
   onDisablePush,
+  currentUser = null,
 }: SettingsViewProps) {
   const [selectedTab, setSelectedTab] = useState<string>("about")
+  const showBillingTab = canViewBilling(currentUser)
 
   return (
     <div className="flex-1 flex flex-col h-full overflow-hidden bg-slate-50 dark:bg-slate-900">
-      {/* Header */}
       <div className="p-4 md:p-6 border-b border-divider bg-white dark:bg-slate-800 flex-shrink-0">
         <h1 className="text-xl md:text-2xl font-bold text-foreground">Configuración</h1>
         <p className="text-xs md:text-sm text-default-500 mt-1">
@@ -50,7 +55,6 @@ export default function SettingsView({
         </p>
       </div>
 
-      {/* Content */}
       <div className="flex-1 overflow-y-auto overflow-x-hidden p-4 md:p-6">
         <div className="max-w-6xl mx-auto w-full">
           <Tabs
@@ -62,7 +66,7 @@ export default function SettingsView({
               cursor: "w-full bg-primary",
               tab: "max-w-fit px-0 h-12 flex-shrink-0",
               tabContent: "group-data-[selected=true]:text-primary text-sm md:text-base",
-              panel: "w-full"
+              panel: "w-full",
             }}
           >
             <Tab
@@ -125,6 +129,20 @@ export default function SettingsView({
             >
               <CredentialsSection />
             </Tab>
+
+            {showBillingTab && (
+              <Tab
+                key="billing"
+                title={
+                  <div className="flex items-center space-x-2">
+                    <FileText className="h-4 w-4" />
+                    <span>Facturación</span>
+                  </div>
+                }
+              >
+                <BillingSection currentUser={currentUser} />
+              </Tab>
+            )}
           </Tabs>
         </div>
       </div>
