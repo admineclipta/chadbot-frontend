@@ -33,6 +33,10 @@ import {
   type AssignConversationRequest,
   type ChangeConversationStatusRequest,
   type CreateConversationRequest,
+  type OutboundConfigResponse,
+  type OutboundConfigCredential,
+  type CreateOutboundConversationRequest,
+  type CreateOutboundConversationResponse,
   type Tag,
   type TagListResponse,
   type CreateTagRequest,
@@ -466,6 +470,43 @@ class ApiService {
       method: "POST",
       body: JSON.stringify(data),
     });
+  }
+
+  async getOutboundConversationConfig(
+    signal?: AbortSignal,
+  ): Promise<OutboundConfigResponse> {
+    console.log("📨 [CHADBOT API] Fetching outbound conversation config");
+    const response = await this.request<OutboundConfigResponse | OutboundConfigCredential[]>(
+      "conversations/outbound/config",
+      {},
+      signal,
+    );
+
+    // Backend may return an object with credentials or a direct list.
+    if (Array.isArray(response)) {
+      return { credentials: response };
+    }
+
+    return {
+      credentials: Array.isArray(response.credentials)
+        ? response.credentials
+        : [],
+      recipientSchema: response.recipientSchema,
+      messageSchema: response.messageSchema,
+    };
+  }
+
+  async createOutboundConversation(
+    payload: CreateOutboundConversationRequest,
+  ): Promise<CreateOutboundConversationResponse> {
+    console.log("📨 [CHADBOT API] Creating outbound conversation");
+    return this.request<CreateOutboundConversationResponse>(
+      "conversations/outbound",
+      {
+        method: "POST",
+        body: JSON.stringify(payload),
+      },
+    );
   }
 
   async assignConversation(

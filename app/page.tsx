@@ -28,6 +28,7 @@ import type {
   MessageCreatedRealtimeEvent,
   SseConnectionState,
   UserNotificationRealtimeEvent,
+  CreateOutboundConversationResponse,
 } from "@/lib/api-types"
 import { apiService } from "@/lib/api"
 import { clearAuthSession } from "@/lib/auth-session"
@@ -1156,6 +1157,29 @@ export default function Home() {
     markConversationAsReadLocally(conversation.id)
   }, [markConversationAsReadLocally])
 
+  const handleOutboundConversationCreated = useCallback(
+    async (result: CreateOutboundConversationResponse) => {
+      addToast({
+        title: result.reusedConversation
+          ? "Conversación reutilizada"
+          : "Conversación creada",
+        description: result.reusedConversation
+          ? "Se reutilizó una conversación existente y se envió el primer mensaje."
+          : "Se creó una nueva conversación y se envió el primer mensaje.",
+        severity: "success",
+      })
+
+      try {
+        await refetchConversations()
+      } catch (error) {
+        console.error("Error refreshing conversations after outbound create:", error)
+      }
+
+      await openConversationById(result.conversationId)
+    },
+    [openConversationById, refetchConversations],
+  )
+
   const handleCloseChat = useCallback(() => {
     setSelectedConversation(null)
   }, [])
@@ -1266,6 +1290,7 @@ export default function Home() {
                 conversations={conversations}
                 selectedConversation={selectedConversation}
                 onSelectConversation={handleSelectConversation}
+                onConversationCreated={handleOutboundConversationCreated}
                 searchTerm={searchTerm}
                 onSearchChange={setSearchTerm}
                 selectedStatusFilter={selectedStatusFilter}

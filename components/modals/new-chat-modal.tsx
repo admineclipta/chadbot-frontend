@@ -1,551 +1,601 @@
 "use client"
 
-import type React from "react"
-
-import { useState, useEffect } from "react"
+import { useEffect, useMemo, useState } from "react"
 import {
-  Modal,
-  ModalContent,
-  ModalHeader,
-  ModalBody,
-  ModalFooter,
   Button,
-  Input,
-  Card,
-  CardBody,
-  CardHeader,
   Chip,
-  Progress,
-  RadioGroup,
-  Radio,
+  Input,
+  Modal,
+  ModalBody,
+  ModalContent,
+  ModalFooter,
+  ModalHeader,
+  Tab,
+  Tabs,
+  Textarea,
 } from "@heroui/react"
-import { Send, MessageCircle, Phone, User, Eye, Smartphone } from "lucide-react"
+import { MessageCircle, Search, Send, User } from "lucide-react"
 import { toast } from "sonner"
-import { apiService } from "@/lib/api"
-import type { PlantillaWhatsApp, TemplateComponents, MessagingCredentialResponseDto, ServiceTypeDto } from "@/lib/api-types"
-import CountrySelector from "@/components/shared/country-selector"
-import { countries, type Country } from "@/lib/countries"
+import { Avatar } from "@/components/ui/avatar"
+import { apiService, ApiError } from "@/lib/api"
+import type {
+  Contact,
+  CreateOutboundConversationRequest,
+  CreateOutboundConversationResponse,
+  OutboundConfigCredential,
+  OutboundErrorCode,
+} from "@/lib/api-types"
 
 interface NewChatModalProps {
   isOpen: boolean
   onClose: () => void
+  onSuccess?: (result: CreateOutboundConversationResponse) => void
 }
 
-export default function NewChatModal({ isOpen, onClose }: NewChatModalProps) {
-  const [step, setStep] = useState(1)
-  const [messagingCredentials, setMessagingCredentials] = useState<MessagingCredentialResponseDto[]>([])
-  const [messagingServices, setMessagingServices] = useState<ServiceTypeDto[]>([])
-  const [selectedCredential, setSelectedCredential] = useState<MessagingCredentialResponseDto | null>(null)
-  const [selectedCountry, setSelectedCountry] = useState<Country | null>(
-    countries.find(c => c.code === "AR") || null
+interface DynamicField {
+  key: string
+  description: string
+  examples: string[]
+  required: boolean
+}
+
+const OUTBOUND_ERROR_MESSAGES: Record<OutboundErrorCode, string> = {
+  OUTBOUND_001: "Canal no habilitado para outbound V1.",
+  OUTBOUND_002: "Telegram requiere inbound previo. Outbound V1 no lo permite.",
+  OUTBOUND_003: "En V1 el mensaje inicial debe ser solo texto.",
+  OUTBOUND_004: "Falta externalContactId para poder crear el canal del contacto.",
+}
+
+function inferRegexByExamples(examples: string[]): RegExp | null {
+  if (!examples || examples.length === 0) return null
+  const normalized = examples
+    .map((example) => String(example).trim())
+    .filter(Boolean)
+
+  if (normalized.length === 0) return null
+
+  const allDigits = normalized.every((example) => /^\d+$/.test(example))
+  if (allDigits) return /^\d+$/
+
+  const allWhatsappJidOrDigits = normalized.every((example) =>
+    /^\d+(@s\.whatsapp\.net)?$/.test(example),
   )
-  const [phoneNumber, setPhoneNumber] = useState("")
-  const [contactName, setContactName] = useState("")
-  const [plantillas, setPlantillas] = useState<PlantillaWhatsApp[]>([])
-  const [selectedPlantilla, setSelectedPlantilla] = useState<PlantillaWhatsApp | null>(null)
-  const [templateParams, setTemplateParams] = useState<TemplateComponents>({
-    Header: [],
-    Body: [],
-    Button: [],
-  })
-  const [loading, setLoading] = useState(false)
-  const [loadingCredentials, setLoadingCredentials] = useState(false)
+  if (allWhatsappJidOrDigits) return /^\d+(@s\.whatsapp\.net)?$/
+
+  return null
+}
+
+function extractDynamicRecipientFields(
+  credential: OutboundConfigCredential | null,
+): DynamicField[] {
+  if (!credential?.recipientJsonSchema?.properties) return []
+
+  const properties = credential.recipientJsonSchema.properties
+  const required = credential.recipientJsonSchema.required || []
+
+  return Object.entries(properties)
+    .filter(([key, value]) => {
+      const schema = value as Record<string, unknown>
+      const type = schema.type
+      return key !== "metadata" && type === "string"
+    })
+    .map(([key, value]) => {
+      const schema = value as Record<string, unknown>
+      const examples = Array.isArray(schema.examples)
+        ? schema.examples.map((item) => String(item))
+        : []
+
+      return {
+        key,
+        description:
+          typeof schema.description === "string" && schema.description.trim()
+            ? schema.description
+            : key,
+        examples,
+        required: required.includes(key),
+      }
+    })
+}
+
+function getContactChannelsLabel(contact: Contact): string {
+  const unique = Array.from(
+    new Set(
+      (contact.messagingChannels || [])
+        .map((channel) => channel.serviceTypeName)
+        .filter(Boolean),
+    ),
+  )
+
+  if (unique.length === 0) return "Sin canales"
+  return unique.join(" · ")
+}
+
+export default function NewChatModal({
+  isOpen,
+  onClose,
+  onSuccess,
+}: NewChatModalProps) {
+  const [step, setStep] = useState(1)
+  const [loadingConfig, setLoadingConfig] = useState(false)
+  const [loadingContacts, setLoadingContacts] = useState(false)
   const [sending, setSending] = useState(false)
 
-  // Cargar credenciales al abrir el modal
+  const [credentials, setCredentials] = useState<OutboundConfigCredential[]>([])
+  const [selectedCredentialId, setSelectedCredentialId] = useState("")
+
+  const [contactMode, setContactMode] = useState<"new" | "existing">("new")
+  const [fullName, setFullName] = useState("")
+  const [existingContactId, setExistingContactId] = useState("")
+  const [existingContactSearch, setExistingContactSearch] = useState("")
+  const [existingContacts, setExistingContacts] = useState<Contact[]>([])
+  const [recipientValues, setRecipientValues] = useState<Record<string, string>>(
+    {},
+  )
+  const [initialMessage, setInitialMessage] = useState("")
+
+  const selectedCredential = useMemo(
+    () =>
+      credentials.find((item) => item.credentialId === selectedCredentialId) ||
+      null,
+    [credentials, selectedCredentialId],
+  )
+
+  const recipientFields = useMemo(
+    () => extractDynamicRecipientFields(selectedCredential),
+    [selectedCredential],
+  )
+
+  const selectedExistingContact = useMemo(
+    () => existingContacts.find((item) => item.id === existingContactId) || null,
+    [existingContacts, existingContactId],
+  )
+
+  const resetForm = () => {
+    setStep(1)
+    setSelectedCredentialId("")
+    setContactMode("new")
+    setFullName("")
+    setExistingContactId("")
+    setExistingContactSearch("")
+    setExistingContacts([])
+    setRecipientValues({})
+    setInitialMessage("")
+  }
+
+  const handleClose = () => {
+    if (sending) return
+    resetForm()
+    onClose()
+  }
+
   useEffect(() => {
-    if (isOpen) {
-      loadMessagingCredentials()
+    if (!isOpen) return
+
+    const loadConfig = async () => {
+      try {
+        setLoadingConfig(true)
+        const response = await apiService.getOutboundConversationConfig()
+        const items = Array.isArray(response.credentials)
+          ? response.credentials
+          : []
+        setCredentials(items)
+
+        if (items.length === 1) {
+          setSelectedCredentialId(items[0].credentialId)
+        }
+      } catch (error) {
+        console.error("Error loading outbound config:", error)
+        toast.error("No se pudo cargar la configuracion outbound")
+      } finally {
+        setLoadingConfig(false)
+      }
     }
+
+    void loadConfig()
   }, [isOpen])
 
-  // Cargar plantillas cuando se selecciona una credencial
   useEffect(() => {
-    if (selectedCredential) {
-      loadPlantillas()
+    if (!isOpen || contactMode !== "existing") return
+
+    const abortController = new AbortController()
+    const timeout = setTimeout(async () => {
+      try {
+        setLoadingContacts(true)
+        const response = await apiService.getContacts(
+          0,
+          20,
+          existingContactSearch.trim() || undefined,
+          abortController.signal,
+        )
+        setExistingContacts(response.content)
+      } catch (error) {
+        if (error instanceof Error && error.name === "AbortError") return
+        console.error("Error loading contacts:", error)
+        toast.error("No se pudieron cargar contactos")
+      } finally {
+        setLoadingContacts(false)
+      }
+    }, 250)
+
+    return () => {
+      abortController.abort()
+      clearTimeout(timeout)
     }
-  }, [selectedCredential])
+  }, [isOpen, contactMode, existingContactSearch])
 
-  const loadMessagingCredentials = async () => {
-    try {
-      setLoadingCredentials(true)
-      // Cargar servicios y credenciales en paralelo
-      const [servicesResponse, credentialsResponse] = await Promise.all([
-        apiService.getMessagingServices(),
-        apiService.getMessagingCredentials(0, 100, false)
-      ])
-      setMessagingServices(servicesResponse)
-      setMessagingCredentials(credentialsResponse.content)
-    } catch (error) {
-      console.error("Error loading messaging credentials:", error)
-      toast.error("Error al cargar credenciales", {
-        description: "No se pudieron cargar las credenciales de mensajería"
-      })
-    } finally {
-      setLoadingCredentials(false)
-    }
-  }
+  useEffect(() => {
+    // Clean stale keys when credential changes schema.
+    setRecipientValues((prev) => {
+      if (!selectedCredential) return {}
+      const allowedKeys = new Set(recipientFields.map((field) => field.key))
+      const next = Object.entries(prev).filter(([key]) => allowedKeys.has(key))
+      return Object.fromEntries(next)
+    })
+  }, [selectedCredential, recipientFields])
 
-  const loadPlantillas = async () => {
-    if (!selectedCredential) return
-    
-    try {
-      setLoading(true)
-      const response = await apiService.getTemplatesByCredential(selectedCredential.id)
-      setPlantillas(response.content)
-    } catch (error) {
-      console.error("Error loading templates:", error)
-      toast.error("Error al cargar plantillas", {
-        description: "No se pudieron cargar las plantillas de WhatsApp"
-      })
-    } finally {
-      setLoading(false)
-    }
-  }
+  const recipientValidationErrors = useMemo(() => {
+    const errors: Record<string, string> = {}
 
-  const getServiceInfo = (serviceTypeId: string) => {
-    return messagingServices.find(s => s.id === serviceTypeId)
-  }
+    recipientFields.forEach((field) => {
+      const value = (recipientValues[field.key] || "").trim()
+      if (field.required && !value) {
+        errors[field.key] = "Campo requerido"
+        return
+      }
 
-  const parseTemplateBody = (body: string): string[] => {
-    if (!body) return []
-    const matches = body.match(/\{\{(\d+)\}\}/g)
-    return matches ? matches.map((match) => match.replace(/[{}]/g, "")) : []
-  }
+      if (!value) return
 
-  const getPreviewMessage = (): string => {
-    if (!selectedPlantilla?.body_component?.text) return ""
-
-    let preview = selectedPlantilla.body_component.text
-    templateParams.Body.forEach((param, index) => {
-      const placeholder = `{{${index + 1}}}`
-      preview = preview.replace(
-        new RegExp(placeholder.replace(/[{}]/g, "\\$&"), "g"),
-        param || `[Parámetro ${index + 1}]`,
-      )
+      const regex = inferRegexByExamples(field.examples)
+      if (regex && !regex.test(value)) {
+        errors[field.key] = "Formato invalido para este campo"
+      }
     })
 
-    return preview
-  }
+    return errors
+  }, [recipientFields, recipientValues])
 
-  const handleSendMessage = async () => {
-    if (!selectedPlantilla || !phoneNumber || !contactName || !selectedCountry) return
+  const selectedContactHasChannelForCredential = useMemo(() => {
+    if (!selectedExistingContact || !selectedCredentialId) return false
+    return (selectedExistingContact.messagingChannels || []).some(
+      (channel) => channel.credentialId === selectedCredentialId,
+    )
+  }, [selectedCredentialId, selectedExistingContact])
+
+  const shouldRequireRecipientFields =
+    contactMode === "new" ||
+    (contactMode === "existing" &&
+      Boolean(selectedExistingContact) &&
+      !selectedContactHasChannelForCredential)
+
+  const areRecipientFieldsValid = useMemo(() => {
+    if (!shouldRequireRecipientFields) return true
+    return recipientFields.every((field) => {
+      const value = (recipientValues[field.key] || "").trim()
+      const hasError = Boolean(recipientValidationErrors[field.key])
+      if (field.required && !value) return false
+      return !hasError
+    })
+  }, [
+    recipientFields,
+    recipientValidationErrors,
+    recipientValues,
+    shouldRequireRecipientFields,
+  ])
+
+  const isStepOneValid = Boolean(selectedCredentialId)
+  const isStepTwoValid =
+    contactMode === "new"
+      ? fullName.trim().length > 0 && areRecipientFieldsValid
+      : existingContactId.length > 0 && areRecipientFieldsValid
+  const isStepThreeValid = initialMessage.trim().length > 0
+
+  const handleSubmit = async () => {
+    if (!isStepOneValid || !isStepTwoValid || !isStepThreeValid) return
+
+    const payload: CreateOutboundConversationRequest = {
+      credentialId: selectedCredentialId,
+      contact:
+        contactMode === "new"
+          ? {
+              mode: "new",
+              fullName: fullName.trim(),
+            }
+          : {
+              mode: "existing",
+              contactId: existingContactId,
+            },
+      initialMessage: {
+        type: "text",
+        text: initialMessage.trim(),
+      },
+    }
+
+    if (shouldRequireRecipientFields) {
+      const externalContactId =
+        recipientValues.externalContactId?.trim() || ""
+
+      payload.recipient = {
+        externalContactId,
+      }
+    }
 
     try {
       setSending(true)
+      const result = await apiService.createOutboundConversation(payload)
 
-      // Formar el número completo con código de país
-      const fullPhoneNumber = `${selectedCountry.dialCode.replace('+', '')}${phoneNumber}`
-
-      const payload = {
-        Template: {
-          TemplateName: selectedPlantilla.name,
-          TemplateLanguage: selectedPlantilla.language,
-        },
-        Messages: [
-          {
-            DestinationNumber: fullPhoneNumber,
-            FullName: contactName,
-            TemplateComponents: templateParams,
-          },
-        ],
+      if (onSuccess) {
+        onSuccess(result)
+      } else {
+        toast.success("Conversacion creada", {
+          description: result.reusedConversation
+            ? "Se reutilizo una conversacion existente"
+            : "Se creo una conversacion nueva",
+        })
       }
 
-      await apiService.enviarMensajesPlantilla(payload)
-
-      toast.success("¡Mensaje enviado exitosamente!", {
-        description: `Mensaje enviado a ${contactName} (${selectedCountry.dialCode}${phoneNumber})`
-      })
       handleClose()
     } catch (error) {
-      console.error("Error sending message:", error)
-      toast.error("Error al enviar mensaje", {
-        description: "Por favor, intenta nuevamente."
+      console.error("Error creating outbound conversation:", error)
+
+      if (error instanceof ApiError && error.errorCode) {
+        const outboundCode = error.errorCode as OutboundErrorCode
+        const message = OUTBOUND_ERROR_MESSAGES[outboundCode]
+        if (message) {
+          toast.error("No se pudo crear la conversacion", {
+            description: message,
+          })
+          return
+        }
+      }
+
+      toast.error("No se pudo crear la conversacion", {
+        description:
+          error instanceof ApiError
+            ? error.message
+            : "Error inesperado al crear conversacion outbound",
       })
     } finally {
       setSending(false)
     }
   }
 
-  const handleClose = () => {
-    setStep(1)
-    setSelectedCredential(null)
-    setSelectedCountry(countries.find(c => c.code === "AR") || null)
-    setPhoneNumber("")
-    setContactName("")
-    setSelectedPlantilla(null)
-    setTemplateParams({ Header: [], Body: [], Button: [] })
-    onClose()
-  }
-
-  const isPhoneValid = phoneNumber.length >= 7 && phoneNumber.length <= 15 && /^\d+$/.test(phoneNumber)
-  const isNameValid = contactName.trim().length > 0
-  const bodyParams = selectedPlantilla?.body_component?.text ? parseTemplateBody(selectedPlantilla.body_component.text) : []
-
   return (
-    <Modal isOpen={isOpen} onClose={handleClose} size="3xl" scrollBehavior="inside">
+    <Modal isOpen={isOpen} onClose={handleClose} size="2xl" scrollBehavior="inside">
       <ModalContent>
-        <ModalHeader className="flex flex-col gap-1">
-          <h2 className="text-2xl font-bold">Nuevo Chat</h2>
-          <div className="flex items-center gap-2 flex-wrap">
-            <Chip key="step-1" color={step >= 1 ? "success" : "default"} variant={step === 1 ? "solid" : "bordered"} size="sm">
+        <ModalHeader className="flex flex-col gap-2">
+          <div className="flex items-center gap-2 text-slate-900 dark:text-slate-100">
+            <MessageCircle className="h-5 w-5 text-primary" />
+            Nueva conversacion
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <Chip
+              size="sm"
+              color={step >= 1 ? "primary" : "default"}
+              variant={step === 1 ? "solid" : "flat"}
+            >
               1. Credencial
             </Chip>
-            <Chip key="step-2" color={step >= 2 ? "success" : "default"} variant={step === 2 ? "solid" : "bordered"} size="sm">
+            <Chip
+              size="sm"
+              color={step >= 2 ? "primary" : "default"}
+              variant={step === 2 ? "solid" : "flat"}
+            >
               2. Contacto
             </Chip>
-            <Chip key="step-3" color={step >= 3 ? "success" : "default"} variant={step === 3 ? "solid" : "bordered"} size="sm">
-              3. Plantilla
-            </Chip>
-            <Chip key="step-4" color={step >= 4 ? "success" : "default"} variant={step === 4 ? "solid" : "bordered"} size="sm">
-              4. Configurar
-            </Chip>
-            <Chip key="step-5" color={step >= 5 ? "success" : "default"} variant={step === 5 ? "solid" : "bordered"} size="sm">
-              5. Enviar
+            <Chip
+              size="sm"
+              color={step >= 3 ? "primary" : "default"}
+              variant={step === 3 ? "solid" : "flat"}
+            >
+              3. Mensaje
             </Chip>
           </div>
         </ModalHeader>
 
-        <ModalBody>
-          {/* Paso 1: Seleccionar Credencial de Mensajería */}
+        <ModalBody className="space-y-4">
           {step === 1 && (
-            <div className="space-y-4">
-              <h3 className="text-lg font-semibold flex items-center gap-2">
-                <Smartphone className="h-5 w-5" />
-                Selecciona el Servicio de Mensajería
-              </h3>
-
-              <Card>
-                <CardBody>
-                  <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
-                    Elige la credencial de mensajería que utilizarás para enviar el mensaje
-                  </p>
-
-                  {loadingCredentials ? (
-                    <div className="flex justify-center py-8">
-                      <Progress size="sm" isIndeterminate aria-label="Cargando credenciales..." className="max-w-md" />
-                    </div>
-                  ) : messagingCredentials.length === 0 ? (
-                    <div className="text-center py-8 text-gray-500 dark:text-gray-400">
-                      <p>No hay credenciales de mensajería disponibles</p>
-                      <p className="text-sm mt-2">Contacta al administrador para configurar las credenciales</p>
-                    </div>
-                  ) : (
-                    <RadioGroup
-                      value={selectedCredential?.id || ""}
-                      onValueChange={(value) => {
-                        const credential = messagingCredentials.find(c => c.id === value)
-                        setSelectedCredential(credential || null)
-                      }}
-                    >
-                      <div className="space-y-3">
-                        {messagingCredentials.map((credential) => {
-                          const serviceInfo = getServiceInfo(credential.serviceTypeId)
-                          return (
-                            <Card
-                              key={credential.id}
-                              isPressable
-                              isHoverable
-                              className={`cursor-pointer transition-all ${
-                                selectedCredential?.id === credential.id ? "ring-2 ring-primary" : ""
-                              }`}
-                              onPress={() => setSelectedCredential(credential)}
-                            >
-                              <CardBody className="flex-row items-center gap-3">
-                                <Radio value={credential.id} />
-                                <div className="flex-1">
-                                  <h4 className="font-semibold">{credential.name}</h4>
-                                  <p className="text-sm text-gray-500 dark:text-gray-400">
-                                    {serviceInfo?.name || credential.serviceTypeName}
-                                  </p>
-                                  {serviceInfo?.description && (
-                                    <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">
-                                      {serviceInfo.description}
-                                    </p>
-                                  )}
-                                </div>
-                                {selectedCredential?.id === credential.id && (
-                                  <Chip color="success" size="sm">
-                                    Seleccionada
-                                  </Chip>
-                                )}
-                              </CardBody>
-                            </Card>
-                          )
-                        })}
-                      </div>
-                    </RadioGroup>
-                  )}
-                </CardBody>
-              </Card>
-
-              <div className="bg-blue-50 dark:bg-blue-950 p-4 rounded-lg">
-                <h5 className="font-medium mb-2">Información:</h5>
-                <ul className="text-sm text-gray-600 dark:text-gray-400 space-y-1">
-                  <li>• Las plantillas disponibles dependen de la credencial seleccionada</li>
-                  <li>• Solo se muestran credenciales activas</li>
-                  <li>• Cada credencial corresponde a una cuenta de WhatsApp Business o Telegram</li>
-                </ul>
-              </div>
-            </div>
-          )}
-
-          {/* Paso 2: Datos del Contacto */}
-          {step === 2 && (
-            <div className="space-y-4">
-              <h3 className="text-lg font-semibold flex items-center gap-2">
-                <User className="h-5 w-5" />
-                Datos del Contacto
-              </h3>
-
-              <Card>
-                <CardBody className="space-y-4">
-                  <div className="space-y-2">
-                    <label className="text-sm font-medium">Código de País</label>
-                    <CountrySelector
-                      selectedCountry={selectedCountry}
-                      onCountrySelect={setSelectedCountry}
-                      placeholder="Seleccionar país"
-                    />
-                  </div>
-
-                  <Input
-                    label="Número de Teléfono"
-                    placeholder="Ej: 1234567890 (sin código de país)"
-                    value={phoneNumber}
-                    onChange={(e) => {
-                      // Solo permitir números
-                      const value = e.target.value.replace(/\D/g, "")
-                      setPhoneNumber(value)
-                    }}
-                    startContent={
-                      <div className="flex items-center gap-1 text-gray-600">
-                        <Phone className="h-4 w-4" />
-                        <span className="text-sm font-medium">
-                          {selectedCountry?.dialCode || "+"}
-                        </span>
-                      </div>
-                    }
-                    description="Solo el número local, sin código de país"
-                    isInvalid={phoneNumber.length > 0 && !isPhoneValid}
-                    errorMessage={
-                      phoneNumber.length > 0 && !isPhoneValid 
-                        ? "El número debe tener entre 7 y 15 dígitos" 
-                        : ""
-                    }
-                  />
-
-                  <Input
-                    label="Nombre del Contacto"
-                    placeholder="Ej: Juan Pérez"
-                    value={contactName}
-                    onChange={(e) => setContactName(e.target.value)}
-                    startContent={<User className="h-4 w-4 text-gray-400" />}
-                    description="Nombre que aparecerá en la conversación"
-                    isInvalid={contactName.length > 0 && !isNameValid}
-                    errorMessage={contactName.length > 0 && !isNameValid ? "El nombre no puede estar vacío" : ""}
-                  />
-                </CardBody>
-              </Card>
-
-              <div className="bg-blue-50 p-4 rounded-lg">
-                <h5 className="font-medium mb-2">Instrucciones:</h5>
-                <ul className="text-sm text-gray-600 space-y-1">
-                  <li>• Selecciona el país para obtener el código correcto</li>
-                  <li>• Ingresa solo el número local (sin código de país)</li>
-                  <li>• Verifica que el número sea correcto antes de continuar</li>
-                  {selectedCountry && (
-                    <li className="mt-2 p-2 bg-white rounded border">
-                      <strong>Número completo:</strong> {selectedCountry.dialCode}{phoneNumber || "XXXXXXXXX"}
-                    </li>
-                  )}
-                </ul>
-              </div>
-            </div>
-          )}
-
-          {/* Paso 3: Seleccionar Plantilla */}
-          {step === 3 && (
-            <div className="space-y-4">
-              <h3 className="text-lg font-semibold flex items-center gap-2">
-                <MessageCircle className="h-5 w-5" />
-                Selecciona una Plantilla de WhatsApp Business
-              </h3>
-
-              {loading ? (
-                <div className="flex justify-center py-8">
-                  <Progress size="sm" isIndeterminate aria-label="Cargando plantillas..." className="max-w-md" />
+            <div className="space-y-3">
+              {loadingConfig ? (
+                <div className="py-5 text-sm text-slate-500 dark:text-slate-400">
+                  Cargando credenciales...
+                </div>
+              ) : credentials.length === 0 ? (
+                <div className="py-5 text-sm text-slate-500 dark:text-slate-400">
+                  No hay credenciales outbound activas.
                 </div>
               ) : (
-                <div className="grid gap-3 max-h-96 overflow-y-auto">
-                  {plantillas.map((plantilla) => (
-                    <Card
-                      key={plantilla.id}
-                      isPressable
-                      isHoverable
-                      className={`cursor-pointer transition-all ${
-                        selectedPlantilla?.id === plantilla.id ? "ring-2 ring-primary" : ""
-                      }`}
-                      onPress={() => setSelectedPlantilla(plantilla)}
-                    >
-                      <CardHeader className="pb-2">
-                        <div className="flex justify-between items-start w-full">
-                          <div>
-                            <h4 className="font-semibold">{plantilla.name}</h4>
-                            <p className="text-sm text-gray-500 dark:text-gray-400">
-                              {plantilla.language} • {plantilla.status}
-                            </p>
-                          </div>
-                          {selectedPlantilla?.id === plantilla.id && (
-                            <Chip color="success" size="sm">
-                              Seleccionada
-                            </Chip>
-                          )}
-                        </div>
-                      </CardHeader>
-                      <CardBody className="pt-0">
-                        {plantilla.header_component?.text && (
-                          <div className="mb-2">
-                            <p className="text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">HEADER:</p>
-                            <p className="text-sm font-medium">{plantilla.header_component.text}</p>
-                          </div>
-                        )}
-                        <div>
-                          <p className="text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">BODY:</p>
-                          <p className="text-sm">{plantilla.body_component?.text || 'Sin contenido'}</p>
-                        </div>
-                        {plantilla.footer_component?.text && (
-                          <div className="mt-2">
-                            <p className="text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">FOOTER:</p>
-                            <p className="text-sm text-gray-500 dark:text-gray-400">{plantilla.footer_component.text}</p>
-                          </div>
-                        )}
-                      </CardBody>
-                    </Card>
-                  ))}
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                  {credentials.map((credential) => {
+                    const isSelected =
+                      selectedCredentialId === credential.credentialId
+
+                    return (
+                      <button
+                        key={credential.credentialId}
+                        type="button"
+                        onClick={() =>
+                          setSelectedCredentialId(credential.credentialId)
+                        }
+                        className={`rounded-xl border p-3 text-left transition ${
+                          isSelected
+                            ? "border-primary bg-primary/5 ring-2 ring-primary/20"
+                            : "border-slate-200 bg-white hover:border-slate-300 dark:border-slate-700 dark:bg-slate-900 dark:hover:border-slate-600"
+                        }`}
+                      >
+                        <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">
+                          {credential.credentialName ||
+                            credential.name ||
+                            credential.credentialId}
+                        </p>
+                        <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+                          {credential.serviceTypeName ||
+                            credential.serviceTypeCode ||
+                            "Evolution API"}
+                        </p>
+                      </button>
+                    )
+                  })}
                 </div>
               )}
             </div>
           )}
 
-          {/* Paso 4: Configurar Parámetros */}
-          {step === 4 && selectedPlantilla && (
+          {step === 2 && (
             <div className="space-y-4">
-              <h3 className="text-lg font-semibold flex items-center gap-2">
-                <Eye className="h-5 w-5" />
-                Configurar Parámetros de la Plantilla
-              </h3>
+              <Tabs
+                selectedKey={contactMode}
+                onSelectionChange={(value) => {
+                  const mode = String(value) as "new" | "existing"
+                  setContactMode(mode)
+                  setRecipientValues({})
+                }}
+                variant="underlined"
+                color="primary"
+              >
+                <Tab key="new" title="Nuevo">
+                  <div className="space-y-3 pt-3">
+                    <Input
+                      label="Nombre completo"
+                      placeholder="Ej: Juan Perez"
+                      startContent={<User className="h-4 w-4 text-slate-400" />}
+                      value={fullName}
+                      onChange={(event) => setFullName(event.target.value)}
+                      isRequired
+                    />
 
-              <div className="grid md:grid-cols-2 gap-4">
-                <div className="space-y-4">
-                  <Card>
-                    <CardHeader>
-                      <h4 className="font-semibold">Información del Contacto</h4>
-                    </CardHeader>
-                    <CardBody>
-                      <div className="space-y-2">
-                        <div className="text-sm">
-                          <span className="font-medium">Nombre:</span> {contactName}
+                    {recipientFields.map((field) => {
+                      const value = recipientValues[field.key] || ""
+                      return (
+                        <Input
+                          key={field.key}
+                          label={field.description}
+                          placeholder={
+                            field.examples.length > 0
+                              ? `Ej: ${field.examples.join(" | ")}`
+                              : "Completa este campo"
+                          }
+                          value={value}
+                          onChange={(event) =>
+                            setRecipientValues((prev) => ({
+                              ...prev,
+                              [field.key]: event.target.value.trim(),
+                            }))
+                          }
+                          isRequired={field.required}
+                          isInvalid={Boolean(recipientValidationErrors[field.key])}
+                          errorMessage={recipientValidationErrors[field.key]}
+                        />
+                      )
+                    })}
+                  </div>
+                </Tab>
+
+                <Tab key="existing" title="Existente">
+                  <div className="space-y-3 pt-3">
+                    <Input
+                      label="Buscar contacto"
+                      placeholder="Buscar por nombre"
+                      value={existingContactSearch}
+                      onChange={(event) =>
+                        setExistingContactSearch(event.target.value)
+                      }
+                      isClearable
+                      onClear={() => setExistingContactSearch("")}
+                      startContent={<Search className="h-4 w-4 text-slate-400" />}
+                    />
+
+                    <div className="max-h-64 space-y-2 overflow-y-auto rounded-lg border border-slate-200 p-2 dark:border-slate-700">
+                      {loadingContacts ? (
+                        <div className="space-y-2 py-1" aria-hidden="true">
+                          {Array.from({ length: 4 }).map((_, index) => (
+                            <div
+                              key={`contact-skeleton-${index}`}
+                              className="h-14 w-full animate-pulse rounded-lg bg-slate-200 dark:bg-slate-700/70"
+                            />
+                          ))}
                         </div>
-                        <div className="text-sm">
-                          <span className="font-medium">Teléfono:</span> {selectedCountry?.dialCode}{phoneNumber}
+                      ) : existingContacts.length === 0 ? (
+                        <div className="py-3 text-sm text-slate-500 dark:text-slate-400">
+                          No hay resultados.
                         </div>
+                      ) : (
+                        existingContacts.map((contact) => {
+                          const isSelected = existingContactId === contact.id
+                          return (
+                            <button
+                              key={contact.id}
+                              type="button"
+                              onClick={() => setExistingContactId(contact.id)}
+                              className={`flex w-full items-center gap-3 rounded-lg border p-2 text-left transition ${
+                                isSelected
+                                  ? "border-primary bg-primary/5"
+                                  : "border-slate-200 hover:border-slate-300 hover:bg-slate-50 dark:border-slate-700 dark:hover:border-slate-600 dark:hover:bg-slate-800/70"
+                              }`}
+                            >
+                              <Avatar name={contact.fullName} size="sm" />
+                              <div className="min-w-0 flex-1">
+                                <p className="truncate text-sm font-medium text-slate-900 dark:text-slate-100">
+                                  {contact.fullName}
+                                </p>
+                                <p className="truncate text-xs text-slate-500 dark:text-slate-400">
+                                  {getContactChannelsLabel(contact)}
+                                </p>
+                              </div>
+                            </button>
+                          )
+                        })
+                      )}
+                    </div>
+
+                    {selectedExistingContact && shouldRequireRecipientFields && (
+                      <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 text-xs text-slate-600 dark:border-slate-700 dark:bg-slate-800/50 dark:text-slate-300">
+                        El contacto no tiene canal para esta credencial. Completa los datos de destino.
                       </div>
-                    </CardBody>
-                  </Card>
+                    )}
 
-                  {bodyParams.length > 0 && (
-                    <Card>
-                      <CardHeader>
-                        <h4 className="font-semibold">Parámetros del Mensaje</h4>
-                      </CardHeader>
-                      <CardBody className="space-y-3">
-                        {bodyParams.map((param, index) => (
+                    {shouldRequireRecipientFields &&
+                      recipientFields.map((field) => {
+                        const value = recipientValues[field.key] || ""
+                        return (
                           <Input
-                            key={`body-param-${index}-${param}`}
-                            label={`Parámetro ${index + 1}`}
-                            placeholder={`Valor para {{${index + 1}}}`}
-                            value={templateParams.Body[index] || ""}
-                            onChange={(e) => {
-                              const newParams = { ...templateParams }
-                              newParams.Body[index] = e.target.value
-                              setTemplateParams(newParams)
-                            }}
+                            key={field.key}
+                            label={field.description}
+                            placeholder={
+                              field.examples.length > 0
+                                ? `Ej: ${field.examples.join(" | ")}`
+                                : "Completa este campo"
+                            }
+                            value={value}
+                            onChange={(event) =>
+                              setRecipientValues((prev) => ({
+                                ...prev,
+                                [field.key]: event.target.value.trim(),
+                              }))
+                            }
+                            isRequired={field.required}
+                            isInvalid={Boolean(
+                              recipientValidationErrors[field.key],
+                            )}
+                            errorMessage={recipientValidationErrors[field.key]}
                           />
-                        ))}
-                      </CardBody>
-                    </Card>
-                  )}
-                </div>
-
-                <div>
-                  <Card>
-                    <CardHeader>
-                      <h4 className="font-semibold">Vista Previa del Mensaje</h4>
-                    </CardHeader>
-                    <CardBody>
-                      <div className="bg-green-50 p-3 rounded-lg border-l-4 border-green-400">
-                        {selectedPlantilla.HeaderComponent?.Text && (
-                          <div className="font-semibold mb-2">{selectedPlantilla.HeaderComponent.Text}</div>
-                        )}
-                        <div className="whitespace-pre-wrap">{getPreviewMessage()}</div>
-                        {selectedPlantilla.FooterComponent?.Text && (
-                          <div className="text-sm text-gray-600 mt-2">{selectedPlantilla.FooterComponent.Text}</div>
-                        )}
-                      </div>
-                      <p className="text-xs text-gray-500 mt-2">
-                        Este mensaje se enviará a {contactName} ({selectedCountry?.dialCode}{phoneNumber})
-                      </p>
-                    </CardBody>
-                  </Card>
-                </div>
-              </div>
+                        )
+                      })}
+                  </div>
+                </Tab>
+              </Tabs>
             </div>
           )}
 
-          {/* Paso 5: Confirmar y Enviar */}
-          {step === 5 && (
-            <div className="space-y-4">
-              <h3 className="text-lg font-semibold flex items-center gap-2">
-                <Send className="h-5 w-5" />
-                Confirmar y Enviar Mensaje
-              </h3>
-
-              <Card>
-                <CardBody>
-                  <div className="space-y-4">
-                    <div className="grid md:grid-cols-3 gap-4 text-center">
-                      <div>
-                        <p className="text-2xl font-bold text-primary">{contactName}</p>
-                        <p className="text-sm text-gray-600">Contacto</p>
-                      </div>
-                      <div>
-                        <p className="text-2xl font-bold text-success">{selectedCountry?.dialCode}{phoneNumber}</p>
-                        <p className="text-sm text-gray-600">Teléfono</p>
-                      </div>
-                      <div>
-                        <p className="text-2xl font-bold text-warning">{selectedPlantilla?.Name}</p>
-                        <p className="text-sm text-gray-600">Plantilla</p>
-                      </div>
-                    </div>
-
-                    <div className="space-y-3">
-                      <div>
-                        <h5 className="font-medium mb-2">Vista previa final del mensaje:</h5>
-                        <div className="bg-green-50 p-3 rounded border-l-4 border-green-400">
-                          {selectedPlantilla?.HeaderComponent?.Text && (
-                            <div className="font-semibold mb-2">{selectedPlantilla.HeaderComponent.Text}</div>
-                          )}
-                          <div className="whitespace-pre-wrap">{getPreviewMessage()}</div>
-                          {selectedPlantilla?.FooterComponent?.Text && (
-                            <div className="text-sm text-gray-600 mt-2">{selectedPlantilla.FooterComponent.Text}</div>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </CardBody>
-              </Card>
+          {step === 3 && (
+            <div className="space-y-3">
+              <Textarea
+                label="Mensaje"
+                placeholder="Escribe tu mensaje"
+                minRows={4}
+                value={initialMessage}
+                onChange={(event) => setInitialMessage(event.target.value)}
+                isRequired
+              />
             </div>
           )}
         </ModalBody>
@@ -555,44 +605,45 @@ export default function NewChatModal({ isOpen, onClose }: NewChatModalProps) {
             Cancelar
           </Button>
 
-          {step > 1 && step < 5 && (
-            <Button variant="flat" onPress={() => setStep(step - 1)} isDisabled={sending}>
+          {step > 1 && (
+            <Button
+              variant="flat"
+              onPress={() => setStep((prev) => prev - 1)}
+              isDisabled={sending}
+            >
               Anterior
             </Button>
           )}
 
           {step === 1 && (
-            <Button color="primary" onPress={() => setStep(2)} isDisabled={!selectedCredential}>
+            <Button
+              color="primary"
+              onPress={() => setStep(2)}
+              isDisabled={!isStepOneValid || loadingConfig}
+            >
               Siguiente
             </Button>
           )}
 
           {step === 2 && (
-            <Button color="primary" onPress={() => setStep(3)} isDisabled={!isPhoneValid || !isNameValid || !selectedCountry}>
+            <Button
+              color="primary"
+              onPress={() => setStep(3)}
+              isDisabled={!isStepTwoValid}
+            >
               Siguiente
             </Button>
           )}
 
           {step === 3 && (
-            <Button color="primary" onPress={() => setStep(4)} isDisabled={!selectedPlantilla}>
-              Siguiente
-            </Button>
-          )}
-
-          {step === 4 && (
-            <Button color="primary" onPress={() => setStep(5)}>
-              Continuar
-            </Button>
-          )}
-
-          {step === 5 && (
             <Button
               color="success"
-              onPress={handleSendMessage}
+              onPress={handleSubmit}
               isLoading={sending}
-              startContent={!sending ? <Send className="h-4 w-4" /> : null}
+              isDisabled={!isStepThreeValid}
+              startContent={!sending ? <Send className="h-4 w-4" /> : undefined}
             >
-              {sending ? "Enviando..." : "Enviar Mensaje"}
+              {sending ? "Creando..." : "Crear conversacion"}
             </Button>
           )}
         </ModalFooter>
