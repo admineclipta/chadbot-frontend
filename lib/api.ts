@@ -89,6 +89,8 @@ import {
   type MembershipPlansResponseDto,
   type MembershipChangePlanRequestDto,
   type MembershipChangePlanResponseDto,
+  type MembershipFeaturePolicyResponseDto,
+  type MembershipFeaturePolicyUpdateRequestDto,
   type BillingInvoiceDto,
   type PushPublicKeyResponse,
   type PushSubscriptionUpsertRequest,
@@ -1427,6 +1429,36 @@ class ApiService {
       method: "POST",
       body: JSON.stringify(payload),
     });
+  }
+
+  async getMembershipFeaturePolicy(
+    featureKey: string,
+    signal?: AbortSignal,
+  ): Promise<MembershipFeaturePolicyResponseDto> {
+    console.log(
+      `🧠 [CHADBOT API] Fetching membership feature policy for ${featureKey}`,
+    );
+    return this.request<MembershipFeaturePolicyResponseDto>(
+      `membership/features/${encodeURIComponent(featureKey)}/policy`,
+      {},
+      signal,
+    );
+  }
+
+  async updateMembershipFeaturePolicy(
+    featureKey: string,
+    payload: MembershipFeaturePolicyUpdateRequestDto,
+  ): Promise<MembershipFeaturePolicyResponseDto> {
+    console.log(
+      `🧠 [CHADBOT API] Updating membership feature policy for ${featureKey} to ${payload.mode}`,
+    );
+    return this.request<MembershipFeaturePolicyResponseDto>(
+      `membership/features/${encodeURIComponent(featureKey)}/policy`,
+      {
+        method: "PUT",
+        body: JSON.stringify(payload),
+      },
+    );
   }
 
   async getBillingInvoices(

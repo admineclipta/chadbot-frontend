@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+- feature: Membership, billing and plans. [#17](https://github.com/admineclipta/chadbot-frontend/pull/17)
+
 ## [Release]
 
 ### v2.5.1

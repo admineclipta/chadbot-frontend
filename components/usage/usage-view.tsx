@@ -11,9 +11,10 @@ import {
   DropdownMenu,
   DropdownTrigger,
   Skeleton,
+  Switch,
 } from "@heroui/react";
-import { BadgeAlert, BarChart3, ChevronDown, Sparkles } from "lucide-react";
-import { useMemo } from "react";
+import { BadgeAlert, BarChart3, ChevronDown, Loader2, Sparkles } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
 import {
   Bar,
   BarChart,
@@ -24,6 +25,7 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
+import { toast } from "sonner";
 import { useApi } from "@/hooks/use-api";
 import { apiService } from "@/lib/api";
 import type { MembershipFeatureUsageDto } from "@/lib/api-types";
@@ -72,8 +74,13 @@ function getUsageColor(pct: number): "danger" | "warning" | "success" {
   return "success";
 }
 
+const AI_TOKENS_FEATURE_KEY = "ai.tokens.monthly";
+const CONTINUE_AND_BILL_MODE = "continue_and_bill_overage";
+
 export default function UsageView({ currentUser, onOpenPlans }: UsageViewProps) {
   const canManage = canManageMembershipBilling(currentUser);
+  const [aiPolicyEnabled, setAiPolicyEnabled] = useState(false);
+  const [aiPolicySaving, setAiPolicySaving] = useState(false);
 
   const {
     data: membershipCurrent,
@@ -102,6 +109,20 @@ export default function UsageView({ currentUser, onOpenPlans }: UsageViewProps) 
     refetch: refetchUsageAlerts,
   } = useApi((signal) => apiService.getMembershipUsageAlerts(0, 10, signal), []);
 
+  const {
+    data: aiPolicy,
+    loading: aiPolicyLoading,
+    error: aiPolicyError,
+    refetch: refetchAiPolicy,
+  } = useApi(
+    (signal) => apiService.getMembershipFeaturePolicy(AI_TOKENS_FEATURE_KEY, signal),
+    [],
+  );
+
+  useEffect(() => {
+    setAiPolicyEnabled(aiPolicy?.mode === CONTINUE_AND_BILL_MODE);
+  }, [aiPolicy?.mode]);
+
   const usageData = useMemo(() => {
     return membershipUsage?.features || membershipCurrent?.features || [];
   }, [membershipCurrent?.features, membershipUsage?.features]);
@@ -123,6 +144,30 @@ export default function UsageView({ currentUser, onOpenPlans }: UsageViewProps) 
       }),
     [usageData],
   );
+
+  const handleAiPolicyToggle = async (isSelected: boolean) => {
+    const previousValue = aiPolicyEnabled;
+    const nextMode = isSelected ? CONTINUE_AND_BILL_MODE : "handoff_on_limit";
+
+    setAiPolicyEnabled(isSelected);
+    try {
+      setAiPolicySaving(true);
+      const updated = await apiService.updateMembershipFeaturePolicy(
+        AI_TOKENS_FEATURE_KEY,
+        { mode: nextMode },
+      );
+      setAiPolicyEnabled(updated.mode === CONTINUE_AND_BILL_MODE);
+      toast.success("Politica de consumo IA actualizada.");
+      void refetchMembershipUsage();
+      void refetchAiPolicy();
+    } catch (error) {
+      console.error("Error updating AI policy:", error);
+      setAiPolicyEnabled(previousValue);
+      toast.error("No se pudo actualizar la politica de consumo IA.");
+    } finally {
+      setAiPolicySaving(false);
+    }
+  };
 
   return (
     <div className="flex-1 overflow-y-auto p-4 md:p-6 pt-16 md:pt-6">
@@ -179,6 +224,64 @@ export default function UsageView({ currentUser, onOpenPlans }: UsageViewProps) 
                     </DropdownItem>
                   </DropdownMenu>
                 </Dropdown>
+              </div>
+            )}
+          </CardBody>
+        </Card>
+
+        <Card className="border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800">
+          <CardHeader className="flex items-center justify-between gap-2">
+            <div>
+              <p className="font-semibold text-slate-900 dark:text-white">Configurar límites</p>
+              <p className="text-xs text-slate-500 dark:text-slate-400">
+                Define que pasa cuando alcanzas el limite mensual de Inteligencia Artificial.
+              </p>
+            </div>
+            {aiPolicySaving && <Loader2 className="h-4 w-4 animate-spin text-primary" />}
+          </CardHeader>
+          <CardBody>
+            {aiPolicyLoading ? (
+              <div className="space-y-2">
+                <Skeleton className="h-5 w-1/2 rounded-lg" />
+                <Skeleton className="h-10 w-full rounded-lg" />
+              </div>
+            ) : aiPolicyError ? (
+              <ApiErrorAlert
+                title="No se pudo cargar la politica de IA"
+                description={aiPolicyError}
+                onRetry={refetchAiPolicy}
+              />
+            ) : (
+              <div className="space-y-3">
+                <div className="flex items-start justify-between gap-4 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-700/30 p-3">
+                  <div className="space-y-1">
+                    <p className="text-sm font-medium text-slate-900 dark:text-white">
+                      {aiPolicyEnabled
+                        ? "Continuar y facturar excedente"
+                        : "Derivar a un agente humano las conversaciones"}
+                    </p>
+                    <p className="text-xs text-slate-600 dark:text-slate-300">
+                      {aiPolicyEnabled
+                        ? "La Inteligencia Artificial sigue respondiendo y el excedente se factura al cierre."
+                        : "Al llegar al tope mensual, las conversaciones se derivan a un agente humano sin costo adicional."}
+                    </p>
+                  </div>
+                  <Switch
+                    isSelected={aiPolicyEnabled}
+                    onValueChange={handleAiPolicyToggle}
+                    isDisabled={!canManage || aiPolicySaving}
+                    color="primary"
+                  />
+                </div>
+
+                {/* <div className="flex flex-wrap items-center gap-2">
+                  <Chip size="sm" variant="flat" color="default">
+                    Fuente: {aiPolicy?.source || "-"}
+                  </Chip>
+                  <Chip size="sm" variant="flat" color="default">
+                    Policy efectiva: {aiPolicy?.effectiveOveragePolicy || "-"}
+                  </Chip>
+                </div> */}
               </div>
             )}
           </CardBody>

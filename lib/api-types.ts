@@ -567,14 +567,14 @@ export interface AiCredentialResponseDto {
   serviceTypeId: number;
   name: string;
   metadata: Record<string, any>;
-  usageLimit: number;
-  currentUsage: number;
-  usageUnit: string;
-  usageResetAt: string | null;
-  remainingUsage: number;
-  usagePercentage: number;
-  hasReachedLimit: boolean;
-  isNearLimit: boolean;
+  usageLimit?: number;
+  currentUsage?: number;
+  usageUnit?: string;
+  usageResetAt?: string | null;
+  remainingUsage?: number;
+  usagePercentage?: number;
+  hasReachedLimit?: boolean;
+  isNearLimit?: boolean;
   active: boolean;
   createdAt: string;
 }
@@ -1299,6 +1299,26 @@ export interface MembershipChangePlanResponseDto {
   toPlanCode: string;
   effectiveAt: string | number;
   requestStatus: "scheduled" | string;
+}
+
+export type MembershipFeaturePolicyMode =
+  | "continue_and_bill_overage"
+  | "handoff_on_limit"
+  | string;
+
+export interface MembershipFeaturePolicyResponseDto {
+  clientId: string;
+  featureKey: string;
+  mode: MembershipFeaturePolicyMode;
+  effectiveOveragePolicy: string;
+  source: "plan" | "override" | string;
+  configuredAt?: string | number | null;
+  effectiveFrom?: string | number | null;
+  effectiveTo?: string | number | null;
+}
+
+export interface MembershipFeaturePolicyUpdateRequestDto {
+  mode: "continue_and_bill_overage" | "handoff_on_limit";
 }
 
 export interface BillingInvoiceItemDto {
