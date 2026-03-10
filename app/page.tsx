@@ -19,6 +19,8 @@ import ContactInfoModal from "@/components/modals/contact-info-modal"
 import HomeDashboard from "@/components/home-dashboard"
 import UsageView from "@/components/usage/usage-view"
 import PlansPricingView from "@/components/plans/plans-pricing-view"
+import EvaLauncher from "@/components/eva/eva-launcher"
+import EvaWorkspace from "@/components/eva/eva-workspace"
 import type { Conversation, User, Message, Tag } from "@/lib/types"
 import type {
   ConversationAssignedRealtimeEvent,
@@ -42,6 +44,7 @@ import { cn, parseApiTimestamp } from "@/lib/utils"
 import { useMessagesRealtimeSse } from "@/hooks/use-messages-realtime-sse"
 import { useNotificationsSse } from "@/hooks/use-notifications-sse"
 import { usePresenceHeartbeat } from "@/hooks/use-presence-heartbeat"
+import { canManageEvaActions, canUseEva } from "@/lib/permissions"
 import {
   getOrCreatePresenceSessionId,
   rotatePresenceSessionId,
@@ -116,6 +119,11 @@ export default function Home() {
   // Estado para modal de información del cliente
   const [contactInfoModalOpen, setContactInfoModalOpen] = useState(false)
   const [selectedContactId, setSelectedContactId] = useState<string | null>(null)
+  const [isEvaOpen, setIsEvaOpen] = useState(false)
+  const [isEvaMinimized, setIsEvaMinimized] = useState(false)
+  const [evaUnreadRepliesCount, setEvaUnreadRepliesCount] = useState(0)
+  const canUseEvaFeature = canUseEva(user)
+  const canManageEvaActionsFeature = canManageEvaActions(user)
 
   // Cargar tags disponibles al montar
   useEffect(() => {
@@ -1249,6 +1257,34 @@ export default function Home() {
     setSelectedChannel(channel)
   }, [])
 
+  const handleEvaOpen = useCallback(() => {
+    if (!canUseEvaFeature) return
+    setIsEvaOpen(true)
+    setIsEvaMinimized(false)
+    setEvaUnreadRepliesCount(0)
+  }, [canUseEvaFeature])
+
+  const handleEvaClose = useCallback(() => {
+    setIsEvaOpen(false)
+    setIsEvaMinimized(false)
+  }, [])
+
+  const handleEvaMinimize = useCallback(() => {
+    setIsEvaMinimized(true)
+  }, [])
+
+  const handleEvaReplyWhileMinimized = useCallback(() => {
+    setEvaUnreadRepliesCount((prev) => prev + 1)
+  }, [])
+
+  useEffect(() => {
+    if (!canUseEvaFeature) {
+      setIsEvaOpen(false)
+      setIsEvaMinimized(false)
+      setEvaUnreadRepliesCount(0)
+    }
+  }, [canUseEvaFeature])
+
   if (!isAuthenticated || !user) {
     return null
   }
@@ -1432,6 +1468,27 @@ export default function Home() {
           />
         )}
       </div>
+
+      {canUseEvaFeature && (
+        <>
+          <EvaWorkspace
+            isOpen={isEvaOpen}
+            isMinimized={isEvaMinimized}
+            token={authToken}
+            canManageActions={canManageEvaActionsFeature}
+            userName={user.name}
+            onClose={handleEvaClose}
+            onMinimize={handleEvaMinimize}
+            onResetUnread={() => setEvaUnreadRepliesCount(0)}
+            onAssistantReplyWhileMinimized={handleEvaReplyWhileMinimized}
+          />
+          <EvaLauncher
+            unreadCount={evaUnreadRepliesCount}
+            isOpen={isEvaOpen && !isEvaMinimized}
+            onOpen={handleEvaOpen}
+          />
+        </>
+      )}
     </div>
   )
 }

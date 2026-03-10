@@ -1351,6 +1351,199 @@ export interface BillingInvoiceDto {
 }
 
 // ============================================
+// Eva Assistant Types
+// ============================================
+
+export type EvaMode = "DISCOVER" | "TUNE" | "CREATE";
+export type EvaFlowStage =
+  | "explorando"
+  | "definiendo"
+  | "listo_para_confirmar"
+  | "confirmado";
+
+export type EvaActionType = "CREATE_ASSISTANT" | "UPDATE_ASSISTANT";
+
+export interface EvaPendingAction {
+  actionId: string;
+  type: EvaActionType;
+  targetAssistantId: string | null;
+  draftPayload: Record<string, unknown>;
+  summary: string;
+  expiresAt: string;
+}
+
+export interface EvaSendMessageRequest {
+  sessionId?: string;
+  mode: EvaMode;
+  message: string;
+  assistantId?: string;
+}
+
+export interface EvaSendMessageResponse {
+  sessionId: string;
+  requestId: string;
+}
+
+export interface EvaAckEventPayload {
+  sessionId?: string;
+  requestId?: string;
+  status?: "accepted" | string;
+}
+
+export interface EvaResponseEventPayload {
+  sessionId?: string;
+  requestId?: string;
+  status: "COMPLETED" | "AI_ERROR" | "LIMIT_REACHED";
+  responseText: string;
+  pendingAction: EvaPendingAction | null;
+  mode: EvaMode;
+  stage?: EvaFlowStage;
+  canProposeAction?: boolean;
+  proposalSummary?: string;
+}
+
+export interface EvaErrorEventPayload {
+  sessionId?: string;
+  requestId?: string;
+  code?: string;
+  message?: string;
+  reason?: string;
+}
+
+export interface EvaConfirmActionResponse {
+  actionId: string;
+  status: "applied" | string;
+  assistantId: string | null;
+  versionTimestamp: string | null;
+  summary: string;
+}
+
+export interface EvaCancelActionResponse {
+  actionId: string;
+  status: "canceled" | string;
+  assistantId: string | null;
+  versionTimestamp: string | null;
+  summary: string;
+}
+
+export interface EvaSessionSummary {
+  id?: string;
+  sessionId?: string;
+  title?: string;
+  mode?: EvaMode | string;
+  assistantId?: string | null;
+  status?: string;
+  lastMessagePreview?: string;
+  updatedAt?: string | number;
+  createdAt?: string | number;
+  [key: string]: unknown;
+}
+
+export interface EvaSessionMessage {
+  id?: string;
+  sessionId?: string;
+  role?: "user" | "assistant" | "system" | string;
+  content?: string | { text?: string; [key: string]: unknown };
+  createdAt?: string | number;
+  mode?: EvaMode | string;
+  assistantId?: string | null;
+  stage?: EvaFlowStage;
+  canProposeAction?: boolean;
+  proposalSummary?: string;
+  pendingAction?: EvaPendingAction | null;
+  usage?: EvaMessageUsage | null;
+  [key: string]: unknown;
+}
+
+export interface EvaMessageUsage {
+  inputTokens?: number;
+  outputTokens?: number;
+  totalTokens?: number;
+  input_tokens?: number;
+  output_tokens?: number;
+  total_tokens?: number;
+  [key: string]: unknown;
+}
+
+export interface EvaSessionListResponse {
+  content: EvaSessionSummary[];
+  page: number;
+  size: number;
+  totalElements: number;
+  totalPages: number;
+  first: boolean;
+  last: boolean;
+}
+
+export interface EvaSessionMessageListResponse {
+  content: EvaSessionMessage[];
+  page: number;
+  size: number;
+  totalElements: number;
+  totalPages: number;
+  first: boolean;
+  last: boolean;
+}
+
+export type EvaSessionMessageListLike =
+  | EvaSessionMessageListResponse
+  | EvaSessionMessage[];
+
+export interface EvaSettingsResponse {
+  evaCredentialId: string | null;
+  defaultModel: string;
+}
+
+export interface EvaSettingsUpdateRequest {
+  evaCredentialId: string | null;
+  defaultModel: string;
+}
+
+export interface EvaUsageResponse {
+  clientId: string;
+  featureKey: "eva.tokens.monthly" | string;
+  periodKey: string;
+  limitValue: number;
+  consumedValue: number;
+  remainingValue: number;
+  percentageUsed: number;
+}
+
+export interface EvaUsageStreamPayload {
+  featureKey?: string;
+  inputTokens?: number;
+  outputTokens?: number;
+  totalTokens?: number;
+  [key: string]: unknown;
+}
+
+export interface EvaUsageStreamEvent {
+  eventType?: "eva-usage" | string;
+  clientId?: string;
+  sessionId?: string;
+  requestId?: string;
+  payload?: EvaUsageStreamPayload;
+  timestamp?: string | number;
+  [key: string]: unknown;
+}
+
+export type EvaSseEventName =
+  | "eva-ack"
+  | "eva-thinking"
+  | "eva-response"
+  | "eva-error"
+  | "eva-usage"
+  | "eva-action-proposed"
+  | "eva-action-applied"
+  | "eva-action-failed"
+  | "heartbeat";
+
+export interface EvaSseEvent<T = Record<string, unknown>> {
+  event: EvaSseEventName;
+  data: T;
+}
+
+// ============================================
 // Dashboard Statistics Types
 // ============================================
 

@@ -39,3 +39,22 @@ export function canViewMembership(user: User | null): boolean {
   return Boolean(user);
 }
 
+function normalizePermissionCode(code?: string): string {
+  return (code || "").trim().toLowerCase();
+}
+
+export function hasPermissionCode(user: User | null, permissionCode: string): boolean {
+  if (!user?.permissions || !Array.isArray(user.permissions)) return false;
+  const expectedCode = normalizePermissionCode(permissionCode);
+  return user.permissions.some(
+    (permission) => normalizePermissionCode(permission.code) === expectedCode,
+  );
+}
+
+export function canUseEva(user: User | null): boolean {
+  return hasPermissionCode(user, "use_eva");
+}
+
+export function canManageEvaActions(user: User | null): boolean {
+  return hasPermissionCode(user, "manage_assistants");
+}

@@ -95,6 +95,15 @@ import {
   type PushPublicKeyResponse,
   type PushSubscriptionUpsertRequest,
   type PushSubscriptionDeleteRequest,
+  type EvaSendMessageRequest,
+  type EvaSendMessageResponse,
+  type EvaConfirmActionResponse,
+  type EvaCancelActionResponse,
+  type EvaSessionListResponse,
+  type EvaSessionMessageListLike,
+  type EvaSettingsResponse,
+  type EvaSettingsUpdateRequest,
+  type EvaUsageResponse,
   ApiError,
 } from "./api-types";
 import { mapApiConversationToDomain } from "./types";
@@ -1477,6 +1486,74 @@ class ApiService {
   }
 
   // ============================================
+  // Eva Assistant
+  // ============================================
+
+  async sendEvaMessage(payload: EvaSendMessageRequest): Promise<EvaSendMessageResponse> {
+    console.log("[CHADBOT API] Sending Eva message");
+    return this.request<EvaSendMessageResponse>("eva/chat/messages", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    });
+  }
+
+  async confirmEvaAction(actionId: string): Promise<EvaConfirmActionResponse> {
+    console.log(`[CHADBOT API] Confirming Eva action ${actionId}`);
+    return this.request<EvaConfirmActionResponse>(`eva/actions/${actionId}/confirm`, {
+      method: "POST",
+    });
+  }
+
+  async cancelEvaAction(actionId: string): Promise<EvaCancelActionResponse> {
+    console.log(`[CHADBOT API] Canceling Eva action ${actionId}`);
+    return this.request<EvaCancelActionResponse>(`eva/actions/${actionId}/cancel`, {
+      method: "POST",
+    });
+  }
+
+  async getEvaSessions(
+    page: number = 0,
+    size: number = 20,
+    signal?: AbortSignal,
+  ): Promise<EvaSessionListResponse> {
+    return this.request<EvaSessionListResponse>(
+      `eva/chat/sessions?page=${page}&size=${size}`,
+      {},
+      signal,
+    );
+  }
+
+  async getEvaSessionMessages(
+    sessionId: string,
+    page: number = 0,
+    size: number = 50,
+    signal?: AbortSignal,
+  ): Promise<EvaSessionMessageListLike> {
+    return this.request<EvaSessionMessageListLike>(
+      `eva/chat/sessions/${encodeURIComponent(sessionId)}/messages?page=${page}&size=${size}`,
+      {},
+      signal,
+    );
+  }
+
+  async getEvaUsage(signal?: AbortSignal): Promise<EvaUsageResponse> {
+    return this.request<EvaUsageResponse>("eva/usage", {}, signal);
+  }
+
+  async getEvaSettings(signal?: AbortSignal): Promise<EvaSettingsResponse> {
+    return this.request<EvaSettingsResponse>("eva/settings", {}, signal);
+  }
+
+  async updateEvaSettings(
+    payload: EvaSettingsUpdateRequest,
+  ): Promise<EvaSettingsResponse> {
+    return this.request<EvaSettingsResponse>("eva/settings", {
+      method: "PUT",
+      body: JSON.stringify(payload),
+    });
+  }
+
+  // ============================================
   // Dashboard
   // ============================================
 
@@ -1559,6 +1636,10 @@ class ApiService {
 
   getRealtimeNotificationsUrl(): string {
     return `${this.baseUrl}realtime/notifications`;
+  }
+
+  getEvaStreamUrl(sessionId: string): string {
+    return `${this.baseUrl}eva/chat/stream?sessionId=${encodeURIComponent(sessionId)}`;
   }
 
   setToken(token: string) {
