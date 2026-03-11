@@ -783,3 +783,81 @@
   background-clip: text;
   -webkit-text-fill-color: transparent;
 }
+
+@keyframes eva-float {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-3px);
+  }
+}
+
+@keyframes eva-overlay-enter {
+  from {
+    opacity: 0;
+    transform: scale(0.985);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes eva-dots {
+  0% {
+    box-shadow: 0 0 0 #94a3b8, 12px 0 0 #cbd5e1, 24px 0 0 #cbd5e1;
+  }
+  50% {
+    box-shadow: 0 0 0 #cbd5e1, 12px 0 0 #94a3b8, 24px 0 0 #cbd5e1;
+  }
+  100% {
+    box-shadow: 0 0 0 #cbd5e1, 12px 0 0 #cbd5e1, 24px 0 0 #94a3b8;
+  }
+}
+
+.animate-eva-float {
+  animation: eva-float 2s ease-in-out infinite;
+}
+
+.eva-overlay-enter {
+  animation: eva-overlay-enter 200ms ease-out;
+}
+
+.eva-rainbow-hover:hover {
+  background: linear-gradient(120deg, #5413ee, #7957f2, #977ef2, #c1fe72);
+  background-size: 240% 240%;
+  animation: rainbow 2s ease infinite;
+  box-shadow: 0 0 0 1px rgba(84, 19, 238, 0.2), 0 8px 30px rgba(84, 19, 238, 0.35);
+}
+
+.eva-typing-dots {
+  position: relative;
+  display: inline-block;
+  width: 30px;
+  height: 6px;
+}
+
+.eva-typing-dots::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 6px;
+  height: 6px;
+  border-radius: 999px;
+  background: #94a3b8;
+  animation: eva-dots 1s infinite linear;
+}
+
+.eva-type-cursor {
+  margin-left: 1px;
+  animation: blink 1s step-end infinite;
+}
+
+@keyframes blink {
+  50% {
+    opacity: 0;
+  }
+}
