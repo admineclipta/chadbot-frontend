@@ -1,10 +1,10 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
 import { Button, Chip, Select, SelectItem, Spinner, Tooltip } from "@heroui/react";
 import { Bot, Copy, User } from "lucide-react";
 import { toast } from "sonner";
 import type { EvaFlowStage, EvaPendingAction } from "@/lib/api-types";
+import MessageMarkdown from "@/components/shared/message-markdown";
 import EvaActionCard from "./eva-action-card";
 import styles from "./eva-ui.module.css";
 
@@ -57,37 +57,6 @@ function getStageLabel(stage?: EvaFlowStage): string | null {
   return null;
 }
 
-function TypewriterText({ text, enabled }: { text: string; enabled: boolean }) {
-  const [value, setValue] = useState(enabled ? "" : text);
-
-  useEffect(() => {
-    if (!enabled) {
-      setValue(text);
-      return;
-    }
-    let idx = 0;
-    const timer = window.setInterval(() => {
-      idx += 1;
-      setValue(text.slice(0, idx));
-      if (idx >= text.length) {
-        window.clearInterval(timer);
-      }
-    }, 12);
-    return () => window.clearInterval(timer);
-  }, [enabled, text]);
-
-  return (
-    <span>
-      {value}
-      {enabled && value.length < text.length ? (
-        <span className={styles.typeCursor} aria-hidden>
-          |
-        </span>
-      ) : null}
-    </span>
-  );
-}
-
 export default function EvaChatThread({
   messages,
   thinking,
@@ -98,13 +67,6 @@ export default function EvaChatThread({
   onCancelAction,
   assistantSelector,
 }: EvaChatThreadProps) {
-  const lastAssistantId = useMemo(() => {
-    for (let i = messages.length - 1; i >= 0; i -= 1) {
-      if (messages[i].role === "assistant") return messages[i].id;
-    }
-    return null;
-  }, [messages]);
-
   const copyText = async (value: string) => {
     try {
       await navigator.clipboard.writeText(value);
@@ -119,7 +81,6 @@ export default function EvaChatThread({
       {messages.map((message) => {
         const isAssistant = message.role === "assistant";
         const isSystem = message.role === "system";
-        const isLatestAssistant = isAssistant && message.id === lastAssistantId;
         const rowClass = isSystem
           ? styles.messageSystem
           : isAssistant
@@ -158,8 +119,8 @@ export default function EvaChatThread({
                     </Button>
                   </Tooltip>
                 )}
-                {isLatestAssistant ? (
-                  <TypewriterText text={message.text} enabled />
+                {isAssistant ? (
+                  <MessageMarkdown content={message.text} className="text-inherit" />
                 ) : (
                   <span>{message.text}</span>
                 )}

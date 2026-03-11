@@ -26,7 +26,9 @@ import type {
   EvaUsageStreamEvent,
   EvaUsageResponse,
 } from "@/lib/api-types";
+import type { Conversation as DomainConversation } from "@/lib/types";
 import { useEvaSse } from "@/hooks/use-eva-sse";
+import SearchableSelect from "@/components/shared/searchable-select";
 import EvaChatSidebar from "./eva-chat-sidebar";
 import EvaChatThread, { type EvaUiMessage } from "./eva-chat-thread";
 import EvaUsagePill, { type EvaUsageDisplay } from "./eva-usage-pill";
@@ -38,17 +40,29 @@ interface EvaWorkspaceProps {
   token: string | null;
   canManageActions: boolean;
   userName?: string;
+  activeConversationId?: string | null;
+  activeConversationLabel?: string | null;
   onClose: () => void;
   onMinimize: () => void;
   onResetUnread: () => void;
   onAssistantReplyWhileMinimized: () => void;
 }
 
-type GuidedState = "landing" | "awaiting_selection" | "submitting" | "completed";
+type GuidedState =
+  | "landing"
+  | "awaiting_selection"
+  | "awaiting_qa_conversation"
+  | "submitting"
+  | "completed";
 type EvaActionState = "pending" | "confirming" | "canceling" | "rejected" | "applied";
 
 const AUTO_REJECT_MESSAGE = "Rechazar propuesta. Sigamos iterando otra alternativa.";
 const AUTO_APPROVE_MESSAGE = "Aprobar";
+const QA_CLIENT_DATA_VISIBLE = "¿Cuáles son los datos del cliente?";
+const QA_CLIENT_DATA_PROMPT = "Hazme un bullet list de los datos del cliente.";
+const QA_SUMMARY_VISIBLE = "Hazme un resumen de la conversación.";
+const QA_SUMMARY_PROMPT =
+  "Hazme un resumen de la conversación: quién nos habló, para qué, qué agentes intervinieron, etc.";
 
 function getFirstName(name?: string): string {
   if (!name) return "equipo";
@@ -76,7 +90,14 @@ function isSessionReadOnlyStatus(status: unknown): boolean {
 
 function parseEvaMode(value: unknown): EvaMode | null {
   if (typeof value !== "string") return null;
-  if (value === "DISCOVER" || value === "TUNE" || value === "CREATE") return value;
+  if (
+    value === "DISCOVER" ||
+    value === "TUNE" ||
+    value === "CREATE" ||
+    value === "CONVERSATION_QA"
+  ) {
+    return value;
+  }
   return null;
 }
 
@@ -359,12 +380,43 @@ function extractAssistantIdFromMessages(messageList: EvaSessionMessage[]): strin
   return null;
 }
 
+function extractConversationIdFromSession(session: EvaSessionSummary | null): string | null {
+  if (!session) return null;
+  const record = session as Record<string, unknown>;
+  const nestedMeta =
+    record.metadata && typeof record.metadata === "object"
+      ? (record.metadata as Record<string, unknown>)
+      : {};
+  return (
+    readAssistantId(record.conversationId) ||
+    readAssistantId(nestedMeta.conversationId) ||
+    null
+  );
+}
+
+function extractConversationIdFromMessages(messageList: EvaSessionMessage[]): string | null {
+  for (let index = messageList.length - 1; index >= 0; index -= 1) {
+    const message = messageList[index];
+    const record = message as Record<string, unknown>;
+    const nestedMeta =
+      record.metadata && typeof record.metadata === "object"
+        ? (record.metadata as Record<string, unknown>)
+        : {};
+    const direct =
+      readAssistantId(record.conversationId) || readAssistantId(nestedMeta.conversationId);
+    if (direct) return direct;
+  }
+  return null;
+}
+
 export default function EvaWorkspace({
   isOpen,
   isMinimized,
   token,
   canManageActions,
   userName,
+  activeConversationId,
+  activeConversationLabel,
   onClose,
   onMinimize,
   onResetUnread,
@@ -390,6 +442,13 @@ export default function EvaWorkspace({
   const [input, setInput] = useState("");
   const [mode, setMode] = useState<EvaMode>("TUNE");
   const [selectedAssistantId, setSelectedAssistantId] = useState<string | null>(null);
+  const [selectedQaConversationId, setSelectedQaConversationId] = useState<string | null>(null);
+  const [selectedQaConversationLabel, setSelectedQaConversationLabel] = useState<string | null>(null);
+  const [qaConversations, setQaConversations] = useState<DomainConversation[]>([]);
+  const [qaConversationsLoading, setQaConversationsLoading] = useState(false);
+  const [qaConversationsError, setQaConversationsError] = useState<string | null>(null);
+  const [qaSessionRequiresFreshSelection, setQaSessionRequiresFreshSelection] = useState(false);
+  const [qaConversationLockedToContext, setQaConversationLockedToContext] = useState(false);
   const [guidedState, setGuidedState] = useState<GuidedState>("landing");
   const [guidedPromptMessageId, setGuidedPromptMessageId] = useState<string | null>(null);
 
@@ -407,6 +466,8 @@ export default function EvaWorkspace({
   const lastTerminalResponseSignatureRef = useRef<string | null>(null);
   const skipNextSessionHydrationRef = useRef<string | null>(null);
   const wasVisibleRef = useRef(false);
+  const autoQaTriggeredRef = useRef(false);
+  const qaConversationBySessionRef = useRef<Record<string, string>>({});
   const composerTextareaRef = useRef<HTMLTextAreaElement | null>(null);
 
   useEffect(() => {
@@ -443,13 +504,43 @@ export default function EvaWorkspace({
   }, []);
 
   const applySessionContext = useCallback(
-    (session: EvaSessionSummary | null, messageList: EvaSessionMessage[] = []) => {
+    (
+      session: EvaSessionSummary | null,
+      messageList: EvaSessionMessage[] = [],
+      contextSessionId?: string | null,
+    ) => {
       const nextMode = parseEvaMode(session?.mode) || parseEvaMode(messageList[0]?.mode) || "TUNE";
       setMode(nextMode);
 
       const inferredAssistantId =
         extractAssistantIdFromSession(session) || extractAssistantIdFromMessages(messageList);
       setSelectedAssistantId(inferredAssistantId);
+
+      if (nextMode === "CONVERSATION_QA") {
+        const sessionId = contextSessionId || getSessionKey(session);
+        const inferredConversationId =
+          extractConversationIdFromSession(session) || extractConversationIdFromMessages(messageList);
+        const rememberedConversationId =
+          sessionId && qaConversationBySessionRef.current[sessionId]
+            ? qaConversationBySessionRef.current[sessionId]
+            : null;
+        const resolvedConversationId = inferredConversationId || rememberedConversationId;
+        if (sessionId && resolvedConversationId) {
+          qaConversationBySessionRef.current[sessionId] = resolvedConversationId;
+        }
+        setQaConversationLockedToContext(false);
+        setSelectedQaConversationId(resolvedConversationId);
+        if (!resolvedConversationId) {
+          setSelectedQaConversationLabel(null);
+        }
+        setQaSessionRequiresFreshSelection(!resolvedConversationId);
+        return;
+      }
+
+      setSelectedQaConversationId(null);
+      setSelectedQaConversationLabel(null);
+      setQaSessionRequiresFreshSelection(false);
+      setQaConversationLockedToContext(false);
     },
     [],
   );
@@ -471,6 +562,13 @@ export default function EvaWorkspace({
         for (const session of sessionList) {
           const sessionId = getSessionKey(session);
           if (!sessionId) continue;
+          const sessionMode = parseEvaMode(session.mode);
+          if (sessionMode === "CONVERSATION_QA") {
+            const summaryConversationId = extractConversationIdFromSession(session);
+            if (summaryConversationId) {
+              qaConversationBySessionRef.current[sessionId] = summaryConversationId;
+            }
+          }
           if (isSessionReadOnlyStatus(session.status)) {
             next[sessionId] = true;
           }
@@ -512,6 +610,34 @@ export default function EvaWorkspace({
     }
   }, [isOpen]);
 
+  const loadQaConversations = useCallback(async (force = false) => {
+    if (!isOpen) return;
+    if (!force && qaConversations.length > 0) return;
+    try {
+      setQaConversationsLoading(true);
+      setQaConversationsError(null);
+      const response = await apiService.getConversations(
+        0,
+        200,
+        undefined,
+        undefined,
+        true,
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        "updatedAt",
+        "DESC",
+      );
+      setQaConversations(response.content || []);
+    } catch (error) {
+      console.error("Error loading conversations for Eva QA", error);
+      setQaConversationsError("No se pudieron cargar las conversaciones.");
+    } finally {
+      setQaConversationsLoading(false);
+    }
+  }, [isOpen, qaConversations.length]);
+
   const resetToGuidedLanding = useCallback(() => {
     setActiveSessionId(null);
     setMessages([]);
@@ -523,6 +649,10 @@ export default function EvaWorkspace({
     setActionStatusById({});
     setMode("TUNE");
     setSelectedAssistantId(null);
+    setSelectedQaConversationId(null);
+    setSelectedQaConversationLabel(null);
+    setQaSessionRequiresFreshSelection(false);
+    setQaConversationLockedToContext(false);
     setGuidedState("landing");
     setGuidedPromptMessageId(null);
     pendingActionBufferRef.current = null;
@@ -549,6 +679,7 @@ export default function EvaWorkspace({
     void loadSessions();
     void loadUsage();
     void loadAssistants();
+    autoQaTriggeredRef.current = false;
   }, [
     isMinimized,
     isOpen,
@@ -558,6 +689,53 @@ export default function EvaWorkspace({
     onResetUnread,
     resetToGuidedLanding,
   ]);
+
+  const beginGuidedConversationQaFlow = useCallback(
+    (options?: { forceContextConversation?: boolean }) => {
+      const monthlyLimitReached = Boolean(
+        monthlyUsage &&
+          (monthlyUsage.percentageUsed >= 100 || monthlyUsage.remainingValue <= 0),
+      );
+      if (monthlyLimitReached) return;
+      setMode("CONVERSATION_QA");
+      setSelectedAssistantId(null);
+      setGuidedPromptMessageId(null);
+      setMessages([]);
+
+      const shouldUseContextConversation =
+        options?.forceContextConversation && typeof activeConversationId === "string" && activeConversationId.trim();
+
+      if (shouldUseContextConversation) {
+        setQaConversationLockedToContext(true);
+        setSelectedQaConversationId(activeConversationId!);
+        setSelectedQaConversationLabel(
+          typeof activeConversationLabel === "string" && activeConversationLabel.trim()
+            ? activeConversationLabel
+            : null,
+        );
+        setQaSessionRequiresFreshSelection(false);
+        setGuidedState("completed");
+        return;
+      }
+
+      setQaConversationLockedToContext(false);
+      setSelectedQaConversationId(null);
+      setSelectedQaConversationLabel(null);
+      setQaSessionRequiresFreshSelection(false);
+      setGuidedState("awaiting_qa_conversation");
+      void loadQaConversations(true);
+    },
+    [activeConversationId, activeConversationLabel, loadQaConversations, monthlyUsage],
+  );
+
+  useEffect(() => {
+    if (!isOpen || isMinimized) return;
+    if (guidedState !== "landing") return;
+    if (autoQaTriggeredRef.current) return;
+    if (!activeConversationId || !activeConversationId.trim()) return;
+    autoQaTriggeredRef.current = true;
+    beginGuidedConversationQaFlow({ forceContextConversation: true });
+  }, [activeConversationId, beginGuidedConversationQaFlow, guidedState, isMinimized, isOpen]);
 
   const loadSessionMessages = useCallback(async (sessionId: string) => {
     if (!sessionId || !isOpen) return;
@@ -570,7 +748,14 @@ export default function EvaWorkspace({
       const rawMessages = extractRawMessageList(response);
       const mapped = rawMessages.map(normalizeMessage);
       const activeSession = sessions.find((session) => getSessionKey(session) === sessionId) || null;
-      applySessionContext(activeSession, rawMessages);
+      const resolvedMode =
+        parseEvaMode(activeSession?.mode) || parseEvaMode(rawMessages[0]?.mode) || "TUNE";
+      const resolvedConversationId =
+        extractConversationIdFromSession(activeSession) || extractConversationIdFromMessages(rawMessages);
+      if (resolvedMode === "CONVERSATION_QA" && resolvedConversationId) {
+        qaConversationBySessionRef.current[sessionId] = resolvedConversationId;
+      }
+      applySessionContext(activeSession, rawMessages, sessionId);
       setMessages(mapped);
       setSessionTokensById((prev) => ({
         ...prev,
@@ -585,7 +770,14 @@ export default function EvaWorkspace({
         }
         return next;
       });
-      setGuidedState("completed");
+      if (resolvedMode === "CONVERSATION_QA" && !resolvedConversationId) {
+        setQaSessionRequiresFreshSelection(true);
+        setGuidedState("awaiting_qa_conversation");
+        void loadQaConversations(true);
+      } else {
+        setQaSessionRequiresFreshSelection(false);
+        setGuidedState("completed");
+      }
       setGuidedPromptMessageId(null);
     } catch (error) {
       if (requestId !== messageLoadRequestIdRef.current) return;
@@ -596,7 +788,7 @@ export default function EvaWorkspace({
         setLoading(false);
       }
     }
-  }, [applySessionContext, isOpen, sessions]);
+  }, [applySessionContext, isOpen, loadQaConversations, sessions]);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -970,6 +1162,27 @@ export default function EvaWorkspace({
     return `Excelente ${firstName}, que asistente te gustaria modificar?`;
   }, [userName]);
 
+  const isMonthlyLimitReached = useMemo(() => {
+    if (!monthlyUsage) return false;
+    return monthlyUsage.percentageUsed >= 100 || monthlyUsage.remainingValue <= 0;
+  }, [monthlyUsage]);
+
+  useEffect(() => {
+    if (!selectedQaConversationId) return;
+    if (selectedQaConversationLabel) return;
+    const selected = qaConversations.find((conversation) => conversation.id === selectedQaConversationId);
+    if (!selected) return;
+    const label = selected.customer?.name || selected.customer?.phone || selected.id;
+    setSelectedQaConversationLabel(label);
+  }, [qaConversations, selectedQaConversationId, selectedQaConversationLabel]);
+
+  useEffect(() => {
+    if (mode !== "CONVERSATION_QA") return;
+    if (!activeConversationId || !activeConversationId.trim()) return;
+    if (selectedQaConversationId !== activeConversationId) return;
+    setQaConversationLockedToContext(true);
+  }, [activeConversationId, mode, selectedQaConversationId]);
+
   const activeSessionIsReadOnly = useMemo(() => {
     if (!activeSessionId) return false;
     if (readOnlySessionIds[activeSessionId]) return true;
@@ -978,10 +1191,7 @@ export default function EvaWorkspace({
   }, [activeSessionId, readOnlySessionIds, sessions]);
 
   const isGuidedBlockingInput = !activeSessionId && guidedState !== "completed";
-  const isMonthlyLimitReached = useMemo(() => {
-    if (!monthlyUsage) return false;
-    return monthlyUsage.percentageUsed >= 100 || monthlyUsage.remainingValue <= 0;
-  }, [monthlyUsage]);
+  const isQaConversationMissing = mode === "CONVERSATION_QA" && !selectedQaConversationId;
 
   const hasBlockingPendingAction = useMemo(() => {
     return messages.some((message) => {
@@ -1016,8 +1226,37 @@ export default function EvaWorkspace({
     };
   }, [activeSessionId, monthlyUsage, sessionTokensById]);
 
+  const qaSuggestionChips = useMemo(
+    () => [
+      { visibleText: QA_CLIENT_DATA_VISIBLE, promptText: QA_CLIENT_DATA_PROMPT },
+      { visibleText: QA_SUMMARY_VISIBLE, promptText: QA_SUMMARY_PROMPT },
+    ],
+    [],
+  );
+
+  const showQaPanel =
+    guidedState !== "landing" &&
+    mode === "CONVERSATION_QA" &&
+    !loading;
+
+  useEffect(() => {
+    if (!isOpen) return;
+    if (mode !== "CONVERSATION_QA") return;
+    if (qaConversationLockedToContext) return;
+    if (qaConversationsLoading || qaConversations.length > 0) return;
+    void loadQaConversations(true);
+  }, [
+    isOpen,
+    loadQaConversations,
+    mode,
+    qaConversationLockedToContext,
+    qaConversations.length,
+    qaConversationsLoading,
+  ]);
+
   const canSend = useMemo(() => {
     if (isGuidedBlockingInput) return false;
+    if (isQaConversationMissing) return false;
     if (isMonthlyLimitReached) return false;
     if (activeSessionIsReadOnly) return false;
     if (hasBlockingPendingAction) return false;
@@ -1027,6 +1266,7 @@ export default function EvaWorkspace({
     activeSessionIsReadOnly,
     hasBlockingPendingAction,
     input,
+    isQaConversationMissing,
     isGuidedBlockingInput,
     isMonthlyLimitReached,
     sending,
@@ -1049,6 +1289,14 @@ export default function EvaWorkspace({
     if (isMonthlyLimitReached) return;
     const text = input.trim();
     const modeAssistantId = mode === "TUNE" ? selectedAssistantId || undefined : undefined;
+    const qaConversationId = mode === "CONVERSATION_QA" ? selectedQaConversationId || undefined : undefined;
+    if (mode === "CONVERSATION_QA" && !qaConversationId) {
+      toast.error("Selecciona una conversación para consultar.");
+      return;
+    }
+    const shouldReuseSessionId =
+      mode !== "CONVERSATION_QA" ||
+      (!qaSessionRequiresFreshSelection && Boolean(activeSessionId));
 
     setMessages((prev) => [
       ...prev,
@@ -1068,14 +1316,19 @@ export default function EvaWorkspace({
 
     try {
       const response = await apiService.sendEvaMessage({
-        sessionId: activeSessionId || undefined,
+        sessionId: shouldReuseSessionId ? activeSessionId || undefined : undefined,
         mode,
         message: text,
         assistantId: modeAssistantId,
+        conversationId: qaConversationId,
       });
 
       setPendingRequestId(response.requestId);
       completedRequestIdsRef.current.delete(response.requestId);
+      setQaSessionRequiresFreshSelection(false);
+      if (mode === "CONVERSATION_QA" && qaConversationId) {
+        qaConversationBySessionRef.current[response.sessionId] = qaConversationId;
+      }
 
       const createdOrSwitchedSession = !activeSessionId || activeSessionId !== response.sessionId;
       if (createdOrSwitchedSession) {
@@ -1121,13 +1374,19 @@ export default function EvaWorkspace({
     loadSessions,
     loadUsage,
     mode,
+    qaSessionRequiresFreshSelection,
     selectedAssistantId,
+    selectedQaConversationId,
   ]);
 
   const beginGuidedModifyFlow = useCallback(() => {
     if (isMonthlyLimitReached) return;
     setMode("TUNE");
     setSelectedAssistantId(null);
+    setSelectedQaConversationId(null);
+    setSelectedQaConversationLabel(null);
+    setQaSessionRequiresFreshSelection(false);
+    setQaConversationLockedToContext(false);
     setGuidedState("awaiting_selection");
     const assistantPromptId = crypto.randomUUID();
     setGuidedPromptMessageId(assistantPromptId);
@@ -1149,6 +1408,86 @@ export default function EvaWorkspace({
       void loadAssistants(true);
     }
   }, [assistants.length, assistantsLoading, guidedQuestionText, isMonthlyLimitReached, loadAssistants]);
+
+  const handleQaConversationChange = useCallback(
+    (conversationId: string) => {
+      setQaConversationLockedToContext(false);
+      const trimmedId = conversationId.trim();
+      if (!trimmedId) {
+        setSelectedQaConversationId(null);
+        setSelectedQaConversationLabel(null);
+        setGuidedState("awaiting_qa_conversation");
+        return;
+      }
+      const selected = qaConversations.find((conversation) => conversation.id === trimmedId) || null;
+      setSelectedQaConversationId(trimmedId);
+      setSelectedQaConversationLabel(
+        selected?.customer?.name || selected?.customer?.phone || trimmedId,
+      );
+      setQaSessionRequiresFreshSelection(true);
+      if (!activeSessionId || mode === "CONVERSATION_QA") {
+        setGuidedState("completed");
+      }
+    },
+    [activeSessionId, mode, qaConversations],
+  );
+
+  const sendQaSuggestion = useCallback(
+    async (visibleText: string, promptText: string) => {
+      if (isMonthlyLimitReached) return;
+      if (!selectedQaConversationId) {
+        toast.error("Selecciona una conversación para consultar.");
+        return;
+      }
+
+      setMessages((prev) => [
+        ...prev,
+        {
+          id: crypto.randomUUID(),
+          role: "user",
+          text: visibleText,
+          createdAt: Date.now(),
+        },
+      ]);
+      setSending(true);
+      setThinking(true);
+      setInput("");
+      pendingActionBufferRef.current = null;
+      lastSseMessageIdRef.current = null;
+      lastTerminalResponseSignatureRef.current = null;
+
+      const shouldReuseSessionId =
+        !qaSessionRequiresFreshSelection && Boolean(activeSessionIdRef.current);
+
+      try {
+        const response = await apiService.sendEvaMessage({
+          sessionId: shouldReuseSessionId ? activeSessionIdRef.current || undefined : undefined,
+          mode: "CONVERSATION_QA",
+          conversationId: selectedQaConversationId,
+          message: promptText,
+        });
+        setPendingRequestId(response.requestId);
+        completedRequestIdsRef.current.delete(response.requestId);
+        setGuidedState("completed");
+        setGuidedPromptMessageId(null);
+        setQaSessionRequiresFreshSelection(false);
+        qaConversationBySessionRef.current[response.sessionId] = selectedQaConversationId;
+        if (!activeSessionIdRef.current || activeSessionIdRef.current !== response.sessionId) {
+          skipNextSessionHydrationRef.current = response.sessionId;
+          setActiveSessionId(response.sessionId);
+          void loadSessions(true);
+          setSseReconnectKey((prev) => prev + 1);
+        }
+      } catch (error: any) {
+        const message = error?.message || "Error enviando consulta de conversación";
+        toast.error(message);
+        setSending(false);
+        setThinking(false);
+        setPendingRequestId(null);
+      }
+    },
+    [isMonthlyLimitReached, loadSessions, qaSessionRequiresFreshSelection, selectedQaConversationId],
+  );
 
   const sendGuidedPromptToEva = useCallback(
     async (text: string, assistantId?: string) => {
@@ -1293,6 +1632,8 @@ export default function EvaWorkspace({
         mode,
         message: AUTO_REJECT_MESSAGE,
         assistantId: mode === "TUNE" ? selectedAssistantId || undefined : undefined,
+        conversationId:
+          mode === "CONVERSATION_QA" ? selectedQaConversationId || undefined : undefined,
       });
 
       setPendingRequestId(response.requestId);
@@ -1335,12 +1676,22 @@ export default function EvaWorkspace({
     loadSessions,
     mode,
     selectedAssistantId,
+    selectedQaConversationId,
   ]);
+
+  const handleBeginConversationQaFlow = useCallback(() => {
+    beginGuidedConversationQaFlow({
+      forceContextConversation: Boolean(
+        typeof activeConversationId === "string" && activeConversationId.trim(),
+      ),
+    });
+  }, [activeConversationId, beginGuidedConversationQaFlow]);
 
   const startNewChat = () => {
     if (isMonthlyLimitReached) return;
     resetToGuidedLanding();
     void loadAssistants(true);
+    void loadQaConversations(false);
   };
 
   if (!isOpen) return null;
@@ -1362,7 +1713,7 @@ export default function EvaWorkspace({
           onSelectSession={(sessionId) => {
             const selectedSession =
               sessions.find((session) => getSessionKey(session) === sessionId) || null;
-            applySessionContext(selectedSession);
+            applySessionContext(selectedSession, [], sessionId);
             setActiveSessionId(sessionId);
             skipNextSessionHydrationRef.current = null;
             setLoading(true);
@@ -1386,7 +1737,7 @@ export default function EvaWorkspace({
             <div>
               <p className={styles.headerTitle}>EVA</p>
               <p className={styles.headerSubtitle}>
-                Asistente para consultar, ajustar y crear asistentes
+                Asistente para consultas de conversaciones y gestión de asistentes
               </p>
             </div>
             <div className={styles.headerActions}>
@@ -1420,17 +1771,93 @@ export default function EvaWorkspace({
               <div className={styles.guidedLandingIcon}>AI</div>
               <h2 className={styles.guidedLandingTitle}>Que queres hacer hoy?</h2>
               <p className={styles.guidedLandingText}>
-                Empecemos por una accion concreta para ajustar tus asistentes.
+                Empecemos con una acción: ajustar asistentes o consultar una conversación.
               </p>
-              <Button
-                onPress={beginGuidedModifyFlow}
-                className={styles.guidedLandingButton}
-                isDisabled={isMonthlyLimitReached || (assistantsLoading && assistants.length === 0)}
-              >
-                Modificar asistentes
-              </Button>
-              {assistantsLoadError && (
-                <p className={styles.guidedLandingError}>{assistantsLoadError}</p>
+              <div className={styles.guidedLandingActions}>
+                <Button
+                  onPress={beginGuidedModifyFlow}
+                  className={styles.guidedLandingButton}
+                  isDisabled={isMonthlyLimitReached || (assistantsLoading && assistants.length === 0)}
+                >
+                  Modificar asistentes
+                </Button>
+                <Button
+                  onPress={handleBeginConversationQaFlow}
+                  className={styles.guidedLandingButton}
+                  isDisabled={isMonthlyLimitReached}
+                >
+                  Consultas sobre una conversación
+                </Button>
+              </div>
+              {(assistantsLoadError || qaConversationsError) && (
+                <p className={styles.guidedLandingError}>
+                  {assistantsLoadError || qaConversationsError}
+                </p>
+              )}
+            </div>
+          )}
+
+          {showQaPanel && (
+            <div className={styles.qaPanel}>
+              <div className={styles.qaPanelHeader}>
+                <p className={styles.qaPanelTitle}>Consultas sobre una conversación</p>
+                {qaConversationLockedToContext && selectedQaConversationId && (
+                  <p className={styles.qaPanelContext}>
+                    Conversación: {selectedQaConversationLabel || selectedQaConversationId}
+                  </p>
+                )}
+              </div>
+
+              {!qaConversationLockedToContext && (
+                <div className={styles.qaSelectArea}>
+                  <SearchableSelect<DomainConversation>
+                    label="¿De qué conversación quieres preguntar?"
+                    items={qaConversations}
+                    selectedKey={selectedQaConversationId || ""}
+                    placeholder="Selecciona una conversación"
+                    searchPlaceholder="Buscar conversación..."
+                    isLoading={qaConversationsLoading}
+                    getKey={(conversation) => conversation.id}
+                    getTextValue={(conversation) =>
+                      `${conversation.customer?.name || "Sin nombre"} ${conversation.customer?.phone || ""} ${conversation.lastMessage || ""}`
+                    }
+                    renderItem={(conversation) => (
+                      <div className="flex flex-col gap-0.5 py-0.5">
+                        <span className="text-sm font-medium text-slate-900 dark:text-white">
+                          {conversation.customer?.name || "Sin nombre"}
+                        </span>
+                        <span className="text-xs text-slate-500 dark:text-slate-400">
+                          {conversation.customer?.phone || conversation.id}
+                        </span>
+                      </div>
+                    )}
+                    onChange={handleQaConversationChange}
+                    emptyLabel="Selecciona una conversación"
+                  />
+                  {!selectedQaConversationId && (
+                    <p className={styles.qaRequiredHint}>Este campo es obligatorio.</p>
+                  )}
+                  {qaConversationsError && (
+                    <p className={styles.qaError}>{qaConversationsError}</p>
+                  )}
+                </div>
+              )}
+
+              {selectedQaConversationId && (
+                <div className={styles.qaChips}>
+                  {qaSuggestionChips.map((chip) => (
+                    <Button
+                      key={chip.visibleText}
+                      size="sm"
+                      variant="flat"
+                      onPress={() => void sendQaSuggestion(chip.visibleText, chip.promptText)}
+                      isDisabled={sending || isMonthlyLimitReached || activeSessionIsReadOnly}
+                      className={styles.qaChipButton}
+                    >
+                      {chip.visibleText}
+                    </Button>
+                  ))}
+                </div>
               )}
             </div>
           )}
@@ -1489,7 +1916,7 @@ export default function EvaWorkspace({
             <div className={styles.emptyOverlay}>
               <Card className={styles.emptyCard}>
                 <CardBody className="text-center text-sm text-slate-600 dark:text-slate-300">
-                  Inicia un chat con Eva para explorar, ajustar o crear asistentes.
+                  Inicia un chat con Eva para consultar conversaciones o ajustar asistentes.
                 </CardBody>
               </Card>
             </div>
@@ -1509,14 +1936,17 @@ export default function EvaWorkspace({
                     ? "Límite de EVA alcanzado."
                     : activeSessionIsReadOnly
                       ? "Chat finalizado. Crea un nuevo chat para seguir conversando con Eva."
+                    : isQaConversationMissing
+                      ? "Primero selecciona una conversación para consultar."
                     : hasBlockingPendingAction
                       ? "Resuelve la propuesta pendiente para continuar."
-                      : isGuidedBlockingInput
-                    ? "Primero selecciona como quieres modificar asistentes"
+                    : isGuidedBlockingInput
+                    ? "Primero completa el paso guiado para continuar."
                     : "Escribe tu mensaje para Eva..."
                 }
                 disabled={
                   isGuidedBlockingInput ||
+                  isQaConversationMissing ||
                   sending ||
                   hasBlockingPendingAction ||
                   activeSessionIsReadOnly ||
@@ -1552,4 +1982,3 @@ export default function EvaWorkspace({
     </div>
   );
 }
-

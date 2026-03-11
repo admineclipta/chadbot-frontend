@@ -1354,7 +1354,7 @@ export interface BillingInvoiceDto {
 // Eva Assistant Types
 // ============================================
 
-export type EvaMode = "DISCOVER" | "TUNE" | "CREATE";
+export type EvaMode = "DISCOVER" | "TUNE" | "CREATE" | "CONVERSATION_QA";
 export type EvaFlowStage =
   | "explorando"
   | "definiendo"
@@ -1377,6 +1377,7 @@ export interface EvaSendMessageRequest {
   mode: EvaMode;
   message: string;
   assistantId?: string;
+  conversationId?: string;
 }
 
 export interface EvaSendMessageResponse {

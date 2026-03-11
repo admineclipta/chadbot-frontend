@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+- Eva: Primera versión modificar clientes y resumir conversación[#]()
+
 ## [Release]
 
 ### v3.0.0

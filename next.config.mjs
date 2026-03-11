@@ -1,10 +1,12 @@
+import { PHASE_DEVELOPMENT_SERVER } from "next/constants.js";
+
 /** @type {import('next').NextConfig} */
-const nextConfig = {
-  output: 'export',
-  distDir: 'dist',
+const nextConfig = (phase) => ({
+  output: "export",
+  // Keep dev/build artifacts isolated: dev uses .next, build/export uses dist.
+  distDir: phase === PHASE_DEVELOPMENT_SERVER ? ".next" : "dist",
   trailingSlash: true,
   skipTrailingSlashRedirect: true,
-  // distDir se usa para el export cuando output: 'export' está habilitado
   eslint: {
     ignoreDuringBuilds: true,
   },
@@ -14,9 +16,9 @@ const nextConfig = {
   images: {
     unoptimized: true,
   },
-  // Eliminamos assetPrefix y basePath para evitar problemas con Live Server
-  assetPrefix: '',
-  basePath: '',
-}
+  // Keep empty values to avoid issues with local static servers.
+  assetPrefix: "",
+  basePath: "",
+});
 
-export default nextConfig
+export default nextConfig;

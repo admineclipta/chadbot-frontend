@@ -1277,6 +1277,9 @@ export default function Home() {
     setEvaUnreadRepliesCount((prev) => prev + 1)
   }, [])
 
+  const evaContextConversation =
+    currentView === "conversations" ? selectedConversation : null
+
   useEffect(() => {
     if (!canUseEvaFeature) {
       setIsEvaOpen(false)
@@ -1477,6 +1480,8 @@ export default function Home() {
             token={authToken}
             canManageActions={canManageEvaActionsFeature}
             userName={user.name}
+            activeConversationId={evaContextConversation?.id || null}
+            activeConversationLabel={evaContextConversation?.customer?.name || null}
             onClose={handleEvaClose}
             onMinimize={handleEvaMinimize}
             onResetUnread={() => setEvaUnreadRepliesCount(0)}
