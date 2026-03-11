@@ -2,7 +2,7 @@
 
 ## [Unreleased]
 
-- Eva: Primera versión modificar clientes y resumir conversación[#]()
+- Eva: Primera versión modificar clientes y resumir conversación[#19](https://github.com/admineclipta/chadbot-frontend/pull/19)
 
 ## [Release]
 
