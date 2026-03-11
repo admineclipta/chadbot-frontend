@@ -4,6 +4,12 @@
 
 ## [Release]
 
+### v4.1.0
+
+_Fecha despliegue: 11/03/2026_
+
+- hotfix: UX/UI carga de conversaciones/ordenamiento de conversaciones
+
 ### v4.0.0
 
 _Fecha despliegue: 11/03/2026_

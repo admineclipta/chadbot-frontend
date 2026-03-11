@@ -101,9 +101,11 @@ export default function Home() {
   const [totalElements, setTotalElements] = useState<number>(0)
   const [hasMoreConversations, setHasMoreConversations] = useState<boolean>(true)
   const [loadingMore, setLoadingMore] = useState<boolean>(false)
+  const [isConversationsHydrating, setIsConversationsHydrating] = useState<boolean>(false)
   const [messagesPage, setMessagesPage] = useState<number>(0)
   const [hasMoreMessages, setHasMoreMessages] = useState<boolean>(false)
   const [loadingOlderMessages, setLoadingOlderMessages] = useState<boolean>(false)
+  const [isMessagesHydrating, setIsMessagesHydrating] = useState<boolean>(false)
 
   // Estados para filtros nuevos (Fase 2 - mejorados)
   const [searchTerm, setSearchTerm] = useState<string>("")
@@ -113,7 +115,7 @@ export default function Home() {
   const [selectedAgent, setSelectedAgent] = useState<string>("")
   const [selectedTags, setSelectedTags] = useState<string[]>([])
   const [sortBy, setSortBy] = useState<ConversationSortField>("updatedAt")
-  const [sortDirection, setSortDirection] = useState<SortDirection>("DESC")
+  const [sortDirection, setSortDirection] = useState<SortDirection>("ASC")
   const [availableTags, setAvailableTags] = useState<Tag[]>([])
 
   // Estado para modal de información del cliente
@@ -193,7 +195,7 @@ export default function Home() {
     setSelectedAgent("")
     setSelectedTags([])
     setSortBy("updatedAt")
-    setSortDirection("DESC")
+    setSortDirection("ASC")
     setConversations([])
     setCurrentPage(0)
     setHasMoreConversations(true)
@@ -202,15 +204,19 @@ export default function Home() {
 
   // Resetear a página 0 cuando cambian los filtros
   useEffect(() => {
+    if (currentView === "conversations") {
+      setIsConversationsHydrating(true)
+    }
     setConversations([])
     setCurrentPage(0)
     setHasMoreConversations(true)
     setLoadingMore(false)
-  }, [searchTerm, selectedChannel, selectedStatusFilter, selectedTeam, selectedAgent, selectedTags, sortBy, sortDirection])
+  }, [currentView, searchTerm, selectedChannel, selectedStatusFilter, selectedTeam, selectedAgent, selectedTags, sortBy, sortDirection])
 
   // Al abrir la vista de conversaciones, la bandeja por defecto es "Intervenida"
   useEffect(() => {
     if (currentView !== "conversations") return
+    setIsConversationsHydrating(true)
     setSelectedStatusFilter("INTERVENED")
     setConversations([])
     setCurrentPage(0)
@@ -394,7 +400,8 @@ export default function Home() {
 
       const existing = conversations.find((conv) => conv.id === conversationId)
       if (existing) {
-        setSelectedConversation({ ...existing, unreadCount: 0 })
+        setIsMessagesHydrating(true)
+        setSelectedConversation({ ...existing, unreadCount: 0, messages: [] })
         markConversationAsReadLocally(conversationId)
         return
       }
@@ -411,7 +418,8 @@ export default function Home() {
           next.sort((a, b) => b.lastActivity.getTime() - a.lastActivity.getTime())
           return next
         })
-        setSelectedConversation(fetchedConversationMarkedAsRead)
+        setIsMessagesHydrating(true)
+        setSelectedConversation({ ...fetchedConversationMarkedAsRead, messages: [] })
       } catch (error) {
         console.error("[SSE] Failed opening conversation from notification", error)
         addToast({
@@ -945,18 +953,20 @@ export default function Home() {
       setTotalElements(apiConversaciones.totalElements)
       setHasMoreConversations(apiConversaciones.page < apiConversaciones.totalPages - 1)
       setLoadingMore(false)
+      setIsConversationsHydrating(false)
     }
   }, [apiConversaciones])
 
   useEffect(() => {
     if (conversationsError) {
       setLoadingMore(false)
+      setIsConversationsHydrating(false)
     }
   }, [conversationsError])
 
   // Actualizar mensajes cuando lleguen de la API
   useEffect(() => {
-    if (apiMensajesResponse && selectedConversation) {
+    if (apiMensajesResponse) {
       // API v1 retorna MessageListResponse con nueva estructura
       const mappedMessages = apiMensajesResponse.content.map(mapApiMessageToDomain)
 
@@ -975,8 +985,15 @@ export default function Home() {
       setMessagesPage(apiMensajesResponse.page)
       setHasMoreMessages(!apiMensajesResponse.last)
       setLoadingOlderMessages(false)
+      setIsMessagesHydrating(false)
     }
-  }, [apiMensajesResponse, mapApiMessageToDomain, selectedConversation?.id])
+  }, [apiMensajesResponse, mapApiMessageToDomain])
+
+  useEffect(() => {
+    if (messagesError) {
+      setIsMessagesHydrating(false)
+    }
+  }, [messagesError])
 
   const handleLoadOlderMessages = useCallback(async (): Promise<number> => {
     if (!selectedConversation || loadingOlderMessages || !hasMoreMessages) {
@@ -1163,7 +1180,8 @@ export default function Home() {
   )
 
   const handleSelectConversation = useCallback((conversation: Conversation) => {
-    setSelectedConversation({ ...conversation, unreadCount: 0 })
+    setIsMessagesHydrating(true)
+    setSelectedConversation({ ...conversation, unreadCount: 0, messages: [] })
     markConversationAsReadLocally(conversation.id)
   }, [markConversationAsReadLocally])
 
@@ -1191,6 +1209,7 @@ export default function Home() {
   )
 
   const handleCloseChat = useCallback(() => {
+    setIsMessagesHydrating(false)
     setSelectedConversation(null)
   }, [])
 
@@ -1337,7 +1356,7 @@ export default function Home() {
                 selectedStatusFilter={selectedStatusFilter}
                 onStatusFilterChange={setSelectedStatusFilter}
                 onUserClick={handleUserClick}
-                loading={conversationsLoading && currentPage === 0}
+                loading={(conversationsLoading || isConversationsHydrating) && currentPage === 0}
                 error={conversationsError}
                 hasMore={hasMoreConversations}
                 loadingMore={loadingMore}
@@ -1357,7 +1376,7 @@ export default function Home() {
                   conversation={selectedConversation}
                   onSendMessage={handleSendMessage}
                   onUserClick={handleUserClick}
-                  loading={messagesLoading}
+                  loading={messagesLoading || isMessagesHydrating}
                   error={messagesError}
                   onConversationUpdate={handleConversationUpdate}
                   onCloseChat={handleCloseChat}
