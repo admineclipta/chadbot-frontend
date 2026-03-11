@@ -2,9 +2,13 @@
 
 ## [Unreleased]
 
-- Eva: Primera versión modificar clientes y resumir conversación[#19](https://github.com/admineclipta/chadbot-frontend/pull/19)
-
 ## [Release]
+
+### v4.0.0
+
+_Fecha despliegue: 11/03/2026_
+
+- Eva: Primera versión modificar clientes y resumir conversación[#19](https://github.com/admineclipta/chadbot-frontend/pull/19)
 
 ### v3.0.0
 
