@@ -24,7 +24,9 @@ import { apiService } from "@/lib/api"
 import type {
   AiCredentialResponseDto,
   Assistant,
+  AssistantMetadata,
   CreateAssistantRequest,
+  ReroutePolicy,
   Team,
   UpdateAssistantRequest,
 } from "@/lib/api-types"
@@ -35,6 +37,28 @@ interface AssistantFormProps {
   onBack?: () => void
   onSuccess?: () => void
   mode?: "page" | "drawer-create" | "drawer-edit"
+}
+
+const DEFAULT_ASSISTANT_MODEL = "gpt-5.2"
+const DEFAULT_REROUTE_MIN_MESSAGES = 3
+const DEFAULT_REROUTE_MIN_MINUTES = 10
+const DEFAULT_REROUTE_HISTORY_WINDOW = 6
+const DEFAULT_REROUTE_FALLBACK_TEXT = "¿Querés que te ayude con otro tema?"
+
+function parseNumberOrDefault(value: string, fallback: number) {
+  const parsed = Number.parseInt(value, 10)
+  return Number.isNaN(parsed) ? fallback : parsed
+}
+
+function getDefaultReroutePolicy(model: string): ReroutePolicy {
+  return {
+    enabled: true,
+    min_messages: DEFAULT_REROUTE_MIN_MESSAGES,
+    min_minutes: DEFAULT_REROUTE_MIN_MINUTES,
+    history_window: DEFAULT_REROUTE_HISTORY_WINDOW,
+    fallback_clarification_text: DEFAULT_REROUTE_FALLBACK_TEXT,
+    model: model || DEFAULT_ASSISTANT_MODEL,
+  }
 }
 
 export default function AssistantForm({
@@ -103,13 +127,29 @@ export default function AssistantForm({
   const [teamId, setTeamId] = useState("")
   const [systemPrompt, setSystemPrompt] = useState("")
   const [temperature, setTemperature] = useState("")
-  const [model, setModel] = useState("gpt-5.2")
+  const [model, setModel] = useState(DEFAULT_ASSISTANT_MODEL)
   const [maxTokens, setMaxTokens] = useState("")
   const [topP, setTopP] = useState("")
   const [presencePenalty, setPresencePenalty] = useState("")
   const [frequencyPenalty, setFrequencyPenalty] = useState("")
   const [isCustomModel, setIsCustomModel] = useState(false)
   const [isRouter, setIsRouter] = useState(false)
+  const [assistantMetadata, setAssistantMetadata] = useState<AssistantMetadata>({})
+  const [rerouteEnabled, setRerouteEnabled] = useState(true)
+  const [rerouteMinMessages, setRerouteMinMessages] = useState(
+    String(DEFAULT_REROUTE_MIN_MESSAGES),
+  )
+  const [rerouteMinMinutes, setRerouteMinMinutes] = useState(
+    String(DEFAULT_REROUTE_MIN_MINUTES),
+  )
+  const [rerouteHistoryWindow, setRerouteHistoryWindow] = useState(
+    String(DEFAULT_REROUTE_HISTORY_WINDOW),
+  )
+  const [rerouteFallbackText, setRerouteFallbackText] = useState(
+    DEFAULT_REROUTE_FALLBACK_TEXT,
+  )
+  const [rerouteModel, setRerouteModel] = useState(DEFAULT_ASSISTANT_MODEL)
+  const [isCustomRerouteModel, setIsCustomRerouteModel] = useState(false)
 
   const [credentials, setCredentials] = useState<AiCredentialResponseDto[]>([])
   const [teams, setTeams] = useState<Team[]>([])
@@ -141,6 +181,7 @@ export default function AssistantForm({
         setTeamId(assistantData.teamId || "")
 
         const metadata = assistantData.metadata || {}
+        setAssistantMetadata(metadata)
         setSystemPrompt(metadata.system_prompt || "")
         setTemperature(
           metadata.temperature !== undefined && metadata.temperature !== null
@@ -171,22 +212,58 @@ export default function AssistantForm({
         const incomingModel = metadata.model || ""
         setModel(incomingModel)
         setIsCustomModel(Boolean(incomingModel && !modelValues.has(incomingModel)))
-        setIsRouter(Boolean(metadata.isRouter))
+        setIsRouter(Boolean(assistantData.isRouter ?? metadata.isRouter))
+
+        const modelForDefaults = incomingModel || DEFAULT_ASSISTANT_MODEL
+        const defaultReroutePolicy = getDefaultReroutePolicy(modelForDefaults)
+        const reroutePolicy = metadata.reroute_policy || defaultReroutePolicy
+        const rerouteModelValue = reroutePolicy.model || modelForDefaults
+
+        setRerouteEnabled(
+          typeof reroutePolicy.enabled === "boolean"
+            ? reroutePolicy.enabled
+            : defaultReroutePolicy.enabled,
+        )
+        setRerouteMinMessages(
+          String(reroutePolicy.min_messages ?? defaultReroutePolicy.min_messages),
+        )
+        setRerouteMinMinutes(
+          String(reroutePolicy.min_minutes ?? defaultReroutePolicy.min_minutes),
+        )
+        setRerouteHistoryWindow(
+          String(reroutePolicy.history_window ?? defaultReroutePolicy.history_window),
+        )
+        setRerouteFallbackText(
+          reroutePolicy.fallback_clarification_text ||
+            defaultReroutePolicy.fallback_clarification_text,
+        )
+        setRerouteModel(rerouteModelValue)
+        setIsCustomRerouteModel(
+          Boolean(rerouteModelValue && !modelValues.has(rerouteModelValue)),
+        )
       } else {
         setAssistant(null)
         setName("")
         setDescription("")
         setCredentialId("")
         setTeamId("")
+        setAssistantMetadata({})
         setSystemPrompt("")
         setTemperature("")
-        setModel("gpt-5.2")
+        setModel(DEFAULT_ASSISTANT_MODEL)
         setMaxTokens("")
         setTopP("")
         setPresencePenalty("")
         setFrequencyPenalty("")
         setIsCustomModel(false)
         setIsRouter(false)
+        setRerouteEnabled(true)
+        setRerouteMinMessages(String(DEFAULT_REROUTE_MIN_MESSAGES))
+        setRerouteMinMinutes(String(DEFAULT_REROUTE_MIN_MINUTES))
+        setRerouteHistoryWindow(String(DEFAULT_REROUTE_HISTORY_WINDOW))
+        setRerouteFallbackText(DEFAULT_REROUTE_FALLBACK_TEXT)
+        setRerouteModel(DEFAULT_ASSISTANT_MODEL)
+        setIsCustomRerouteModel(false)
       }
     } catch (error) {
       console.error("Error loading form data:", error)
@@ -218,7 +295,9 @@ export default function AssistantForm({
     try {
       setLoading(true)
 
-      const metadata: Record<string, any> = {}
+      const metadata: AssistantMetadata = {
+        ...(isEditMode ? assistantMetadata : {}),
+      }
       const trimmedModel = model.trim()
       const parsedTemperature = temperature.trim() ? Number.parseFloat(temperature) : null
       const parsedMaxTokens = maxTokens.trim() ? Number.parseInt(maxTokens, 10) : null
@@ -229,14 +308,16 @@ export default function AssistantForm({
       const parsedFrequencyPenalty = frequencyPenalty.trim()
         ? Number.parseFloat(frequencyPenalty)
         : null
+      const modelFromMetadata = String(metadata.model || "").trim()
+      const effectiveAssistantModel =
+        trimmedModel || modelFromMetadata || DEFAULT_ASSISTANT_MODEL
 
       if (isEditMode) {
         if (trimmedSystemPrompt) metadata.system_prompt = trimmedSystemPrompt
         if (trimmedModel) metadata.model = trimmedModel
       } else {
         metadata.system_prompt = trimmedSystemPrompt
-        metadata.model = trimmedModel || "gpt-5.2"
-        metadata.isRouter = isRouter
+        metadata.model = effectiveAssistantModel
       }
 
       if (parsedTemperature !== null && !Number.isNaN(parsedTemperature)) {
@@ -255,13 +336,37 @@ export default function AssistantForm({
         metadata.frequency_penalty = parsedFrequencyPenalty
       }
 
+      if (isRouter) {
+        const trimmedRerouteModel = rerouteModel.trim()
+        metadata.reroute_policy = {
+          enabled: rerouteEnabled,
+          min_messages: parseNumberOrDefault(
+            rerouteMinMessages,
+            DEFAULT_REROUTE_MIN_MESSAGES,
+          ),
+          min_minutes: parseNumberOrDefault(
+            rerouteMinMinutes,
+            DEFAULT_REROUTE_MIN_MINUTES,
+          ),
+          history_window: parseNumberOrDefault(
+            rerouteHistoryWindow,
+            DEFAULT_REROUTE_HISTORY_WINDOW,
+          ),
+          fallback_clarification_text:
+            rerouteFallbackText.trim() || DEFAULT_REROUTE_FALLBACK_TEXT,
+          model:
+            trimmedRerouteModel || effectiveAssistantModel || DEFAULT_ASSISTANT_MODEL,
+        }
+      }
+
       if (isEditMode) {
         const updateData: UpdateAssistantRequest = {
           name: name.trim(),
           description: description.trim(),
           credentialId,
+          isRouter,
           ...(teamId && { teamId }),
-          ...(Object.keys(metadata).length > 0 && { metadata }),
+          metadata,
         }
         await apiService.updateAssistant(assistantId, updateData)
         toast.success("Asistente actualizado exitosamente")
@@ -270,6 +375,7 @@ export default function AssistantForm({
           name: name.trim(),
           description: description.trim(),
           credentialId,
+          isRouter,
           ...(teamId && { teamId }),
           metadata,
         }
@@ -333,7 +439,7 @@ export default function AssistantForm({
           setModel(selected || "")
         }}
         variant="bordered"
-        description="Por defecto se usa gpt-5.2"
+        description={`Por defecto se usa ${DEFAULT_ASSISTANT_MODEL}`}
       >
         {modelSections.map((section) => (
           <SelectSection key={section.label} title={section.label}>
@@ -403,6 +509,105 @@ export default function AssistantForm({
         max="2"
         variant="bordered"
       />
+    </div>
+  )
+
+  const rerouteFields = (
+    <div className="space-y-3 rounded-xl border border-slate-200 bg-slate-50/60 p-3 dark:border-slate-700 dark:bg-slate-800/40">
+      <div className="flex items-center justify-between gap-3">
+        <div>
+          <p className="text-sm font-semibold text-slate-900 dark:text-white">
+            Politica de reroute
+          </p>
+          <p className="text-xs text-slate-600 dark:text-slate-300">
+            Controla cuándo volver a evaluar el derivador.
+          </p>
+        </div>
+        <Switch isSelected={rerouteEnabled} onValueChange={setRerouteEnabled}>
+          Habilitado
+        </Switch>
+      </div>
+
+      <Input
+        label="Mensajes mínimos"
+        placeholder={String(DEFAULT_REROUTE_MIN_MESSAGES)}
+        value={rerouteMinMessages}
+        onValueChange={setRerouteMinMessages}
+        type="number"
+        step="1"
+        min="1"
+        variant="bordered"
+      />
+
+      <Input
+        label="Minutos mínimos"
+        placeholder={String(DEFAULT_REROUTE_MIN_MINUTES)}
+        value={rerouteMinMinutes}
+        onValueChange={setRerouteMinMinutes}
+        type="number"
+        step="1"
+        min="1"
+        variant="bordered"
+      />
+
+      <Input
+        label="Ventana de historial"
+        placeholder={String(DEFAULT_REROUTE_HISTORY_WINDOW)}
+        value={rerouteHistoryWindow}
+        onValueChange={setRerouteHistoryWindow}
+        type="number"
+        step="1"
+        min="1"
+        variant="bordered"
+      />
+
+      <Textarea
+        label="Texto fallback"
+        placeholder={DEFAULT_REROUTE_FALLBACK_TEXT}
+        value={rerouteFallbackText}
+        onValueChange={setRerouteFallbackText}
+        minRows={2}
+        variant="bordered"
+      />
+
+      <Select
+        label="Modelo de reroute"
+        placeholder="Selecciona un modelo"
+        selectedKeys={isCustomRerouteModel ? ["custom"] : rerouteModel ? [rerouteModel] : []}
+        onSelectionChange={(keys) => {
+          const selected = Array.from(keys)[0] as string
+          if (selected === "custom") {
+            setIsCustomRerouteModel(true)
+            setRerouteModel("")
+            return
+          }
+          setIsCustomRerouteModel(false)
+          setRerouteModel(selected || "")
+        }}
+        variant="bordered"
+        description={`Si queda vacío se usa ${DEFAULT_ASSISTANT_MODEL}`}
+      >
+        {modelSections.map((section) => (
+          <SelectSection key={section.label} title={section.label}>
+            {section.models.map((option) => (
+              <SelectItem key={option.value}>{option.label}</SelectItem>
+            ))}
+          </SelectSection>
+        ))}
+        <SelectSection title="Personalizado">
+          <SelectItem key="custom">Otro modelo</SelectItem>
+        </SelectSection>
+      </Select>
+
+      {isCustomRerouteModel && (
+        <Input
+          label="Modelo reroute personalizado"
+          placeholder={DEFAULT_ASSISTANT_MODEL}
+          value={rerouteModel}
+          onValueChange={setRerouteModel}
+          variant="bordered"
+        />
+      )}
     </div>
   )
 
@@ -555,28 +760,28 @@ export default function AssistantForm({
               description="Estas instrucciones guian el comportamiento del agente."
             />
 
-            {isDrawerCreateMode && (
-              <>
-                <div className="rounded-xl border border-slate-200 bg-white/60 p-3 dark:border-slate-700 dark:bg-slate-800/40">
-                  <Switch isSelected={isRouter} onValueChange={setIsRouter}>
-                    Es un agente derivador
-                  </Switch>
-                </div>
+            <div className="rounded-xl border border-slate-200 bg-white/60 p-3 dark:border-slate-700 dark:bg-slate-800/40">
+              <Switch isSelected={isRouter} onValueChange={setIsRouter}>
+                Es un agente derivador
+              </Switch>
+            </div>
 
-                <Accordion variant="splitted">
-                  <AccordionItem
-                    key="advanced"
-                    aria-label="Opciones avanzadas"
-                    title="Opciones avanzadas"
-                    subtitle="Temperatura, modelo, tokens y penalties"
-                  >
-                    {advancedFields}
-                  </AccordionItem>
-                </Accordion>
-              </>
+            {isDrawerCreateMode ? (
+              <Accordion variant="splitted">
+                <AccordionItem
+                  key="advanced"
+                  aria-label="Opciones avanzadas"
+                  title="Opciones avanzadas"
+                  subtitle="Temperatura, modelo, tokens y penalties"
+                >
+                  {advancedFields}
+                </AccordionItem>
+              </Accordion>
+            ) : (
+              advancedFields
             )}
 
-            {!isDrawerCreateMode && advancedFields}
+            {isRouter && rerouteFields}
 
             <div className="flex justify-end gap-2 pt-4">
               <Button

@@ -196,6 +196,9 @@ CredentialNode.displayName = "CredentialNode"
 const nodeTypes = { assistantNode: AssistantNode, createNode: CreateAssistantNode, credentialNode: CredentialNode }
 
 function getIsRouter(assistant: Assistant) {
+  if (typeof assistant.isRouter === "boolean") {
+    return assistant.isRouter
+  }
   return Boolean(assistant.metadata?.isRouter)
 }
 
@@ -247,11 +250,23 @@ export default function AssistantManagement() {
     setIsCreateDrawerOpen(true)
   }, [])
 
-  const updateAssistantMetadata = useCallback(
-    async (assistant: Assistant, metadataPatch: Record<string, unknown>) => {
-      const payload: UpdateAssistantRequest = {
-        metadata: getMergedMetadata(assistant, metadataPatch),
+  const updateAssistant = useCallback(
+    async (
+      assistant: Assistant,
+      options: {
+        metadataPatch?: Record<string, unknown>
+        isRouter?: boolean
+      },
+    ) => {
+      const payload: UpdateAssistantRequest = {}
+
+      if (options.metadataPatch) {
+        payload.metadata = getMergedMetadata(assistant, options.metadataPatch)
       }
+      if (typeof options.isRouter === "boolean") {
+        payload.isRouter = options.isRouter
+      }
+
       return apiService.updateAssistant(assistant.id, payload)
     },
     [],
@@ -275,7 +290,7 @@ export default function AssistantManagement() {
 
       setBootstrapInProgress(true)
       try {
-        const updated = await updateAssistantMetadata(defaultAssistant, { isRouter: true })
+        const updated = await updateAssistant(defaultAssistant, { isRouter: true })
         toast.success(`Se asignó "${updated.name}" como derivador automáticamente`)
         return list.map((assistant) => (assistant.id === updated.id ? updated : assistant))
       } catch (error) {
@@ -286,7 +301,7 @@ export default function AssistantManagement() {
         setBootstrapInProgress(false)
       }
     },
-    [updateAssistantMetadata],
+    [updateAssistant],
   )
 
   const loadAssistants = useCallback(async () => {
@@ -613,9 +628,9 @@ export default function AssistantManagement() {
     const currentRouter = assistants.find(getIsRouter)
     try {
       setActionLoading(true)
-      await updateAssistantMetadata(targetAssistant, { isRouter: true })
+      await updateAssistant(targetAssistant, { isRouter: true })
       if (currentRouter && currentRouter.id !== targetAssistant.id) {
-        await updateAssistantMetadata(currentRouter, { isRouter: false })
+        await updateAssistant(currentRouter, { isRouter: false })
       }
       toast.success(`"${targetAssistant.name}" ahora es el derivador`)
       setSelectedAssistantId(targetAssistant.id)
@@ -638,7 +653,7 @@ export default function AssistantManagement() {
     try {
       setActionLoading(true)
       for (const assistant of toDisable) {
-        await updateAssistantMetadata(assistant, { isRouter: false })
+        await updateAssistant(assistant, { isRouter: false })
       }
       toast.success(`Conflicto resuelto. "${routerToKeep.name}" quedó como derivador`)
       await loadAssistants()

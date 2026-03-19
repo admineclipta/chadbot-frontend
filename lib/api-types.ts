@@ -678,6 +678,28 @@ export interface TeamListResponse {
 // Assistant Types
 // ============================================
 
+export interface ReroutePolicy {
+  enabled: boolean;
+  min_messages: number;
+  min_minutes: number;
+  history_window: number;
+  fallback_clarification_text: string;
+  model: string;
+}
+
+export type AssistantMetadata = {
+  system_prompt?: string;
+  model?: string;
+  temperature?: number;
+  max_tokens?: number;
+  top_p?: number;
+  presence_penalty?: number;
+  frequency_penalty?: number;
+  // Legacy fallback while data migrates to top-level `isRouter`
+  isRouter?: boolean;
+  reroute_policy?: ReroutePolicy;
+} & Record<string, any>;
+
 export interface Assistant {
   id: string;
   clientId: string;
@@ -685,7 +707,8 @@ export interface Assistant {
   teamId?: string | null;
   name: string;
   description: string;
-  metadata?: Record<string, any>;
+  metadata?: AssistantMetadata;
+  isRouter?: boolean;
   isDefault: boolean;
   isActive: boolean;
   createdAt: string;
@@ -719,7 +742,8 @@ export interface CreateAssistantRequest {
   name: string;
   description: string;
   credentialId: string;
-  metadata?: Record<string, any>;
+  metadata?: AssistantMetadata;
+  isRouter?: boolean;
 }
 
 export interface UpdateAssistantRequest {
@@ -727,7 +751,8 @@ export interface UpdateAssistantRequest {
   name?: string;
   description?: string;
   credentialId?: string;
-  metadata?: Record<string, any>;
+  metadata?: AssistantMetadata;
+  isRouter?: boolean;
 }
 
 // WebSocket Event Types
