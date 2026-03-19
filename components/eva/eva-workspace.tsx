@@ -47,7 +47,6 @@ interface EvaWorkspaceProps {
   onResetUnread: () => void;
   onAssistantReplyWhileMinimized: () => void;
 }
-
 type GuidedState =
   | "landing"
   | "awaiting_selection"
@@ -627,7 +626,7 @@ export default function EvaWorkspace({
         undefined,
         undefined,
         "updatedAt",
-        "DESC",
+        "ASC",
       );
       setQaConversations(response.content || []);
     } catch (error) {
@@ -1982,3 +1981,4 @@ export default function EvaWorkspace({
     </div>
   );
 }
+
