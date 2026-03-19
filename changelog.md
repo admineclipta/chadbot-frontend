@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+- feature: se agrego la posibilida de re-enrutar una conversacion con distintos asistentes [#21](https://github.com/admineclipta/chadbot-frontend/pull/21)
+
 ## [Release]
 
 ### v4.0.0
