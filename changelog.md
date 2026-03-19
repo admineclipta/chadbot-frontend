@@ -2,9 +2,12 @@
 
 ## [Unreleased]
 
-- feature: se agrego la posibilida de re-enrutar una conversacion con distintos asistentes [#21](https://github.com/admineclipta/chadbot-frontend/pull/21)
-
 ## [Release]
+
+### v4.2.0
+
+_Fecha despliegue: 19/03/2026_
+- feature: se agrego la posibilida de re-enrutar una conversacion con distintos asistentes [#21](https://github.com/admineclipta/chadbot-frontend/pull/21)
 
 ### v4.1.0
 
