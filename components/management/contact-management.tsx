@@ -33,6 +33,7 @@ import {
   Trash2,
   Search,
   MoreVertical,
+  AlertTriangle,
   User,
   Phone,
   Calendar,
@@ -42,12 +43,14 @@ import {
   CheckCircle,
 } from "lucide-react"
 import type { Contact, ContactRequest } from "@/lib/api-types"
+import type { User as AppUser } from "@/lib/types"
 import { apiService } from "@/lib/api"
 import { useApi } from "@/hooks/use-api"
 import { DEBOUNCE_SEARCH_MS } from "@/lib/config"
 import { toast } from "sonner"
 import { useIsMobile } from "@/hooks/use-mobile"
-import { cn } from "@/lib/utils"
+import { isOwner } from "@/lib/permissions"
+import { AUTH_STORAGE_KEYS } from "@/lib/auth-session"
 
 interface ContactFormData {
   fullName: string
@@ -56,11 +59,14 @@ interface ContactFormData {
 
 export default function ContactManagement() {
   const isMobile = useIsMobile()
+  const [currentUser, setCurrentUser] = useState<AppUser | null>(null)
   const [searchTerm, setSearchTerm] = useState("")
   const [currentPage, setCurrentPage] = useState(0)
   const [pageSize] = useState(10)
   const [selectedContact, setSelectedContact] = useState<Contact | null>(null)
   const [isEditing, setIsEditing] = useState(false)
+  const [isDebugCleanupLoading, setIsDebugCleanupLoading] = useState(false)
+  const [debugCleanupConfirmation, setDebugCleanupConfirmation] = useState("")
   const [formData, setFormData] = useState<ContactFormData>({
     fullName: "",
     metadata: {},
@@ -80,6 +86,11 @@ export default function ContactManagement() {
     onOpenChange: onDeleteOpenChange,
   } = useDisclosure()
   const {
+    isOpen: isDebugCleanupOpen,
+    onOpen: onDebugCleanupOpen,
+    onOpenChange: onDebugCleanupOpenChange,
+  } = useDisclosure()
+  const {
     isOpen: isViewOpen,
     onOpen: onViewOpen,
     onOpenChange: onViewOpenChange,
@@ -94,6 +105,24 @@ export default function ContactManagement() {
 
   const contacts = contactsData?.content || []
   const totalElements = contactsData?.totalElements || 0
+  const canUseDebugCleanup = isOwner(currentUser)
+
+  useEffect(() => {
+    if (typeof window === "undefined") return
+
+    const rawUser = localStorage.getItem(AUTH_STORAGE_KEYS.USER)
+    if (!rawUser) {
+      setCurrentUser(null)
+      return
+    }
+
+    try {
+      setCurrentUser(JSON.parse(rawUser) as AppUser)
+    } catch (error) {
+      console.error("Error parsing current user from localStorage:", error)
+      setCurrentUser(null)
+    }
+  }, [])
 
   // Mostrar error si existe
   useEffect(() => {
@@ -155,6 +184,12 @@ export default function ContactManagement() {
     onDeleteOpen()
   }
 
+  const handleDebugCleanupConfirm = (contact: Contact) => {
+    setSelectedContact(contact)
+    setDebugCleanupConfirmation("")
+    onDebugCleanupOpen()
+  }
+
   // Eliminar contacto
   const handleDelete = async () => {
     if (!selectedContact) return
@@ -167,6 +202,28 @@ export default function ContactManagement() {
     } catch (error) {
       console.error("Error deleting contact:", error)
       toast.error("Error al eliminar contacto")
+    }
+  }
+
+  const handleDebugCleanup = async () => {
+    if (!selectedContact) return
+    if (debugCleanupConfirmation.trim() !== "Si") {
+      toast.error('Debes escribir "Si" para confirmar')
+      return
+    }
+
+    try {
+      setIsDebugCleanupLoading(true)
+      await apiService.debugCleanupContact(selectedContact.id)
+      toast.success("Se eliminó todo lo asociado al contacto")
+      setRefreshKey((prev) => prev + 1)
+      setDebugCleanupConfirmation("")
+      onDebugCleanupOpenChange()
+    } catch (error) {
+      console.error("Error running debug cleanup for contact:", error)
+      toast.error("Error al eliminar toda la información del contacto")
+    } finally {
+      setIsDebugCleanupLoading(false)
     }
   }
 
@@ -398,15 +455,35 @@ export default function ContactManagement() {
                             >
                               Editar
                             </Button>
-                            <Button
-                              isIconOnly
-                              size="sm"
-                              variant="flat"
-                              color="danger"
-                              onPress={() => handleDeleteConfirm(contact)}
-                            >
-                              <Trash2 className="w-4 h-4" />
-                            </Button>
+                            <Dropdown>
+                              <DropdownTrigger>
+                                <Button isIconOnly size="sm" variant="flat">
+                                  <MoreVertical className="w-4 h-4" />
+                                </Button>
+                              </DropdownTrigger>
+                              <DropdownMenu aria-label="Acciones del contacto">
+                                <DropdownItem
+                                  key="delete-mobile"
+                                  className="text-danger"
+                                  color="danger"
+                                  startContent={<Trash2 className="w-4 h-4" />}
+                                  onPress={() => handleDeleteConfirm(contact)}
+                                >
+                                  Eliminar
+                                </DropdownItem>
+                                {canUseDebugCleanup && (
+                                  <DropdownItem
+                                    key="debug-cleanup-mobile"
+                                    className="text-danger"
+                                    color="danger"
+                                    startContent={<AlertTriangle className="w-4 h-4" />}
+                                    onPress={() => handleDebugCleanupConfirm(contact)}
+                                  >
+                                    Eliminar todo
+                                  </DropdownItem>
+                                )}
+                              </DropdownMenu>
+                            </Dropdown>
                           </div>
                         </div>
                       </div>
@@ -544,6 +621,17 @@ export default function ContactManagement() {
                             >
                               Eliminar
                             </DropdownItem>
+                            {canUseDebugCleanup && (
+                              <DropdownItem
+                                key="debug-cleanup"
+                                className="text-danger"
+                                color="danger"
+                                startContent={<AlertTriangle className="w-4 h-4" />}
+                                onPress={() => handleDebugCleanupConfirm(contact)}
+                              >
+                                Eliminar todo
+                              </DropdownItem>
+                            )}
                           </DropdownMenu>
                         </Dropdown>
                       </div>
@@ -846,6 +934,66 @@ export default function ContactManagement() {
                 </Button>
                 <Button color="danger" onPress={handleDelete}>
                   Eliminar
+                </Button>
+              </ModalFooter>
+            </>
+          )}
+        </ModalContent>
+      </Modal>
+
+      {/* Modal Confirmar Eliminación Total */}
+      <Modal isOpen={isDebugCleanupOpen} onOpenChange={onDebugCleanupOpenChange}>
+        <ModalContent>
+          {(onClose) => (
+            <>
+              <ModalHeader className="flex items-center gap-2 text-danger">
+                <AlertTriangle className="w-5 h-5" />
+                Eliminar Todo del Contacto
+              </ModalHeader>
+              <ModalBody>
+                <div className="space-y-4">
+                  <div className="rounded-lg border border-danger-200 bg-danger-50 p-4 dark:border-danger-800 dark:bg-danger-900/20">
+                    <p className="text-sm font-semibold text-danger-700 dark:text-danger-300">
+                      Acción crítica e irreversible
+                    </p>
+                    <p className="mt-2 text-sm text-danger-700 dark:text-danger-300">
+                      Se borrará todo lo relacionado al cliente{" "}
+                      <strong>{selectedContact?.fullName}</strong>:
+                    </p>
+                    <p className="mt-1 text-sm text-danger-700 dark:text-danger-300">
+                      contacto, conversaciones, mensajes y datos asociados.
+                    </p>
+                  </div>
+
+                  <div className="space-y-2">
+                    <p className="text-sm text-default-700 dark:text-default-300">
+                      Para confirmar, escribe exactamente <strong>Si</strong>.
+                    </p>
+                    <Input
+                      value={debugCleanupConfirmation}
+                      onChange={(event) => setDebugCleanupConfirmation(event.target.value)}
+                      placeholder='Escribe "Si" para confirmar'
+                      variant="bordered"
+                      autoFocus
+                    />
+                  </div>
+                </div>
+              </ModalBody>
+              <ModalFooter>
+                <Button
+                  variant="light"
+                  onPress={onClose}
+                  isDisabled={isDebugCleanupLoading}
+                >
+                  Cancelar
+                </Button>
+                <Button
+                  color="danger"
+                  onPress={handleDebugCleanup}
+                  isLoading={isDebugCleanupLoading}
+                  isDisabled={debugCleanupConfirmation.trim() !== "Si"}
+                >
+                  Eliminar todo
                 </Button>
               </ModalFooter>
             </>

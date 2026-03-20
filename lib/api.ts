@@ -815,6 +815,15 @@ class ApiService {
     });
   }
 
+  async debugCleanupContact(contactId: string): Promise<void> {
+    console.log(
+      `🚨 [CHADBOT API] Running debug cleanup for contact ${contactId}`,
+    );
+    return this.request<void>(`contacts/${contactId}/debug-cleanup`, {
+      method: "POST",
+    });
+  }
+
   // ============================================
   // User Management
   // ============================================
@@ -1661,5 +1670,4 @@ class ApiService {
 
 // Singleton instance
 export const apiService = new ApiService();
-
 

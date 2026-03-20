@@ -4,6 +4,12 @@
 
 ## [Release]
 
+### v4.2.2
+
+_Fecha despliegue: 20/03/2026_
+
+- feature: borrar todo de un contacto, conversaciones, mensajes, etc.
+
 ### v4.2.1
 
 _Fecha despliegue: 20/03/2026_

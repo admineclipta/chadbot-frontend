@@ -16,6 +16,10 @@ function isExplicitSuperAdmin(user: User | null): boolean {
   );
 }
 
+export function isOwner(user: User | null): boolean {
+  return hasRoleCode(user, (code) => code === "owner");
+}
+
 export function isOwnerOrAdmin(user: User | null): boolean {
   if (!user) return false;
   if (isExplicitSuperAdmin(user)) return false;
