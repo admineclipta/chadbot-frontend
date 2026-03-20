@@ -1594,7 +1594,8 @@ export interface TokenUsage {
 export interface RecentConversationItem {
   id: string;
   contactName: string;
-  lastMessageAt: number; // Unix timestamp in seconds (can be decimal)
+  lastMessageAt: number | null; // Unix timestamp in seconds (can be decimal)
+  activityAt?: number | null; // Última actividad efectiva: COALESCE(lastMessageAt, updatedAt)
   status: ConversationStatus;
   unreadCount: number;
   lastMessagePreview: string;

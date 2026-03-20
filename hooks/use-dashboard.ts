@@ -34,30 +34,32 @@ export interface DashboardData {
   recentConversations: RecentConversationCard[];
 }
 
-function formatTimeAgo(timestamp: number): string {
-  const now = Date.now();
-  const diff = (now - timestamp * 1000) / 1000; // convertir a segundos
+function formatTimeAgo(timestamp: number | string | null | undefined): string {
+  const date = parseApiTimestamp(timestamp ?? Date.now());
+  const diffSeconds = Math.max(
+    0,
+    Math.floor((Date.now() - date.getTime()) / 1000),
+  );
 
-  // Minutos
-  if (diff < 60) {
-    const minutes = Math.floor(diff);
-    return minutes <= 1 ? "hace un momento" : `hace ${minutes}m`;
+  if (diffSeconds < 60) {
+    return "hace un momento";
   }
 
-  // Horas
-  if (diff < 3600) {
-    const hours = Math.floor(diff / 60);
+  if (diffSeconds < 3600) {
+    const minutes = Math.floor(diffSeconds / 60);
+    return minutes === 1 ? "hace 1m" : `hace ${minutes}m`;
+  }
+
+  if (diffSeconds < 86400) {
+    const hours = Math.floor(diffSeconds / 3600);
     return hours === 1 ? "hace 1h" : `hace ${hours}h`;
   }
 
-  // Días
-  if (diff < 86400) {
-    const days = Math.floor(diff / 3600);
+  const days = Math.floor(diffSeconds / 86400);
+  if (days <= 6) {
     return days === 1 ? "hace 1d" : `hace ${days}d`;
   }
 
-  // Más de una semana, mostrar fecha
-  const date = parseApiTimestamp(timestamp);
   return date.toLocaleDateString("es-AR", {
     day: "numeric",
     month: "short",
@@ -80,15 +82,19 @@ function mapDashboardData(rawData: DashboardSummary): DashboardData {
       tokenLimit: tokenUsage.total,
       tokenConsumptionTrend: tokenUsage.consumedChangePercent,
     },
-    recentConversations: recentActivity.conversations.map((conv) => ({
-      id: conv.id,
-      contactName: conv.contactName,
-      lastMessageTime: parseApiTimestamp(conv.lastMessageAt),
-      timeSince: formatTimeAgo(conv.lastMessageAt),
-      status: conv.status,
-      unreadCount: conv.unreadCount,
-      lastMessagePreview: conv.lastMessagePreview,
-    })),
+    recentConversations: recentActivity.conversations.map((conv) => {
+      const activityTimestamp = conv.activityAt ?? conv.lastMessageAt;
+
+      return {
+        id: conv.id,
+        contactName: conv.contactName,
+        lastMessageTime: parseApiTimestamp(activityTimestamp),
+        timeSince: formatTimeAgo(activityTimestamp),
+        status: conv.status,
+        unreadCount: conv.unreadCount,
+        lastMessagePreview: conv.lastMessagePreview,
+      };
+    }),
   };
 }
 
