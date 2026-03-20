@@ -115,7 +115,7 @@ export default function Home() {
   const [selectedAgent, setSelectedAgent] = useState<string>("")
   const [selectedTags, setSelectedTags] = useState<string[]>([])
   const [sortBy, setSortBy] = useState<ConversationSortField>("updatedAt")
-  const [sortDirection, setSortDirection] = useState<SortDirection>("ASC")
+  const [sortDirection, setSortDirection] = useState<SortDirection>("DESC")
   const [availableTags, setAvailableTags] = useState<Tag[]>([])
 
   // Estado para modal de información del cliente
@@ -195,7 +195,7 @@ export default function Home() {
     setSelectedAgent("")
     setSelectedTags([])
     setSortBy("updatedAt")
-    setSortDirection("ASC")
+    setSortDirection("DESC")
     setConversations([])
     setCurrentPage(0)
     setHasMoreConversations(true)
@@ -1516,4 +1516,3 @@ export default function Home() {
     </div>
   )
 }
-

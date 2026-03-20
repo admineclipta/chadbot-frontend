@@ -428,13 +428,15 @@ class ApiService {
       url += `&agentId=${agentId}`;
     }
     if (tags && tags.length > 0) {
-      url += `&tags=${tags.join(",")}`;
+      for (const tagId of tags) {
+        url += `&tagIds=${encodeURIComponent(tagId)}`;
+      }
     }
     if (sortBy) {
       url += `&sortBy=${sortBy}`;
     }
     if (sortDirection) {
-      url += `&sortDirection=${sortDirection}`;
+      url += `&direction=${sortDirection}`;
     }
 
     console.log(`📋 [CHADBOT API] Fetching conversations: ${url}`);
@@ -1659,6 +1661,5 @@ class ApiService {
 
 // Singleton instance
 export const apiService = new ApiService();
-
 
 
