@@ -41,6 +41,12 @@ function getFirstName(value?: string): string | null {
   return parts.length > 0 ? parts[0] : null
 }
 
+function getNonEmptyText(value?: string | null): string | null {
+  if (typeof value !== "string") return null
+  const trimmed = value.trim()
+  return trimmed.length > 0 ? trimmed : null
+}
+
 function MediaError({ label }: { label: string }) {
   return (
     <div className="rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700 dark:border-red-800 dark:bg-red-950 dark:text-red-300">
@@ -243,6 +249,7 @@ const ChatView = forwardRef<ChatViewRef, ChatViewProps>(
     const [changingStatus, setChangingStatus] = useState(false)
     const [activeTab, setActiveTab] = useState<string>("responder")
     const [tabContentHeight, setTabContentHeight] = useState<number>(220)
+    const [originAdImageError, setOriginAdImageError] = useState(false)
 
     const scrollToBottom = useCallback((behavior: ScrollBehavior = "smooth") => {
       messagesEndRef.current?.scrollIntoView({ behavior })
@@ -336,6 +343,10 @@ const ChatView = forwardRef<ChatViewRef, ChatViewProps>(
       setActiveTab("responder")
     }, [conversation.id])
 
+    useEffect(() => {
+      setOriginAdImageError(false)
+    }, [conversation.id, conversation.conversationOrigin?.adImageUrl])
+
     useLayoutEffect(() => {
       const updateHeight = () => {
         const el = tabContentInnerRef.current
@@ -384,6 +395,23 @@ const ChatView = forwardRef<ChatViewRef, ChatViewProps>(
     const isActive = normalizedStatus === 'active'
     const canIntervene = normalizedStatus === 'active' && currentUser
     const canSendMessages = normalizedStatus !== 'closed'
+    const conversationOrigin = conversation.conversationOrigin
+    const shouldShowOriginAdMessage = Boolean(conversationOrigin) && !hasMoreMessages
+    const hasConversationMessages = Boolean(conversation.messages?.length)
+    const shouldShowEmptyState = !hasConversationMessages && !shouldShowOriginAdMessage
+    const sourceUrl = getNonEmptyText(conversationOrigin?.sourceUrl)
+    const adImageUrl = getNonEmptyText(conversationOrigin?.adImageUrl)
+    const postText = getNonEmptyText(conversationOrigin?.postText)
+    const originInfoEntries: Array<{ label: string; value: string }> = [
+      { label: "Entry Point", value: getNonEmptyText(conversationOrigin?.entryPoint) || "" },
+      { label: "Source App", value: getNonEmptyText(conversationOrigin?.sourceApp) || "" },
+      { label: "Source Type", value: getNonEmptyText(conversationOrigin?.sourceType) || "" },
+      { label: "Source ID", value: getNonEmptyText(conversationOrigin?.sourceId) || "" },
+      { label: "Source URL", value: sourceUrl || "" },
+      { label: "CTA", value: getNonEmptyText(conversationOrigin?.ctaText) || "" },
+      { label: "Flow ID", value: getNonEmptyText(conversationOrigin?.flowId) || "" },
+      { label: "CTWA CLID", value: getNonEmptyText(conversationOrigin?.ctwaClid) || "" },
+    ].filter((item) => item.value)
 
     useEffect(() => {
       if (loading || error) return
@@ -740,7 +768,91 @@ const ChatView = forwardRef<ChatViewRef, ChatViewProps>(
             {loadingOlderMessages && (
               <OlderMessagesSkeleton />
             )}
-            {conversation.messages && conversation.messages.length > 0 ? (
+            {shouldShowOriginAdMessage && conversationOrigin && (
+              <div className="flex justify-start items-end gap-2">
+                <Avatar
+                  name="AD"
+                  size="sm"
+                  gradient="mixed"
+                  className="flex-shrink-0"
+                />
+
+                <div className="w-full max-w-full md:max-w-[70%] flex flex-col items-start">
+                  <div className="text-xs text-slate-500 dark:text-slate-400 mb-1 px-1 flex items-center gap-1">
+                    <Info className="w-3 h-3" />
+                    <span>Publicidad</span>
+                  </div>
+
+                  <div className="rounded-2xl rounded-tl-sm px-3 py-3 md:px-4 md:py-4 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 shadow-sm w-full">
+                    {adImageUrl ? (
+                      sourceUrl ? (
+                        <a
+                          href={sourceUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="group/ad relative block rounded-xl overflow-hidden border border-slate-200 dark:border-slate-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
+                          title="Abrir origen de la publicidad"
+                        >
+                          {!originAdImageError ? (
+                            <img
+                              src={adImageUrl}
+                              alt="Imagen de publicidad de origen"
+                              className="w-full h-auto object-cover transition-transform duration-200 group-hover/ad:scale-[1.01]"
+                              loading="lazy"
+                              onError={() => setOriginAdImageError(true)}
+                            />
+                          ) : (
+                            <div className="w-full rounded-xl border border-dashed border-slate-300 dark:border-slate-600 bg-slate-50 dark:bg-slate-900 px-3 py-8 text-sm text-slate-600 dark:text-slate-300 text-center">
+                              No se pudo cargar la imagen de la publicidad.
+                            </div>
+                          )}
+                          <div className="pointer-events-none absolute inset-0 bg-slate-900/0 group-hover/ad:bg-slate-900/35 transition-colors flex items-end justify-center">
+                            <span className="mb-3 rounded-full bg-white/90 px-3 py-1 text-xs font-medium text-slate-900 opacity-0 group-hover/ad:opacity-100 transition-opacity">
+                              Abrir anuncio
+                            </span>
+                          </div>
+                        </a>
+                      ) : !originAdImageError ? (
+                        <img
+                          src={adImageUrl}
+                          alt="Imagen de publicidad de origen"
+                          className="w-full h-auto object-cover rounded-xl border border-slate-200 dark:border-slate-700"
+                          loading="lazy"
+                          onError={() => setOriginAdImageError(true)}
+                        />
+                      ) : (
+                        <div className="w-full rounded-xl border border-dashed border-slate-300 dark:border-slate-600 bg-slate-50 dark:bg-slate-900 px-3 py-8 text-sm text-slate-600 dark:text-slate-300 text-center">
+                          No se pudo cargar la imagen de la publicidad.
+                        </div>
+                      )
+                    ) : null}
+
+                    {postText ? (
+                      <div className="mt-3 text-slate-800 dark:text-slate-100">
+                        <MessageMarkdown content={postText} />
+                      </div>
+                    ) : null}
+
+                    {originInfoEntries.length > 0 ? (
+                      <details className="mt-3 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/60 px-3 py-2">
+                        <summary className="cursor-pointer text-xs font-medium text-slate-700 dark:text-slate-200 select-none">
+                          Más info
+                        </summary>
+                        <div className="mt-2 space-y-1 text-xs text-slate-600 dark:text-slate-300">
+                          {originInfoEntries.map((item) => (
+                            <p key={item.label} className="break-words">
+                              <span className="font-semibold text-slate-700 dark:text-slate-200">{item.label}:</span>{" "}
+                              {item.value}
+                            </p>
+                          ))}
+                        </div>
+                      </details>
+                    ) : null}
+                  </div>
+                </div>
+              </div>
+            )}
+            {hasConversationMessages ? (
               conversation.messages.map((message) => {
                 const isSent = message.sender === 'agent' || message.sender === 'bot'
                 const isBot = message.sender === 'bot'
@@ -845,14 +957,14 @@ const ChatView = forwardRef<ChatViewRef, ChatViewProps>(
                   </div>
                 )
               })
-            ) : (
+            ) : shouldShowEmptyState ? (
               <div className="flex items-center justify-center h-full">
                 <div className="text-center text-slate-500">
                   <Send className="w-12 h-12 mx-auto mb-3 text-slate-300" />
                   <p>No hay mensajes en esta conversación</p>
                 </div>
               </div>
-            )}
+            ) : null}
             
             <div ref={messagesEndRef} />
           </div>
@@ -986,6 +1098,5 @@ const ChatView = forwardRef<ChatViewRef, ChatViewProps>(
 ChatView.displayName = "ChatView"
 
 export default ChatView
-
 
 

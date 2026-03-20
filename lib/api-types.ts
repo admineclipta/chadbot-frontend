@@ -402,6 +402,19 @@ export interface ApiTag {
   isPrivate: boolean;
 }
 
+export interface ApiConversationOrigin {
+  entryPoint?: string | null;
+  sourceApp?: string | null;
+  sourceType?: string | null;
+  sourceId?: string | null;
+  sourceUrl?: string | null;
+  adImageUrl?: string | null;
+  postText?: string | null;
+  ctaText?: string | null;
+  flowId?: string | null;
+  ctwaClid?: string | null;
+}
+
 export interface ApiConversation {
   id: string;
   clientId: string;
@@ -411,6 +424,7 @@ export interface ApiConversation {
   agents?: ApiAgent[];
   tags?: ApiTag[];
   lastMessage: ApiLastMessage;
+  conversationOrigin?: ApiConversationOrigin | null;
   createdAt: string;
   updatedAt: string;
 }

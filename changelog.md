@@ -4,6 +4,15 @@
 
 ## [Release]
 
+### v4.2.1
+
+_Fecha despliegue: 20/03/2026_
+
+- fix: heartbeat circuitbreaker
+- fix: dashboard orden de los ultimos mensajes
+- fix: orden de mensajes de conversaciones
+- feature: origen de una conversacion
+
 ### v4.2.0
 
 _Fecha despliegue: 19/03/2026_

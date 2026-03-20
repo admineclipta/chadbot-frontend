@@ -5,6 +5,7 @@ import type {
   UserDto,
   ConversationStatus,
   ApiConversation,
+  ApiConversationOrigin,
   ApiTag,
   MessageType,
   MessageStatus,
@@ -174,6 +175,19 @@ export interface Message {
   attachments?: Attachment[];
 }
 
+export interface ConversationOrigin {
+  entryPoint?: string | null;
+  sourceApp?: string | null;
+  sourceType?: string | null;
+  sourceId?: string | null;
+  sourceUrl?: string | null;
+  adImageUrl?: string | null;
+  postText?: string | null;
+  ctaText?: string | null;
+  flowId?: string | null;
+  ctwaClid?: string | null;
+}
+
 export interface Conversation {
   id: string;
   customer: Customer;
@@ -190,6 +204,7 @@ export interface Conversation {
   // New fields for API v1
   lastMessageType?: MessageType;
   lastMessageStatus?: MessageStatus;
+  conversationOrigin?: ConversationOrigin | null;
 }
 
 // Funciones de mapeo para convertir datos de la API a tipos locales
@@ -377,6 +392,9 @@ export function mapApiConversationToDomain(
   // TODO: Calculate unreadCount from backend or set to 0
   // Backend might need to add this field in the future
   const unreadCount = 0;
+  const origin: ConversationOrigin | null = apiConv.conversationOrigin
+    ? mapApiConversationOriginToDomain(apiConv.conversationOrigin)
+    : null;
 
   return {
     id: apiConv.id,
@@ -398,5 +416,23 @@ export function mapApiConversationToDomain(
     // Store additional metadata for new features
     lastMessageType: lastMessageType,
     lastMessageStatus: apiConv.lastMessage?.status,
+    conversationOrigin: origin,
+  };
+}
+
+function mapApiConversationOriginToDomain(
+  origin: ApiConversationOrigin,
+): ConversationOrigin {
+  return {
+    entryPoint: origin.entryPoint ?? null,
+    sourceApp: origin.sourceApp ?? null,
+    sourceType: origin.sourceType ?? null,
+    sourceId: origin.sourceId ?? null,
+    sourceUrl: origin.sourceUrl ?? null,
+    adImageUrl: origin.adImageUrl ?? null,
+    postText: origin.postText ?? null,
+    ctaText: origin.ctaText ?? null,
+    flowId: origin.flowId ?? null,
+    ctwaClid: origin.ctwaClid ?? null,
   };
 }
