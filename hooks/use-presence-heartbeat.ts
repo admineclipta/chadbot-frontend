@@ -8,6 +8,8 @@ interface UsePresenceHeartbeatParams {
   token: string | null;
   presenceSessionId: string | null;
   intervalMs?: number;
+  onSuccess?: () => void;
+  onFailure?: () => void;
 }
 
 export function usePresenceHeartbeat({
@@ -15,9 +17,21 @@ export function usePresenceHeartbeat({
   token,
   presenceSessionId,
   intervalMs = 30000,
+  onSuccess,
+  onFailure,
 }: UsePresenceHeartbeatParams) {
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const isHeartbeatRunningRef = useRef(false);
+  const onSuccessRef = useRef(onSuccess);
+  const onFailureRef = useRef(onFailure);
+
+  useEffect(() => {
+    onSuccessRef.current = onSuccess;
+  }, [onSuccess]);
+
+  useEffect(() => {
+    onFailureRef.current = onFailure;
+  }, [onFailure]);
 
   useEffect(() => {
     if (!enabled || !token || !presenceSessionId) {
@@ -37,7 +51,9 @@ export function usePresenceHeartbeat({
     const sendHeartbeat = async () => {
       try {
         await apiService.sendPresenceHeartbeat(presenceSessionId);
+        onSuccessRef.current?.();
       } catch (error) {
+        onFailureRef.current?.();
         if (process.env.NODE_ENV === "development") {
           console.debug("[Presence] Heartbeat failed", error);
         }

@@ -70,6 +70,7 @@ const getMessageTypeFromFile = (file: File): "image" | "video" | "audio" | "docu
 };
 
 const PRESENCE_AUTH_TOKEN_KEY = "chadbot_presence_auth_token"
+const HEARTBEAT_FAILURE_GRACE_MS = 45000
 
 export default function Home() {
   const router = useRouter()
@@ -86,6 +87,8 @@ export default function Home() {
   const [sseReconnectKey, setSseReconnectKey] = useState<number>(0)
   const [sseFailureSince, setSseFailureSince] = useState<number | null>(null)
   const [isFallbackActive, setIsFallbackActive] = useState(false)
+  const [presenceFailureSince, setPresenceFailureSince] = useState<number | null>(null)
+  const [isRealtimeStreamsPaused, setIsRealtimeStreamsPaused] = useState(false)
   const [isSseReconnectRequested, setIsSseReconnectRequested] = useState(false)
   const shownAssignmentToastIdsRef = useRef<Set<string>>(new Set())
   const shownGenericToastIdsRef = useRef<Set<string>>(new Set())
@@ -678,12 +681,54 @@ export default function Home() {
   )
 
   const sseEnabled = isAuthenticated && !!authToken
+  const realtimeStreamsEnabled = sseEnabled && !isRealtimeStreamsPaused
 
   usePresenceHeartbeat({
     enabled: sseEnabled,
     token: authToken,
     presenceSessionId,
+    onSuccess: () => {
+      setPresenceFailureSince(null)
+      setIsRealtimeStreamsPaused((wasPaused) => {
+        if (wasPaused) {
+          console.info("[Realtime] Heartbeat restored, resuming SSE streams")
+          setSseReconnectKey((prev) => prev + 1)
+        }
+        return false
+      })
+    },
+    onFailure: () => {
+      setPresenceFailureSince((prev) => prev ?? Date.now())
+    },
   })
+
+  useEffect(() => {
+    if (!sseEnabled) {
+      setPresenceFailureSince(null)
+      setIsRealtimeStreamsPaused(false)
+      return
+    }
+
+    if (presenceFailureSince === null) {
+      return
+    }
+
+    const elapsed = Date.now() - presenceFailureSince
+    const remaining = HEARTBEAT_FAILURE_GRACE_MS - elapsed
+
+    if (remaining <= 0) {
+      setIsRealtimeStreamsPaused(true)
+      return
+    }
+
+    const timeout = setTimeout(() => {
+      setIsRealtimeStreamsPaused(true)
+    }, remaining)
+
+    return () => {
+      clearTimeout(timeout)
+    }
+  }, [sseEnabled, presenceFailureSince])
 
   const handleConversationAssignedSse = useCallback(
     (event: ConversationAssignedRealtimeEvent) => {
@@ -791,7 +836,7 @@ export default function Home() {
     connectionState: rawMessagesSseConnectionState,
     lastHeartbeatAt: sseLastHeartbeatAt,
   } = useMessagesRealtimeSse({
-    enabled: sseEnabled,
+    enabled: realtimeStreamsEnabled,
     token: authToken,
     presenceSessionId,
     reconnectKey: sseReconnectKey,
@@ -799,7 +844,7 @@ export default function Home() {
   })
 
   useNotificationsSse({
-    enabled: sseEnabled,
+    enabled: realtimeStreamsEnabled,
     token: authToken,
     presenceSessionId,
     reconnectKey: sseReconnectKey,
@@ -808,11 +853,15 @@ export default function Home() {
   })
 
   const sseConnectionState: SseConnectionState =
-    isFallbackActive && rawMessagesSseConnectionState !== "connected"
+    isRealtimeStreamsPaused
+      ? "degraded"
+      : isFallbackActive && rawMessagesSseConnectionState !== "connected"
       ? "degraded"
       : rawMessagesSseConnectionState
 
   const handleManualSseReconnect = useCallback(() => {
+    setPresenceFailureSince(null)
+    setIsRealtimeStreamsPaused(false)
     setIsSseReconnectRequested(true)
     setSseReconnectKey((prev) => prev + 1)
     setTimeout(() => {
@@ -825,6 +874,12 @@ export default function Home() {
   const fallbackIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
   useEffect(() => {
+    if (isRealtimeStreamsPaused) {
+      setSseFailureSince(null)
+      setIsFallbackActive(false)
+      return
+    }
+
     const previousState = previousSseStateRef.current
 
     if (previousState !== rawMessagesSseConnectionState) {
@@ -854,6 +909,7 @@ export default function Home() {
       setSseFailureSince((prev) => prev ?? Date.now())
     }
   }, [
+    isRealtimeStreamsPaused,
     rawMessagesSseConnectionState,
     refetchConversations,
     refreshSelectedConversationMessages,
@@ -867,7 +923,7 @@ export default function Home() {
     }
 
     if (
-      !sseEnabled ||
+      !realtimeStreamsEnabled ||
       !(rawMessagesSseConnectionState === "error" || rawMessagesSseConnectionState === "degraded") ||
       sseFailureSince === null
     ) {
@@ -892,7 +948,7 @@ export default function Home() {
         fallbackActivationTimeoutRef.current = null
       }
     }
-  }, [rawMessagesSseConnectionState, sseEnabled, sseFailureSince])
+  }, [rawMessagesSseConnectionState, realtimeStreamsEnabled, sseFailureSince])
 
   useEffect(() => {
     if (fallbackIntervalRef.current) {
@@ -900,7 +956,7 @@ export default function Home() {
       fallbackIntervalRef.current = null
     }
 
-    if (!isFallbackActive || !sseEnabled || currentView !== "conversations") {
+    if (!isFallbackActive || !realtimeStreamsEnabled || currentView !== "conversations") {
       return
     }
 
@@ -927,7 +983,7 @@ export default function Home() {
     refetchConversations,
     refreshSelectedConversationMessages,
     selectedConversation?.id,
-    sseEnabled,
+    realtimeStreamsEnabled,
   ])
 
   // Actualizar conversaciones cuando lleguen de la API
