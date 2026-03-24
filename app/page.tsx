@@ -19,6 +19,7 @@ import ContactInfoModal from "@/components/modals/contact-info-modal"
 import HomeDashboard from "@/components/home-dashboard"
 import UsageView from "@/components/usage/usage-view"
 import PlansPricingView from "@/components/plans/plans-pricing-view"
+import PwaInstallBanner from "@/components/shared/pwa-install-banner"
 import EvaLauncher from "@/components/eva/eva-launcher"
 import EvaWorkspace from "@/components/eva/eva-workspace"
 import type { Conversation, User, Message, Tag } from "@/lib/types"
@@ -39,6 +40,7 @@ import { clearAuthSession } from "@/lib/auth-session"
 import { DEBOUNCE_SEARCH_MS } from "@/lib/config"
 import { useApi } from "@/hooks/use-api"
 import { useIsMobile } from "@/hooks/use-mobile"
+import { usePwaInstall } from "@/hooks/use-pwa-install"
 import { usePushNotifications } from "@/hooks/use-push-notifications"
 import { cn, parseApiTimestamp } from "@/lib/utils"
 import { useMessagesRealtimeSse } from "@/hooks/use-messages-realtime-sse"
@@ -486,36 +488,6 @@ export default function Home() {
     }
   }, [])
 
-  const notifyBrowser = useCallback(
-    (title: string, body: string, conversationId?: string) => {
-      if (typeof window === "undefined") return
-
-      const notificationsEnabled =
-        localStorage.getItem("chadbot_notifications") === "true"
-      if (!notificationsEnabled) return
-
-      if (!("Notification" in window)) return
-
-      // Mostrar notificación nativa principalmente cuando la app no está en foco.
-      if (document.visibilityState === "visible" && document.hasFocus()) return
-
-      void playNotificationSound()
-
-      if (Notification.permission === "granted") {
-        const notification = new Notification(title, { body, tag: conversationId })
-        notification.onclick = () => {
-          window.focus()
-          if (conversationId) {
-            void openConversationById(conversationId)
-          }
-          notification.close()
-        }
-        return
-      }
-    },
-    [openConversationById, playNotificationSound],
-  )
-
   useEffect(() => {
     const token = localStorage.getItem("chadbot_token")
     const userData = localStorage.getItem("chadbot_user")
@@ -553,6 +525,47 @@ export default function Home() {
     enabled: isAuthenticated,
     token: authToken,
   })
+
+  const {
+    isInstalled: pwaInstalled,
+    canPromptInstall: pwaCanPromptInstall,
+    isIosSafariNotInstalled: pwaIsIosSafariNotInstalled,
+    dismissed: pwaInstallBannerDismissed,
+    promptInstall,
+    dismissBanner: dismissPwaInstallBanner,
+    resetBannerDismiss: resetPwaInstallBannerDismiss,
+  } = usePwaInstall()
+
+  const notifyBrowser = useCallback(
+    (title: string, body: string, conversationId?: string) => {
+      if (typeof window === "undefined") return
+
+      const notificationsEnabled =
+        localStorage.getItem("chadbot_notifications") === "true"
+      if (!notificationsEnabled) return
+
+      if (!("Notification" in window)) return
+      if (pushSubscribed) return
+
+      // Mostrar notificación nativa principalmente cuando la app no está en foco.
+      if (document.visibilityState === "visible" && document.hasFocus()) return
+
+      void playNotificationSound()
+
+      if (Notification.permission === "granted") {
+        const notification = new Notification(title, { body, tag: conversationId })
+        notification.onclick = () => {
+          window.focus()
+          if (conversationId) {
+            void openConversationById(conversationId)
+          }
+          notification.close()
+        }
+        return
+      }
+    },
+    [openConversationById, playNotificationSound, pushSubscribed],
+  )
 
   const scheduleInboxRefetch = useCallback(() => {
     if (inboxRefetchTimeoutRef.current) {
@@ -1363,6 +1376,13 @@ export default function Home() {
     }
   }, [canUseEvaFeature])
 
+  const showPwaInstallBanner =
+    isAuthenticated &&
+    isMobile &&
+    !pwaInstalled &&
+    !pwaInstallBannerDismissed &&
+    (pwaCanPromptInstall || pwaIsIosSafariNotInstalled)
+
   if (!isAuthenticated || !user) {
     return null
   }
@@ -1527,9 +1547,30 @@ export default function Home() {
               onDisablePush={() => {
                 void disablePushNotifications()
               }}
+              pwaInstalled={pwaInstalled}
+              pwaCanPromptInstall={pwaCanPromptInstall}
+              pwaIsIosSafariNotInstalled={pwaIsIosSafariNotInstalled}
+              pwaBannerDismissed={pwaInstallBannerDismissed}
+              onPwaPromptInstall={() => {
+                void promptInstall()
+              }}
+              onPwaResetBannerDismiss={() => {
+                resetPwaInstallBannerDismiss()
+              }}
               currentUser={user}
             />
           </div>
+        )}
+
+        {showPwaInstallBanner && (
+          <PwaInstallBanner
+            canPromptInstall={pwaCanPromptInstall}
+            isIosSafariNotInstalled={pwaIsIosSafariNotInstalled}
+            onPromptInstall={() => {
+              void promptInstall()
+            }}
+            onDismiss={dismissPwaInstallBanner}
+          />
         )}
 
         {selectedUserId && <UserProfile userId={selectedUserId} onClose={() => setSelectedUserId(null)} />}

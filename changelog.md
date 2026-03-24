@@ -4,6 +4,12 @@
 
 ## [Release]
 
+### v4.2.3
+
+_Fecha despliegue: 24/03/2026_
+
+- feature: PWA
+
 ### v4.2.2
 
 _Fecha despliegue: 20/03/2026_

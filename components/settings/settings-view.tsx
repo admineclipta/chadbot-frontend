@@ -25,6 +25,12 @@ interface SettingsViewProps {
   pushError?: string | null
   onEnablePush?: () => void
   onDisablePush?: () => void
+  pwaInstalled?: boolean
+  pwaCanPromptInstall?: boolean
+  pwaIsIosSafariNotInstalled?: boolean
+  pwaBannerDismissed?: boolean
+  onPwaPromptInstall?: () => void
+  onPwaResetBannerDismiss?: () => void
   currentUser?: AppUser | null
 }
 
@@ -41,6 +47,12 @@ export default function SettingsView({
   pushError = null,
   onEnablePush,
   onDisablePush,
+  pwaInstalled = false,
+  pwaCanPromptInstall = false,
+  pwaIsIosSafariNotInstalled = false,
+  pwaBannerDismissed = false,
+  onPwaPromptInstall,
+  onPwaResetBannerDismiss,
   currentUser = null,
 }: SettingsViewProps) {
   const [selectedTab, setSelectedTab] = useState<string>("about")
@@ -115,6 +127,12 @@ export default function SettingsView({
                 pushError={pushError}
                 onEnablePush={onEnablePush}
                 onDisablePush={onDisablePush}
+                pwaInstalled={pwaInstalled}
+                pwaCanPromptInstall={pwaCanPromptInstall}
+                pwaIsIosSafariNotInstalled={pwaIsIosSafariNotInstalled}
+                pwaBannerDismissed={pwaBannerDismissed}
+                onPwaPromptInstall={onPwaPromptInstall}
+                onPwaResetBannerDismiss={onPwaResetBannerDismiss}
               />
             </Tab>
 

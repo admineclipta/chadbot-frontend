@@ -1,7 +1,7 @@
 "use client"
 
 import { Card, CardBody, Chip, Button } from "@heroui/react"
-import { Activity, Bell, RefreshCw } from "lucide-react"
+import { Activity, Bell, Download, RefreshCw, Smartphone } from "lucide-react"
 import type { SseConnectionState } from "@/lib/api-types"
 
 interface MessagesSectionProps {
@@ -17,6 +17,12 @@ interface MessagesSectionProps {
   pushError?: string | null
   onEnablePush?: () => void
   onDisablePush?: () => void
+  pwaInstalled?: boolean
+  pwaCanPromptInstall?: boolean
+  pwaIsIosSafariNotInstalled?: boolean
+  pwaBannerDismissed?: boolean
+  onPwaPromptInstall?: () => void
+  onPwaResetBannerDismiss?: () => void
 }
 
 export default function MessagesSection({
@@ -32,6 +38,12 @@ export default function MessagesSection({
   pushError = null,
   onEnablePush,
   onDisablePush,
+  pwaInstalled = false,
+  pwaCanPromptInstall = false,
+  pwaIsIosSafariNotInstalled = false,
+  pwaBannerDismissed = false,
+  onPwaPromptInstall,
+  onPwaResetBannerDismiss,
 }: MessagesSectionProps) {
   const getSseLabel = (state: SseConnectionState): string => {
     switch (state) {
@@ -189,7 +201,7 @@ export default function MessagesSection({
               {pushPermissionState === "denied" && (
                 <div className="mt-4 p-3 bg-warning-50 dark:bg-warning-900/20 border border-warning-200 dark:border-warning-800 rounded-lg">
                   <p className="text-sm text-warning-600 dark:text-warning-400">
-                    Las notificaciones estan bloqueadas. Habilitalas desde la configuracion del sitio en Chrome.
+                    Las notificaciones estan bloqueadas. Habilitalas desde la configuracion del sitio en tu navegador.
                   </p>
                 </div>
               )}
@@ -197,6 +209,71 @@ export default function MessagesSection({
               {pushError && (
                 <div className="mt-4 p-3 bg-danger-50 dark:bg-danger-900/20 border border-danger-200 dark:border-danger-800 rounded-lg">
                   <p className="text-sm text-danger-600 dark:text-danger-400">{pushError}</p>
+                </div>
+              )}
+            </div>
+          </div>
+        </CardBody>
+      </Card>
+
+      <Card>
+        <CardBody className="p-4 md:p-6">
+          <div className="flex flex-col md:flex-row items-start gap-4">
+            <div className="flex-shrink-0">
+              <div className="w-12 h-12 rounded-full bg-slate-100 dark:bg-slate-800 flex items-center justify-center">
+                <Smartphone className="h-6 w-6 text-slate-700 dark:text-slate-200" />
+              </div>
+            </div>
+            <div className="flex-1">
+              <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
+                <div>
+                  <h3 className="text-lg font-semibold mb-1">Instalación de la App</h3>
+                  <p className="text-sm text-default-500">
+                    Instala CHADBOT como app en tu celular para abrir más rápido y facilitar la activación de push.
+                  </p>
+                </div>
+                <Chip color={pwaInstalled ? "success" : "default"} variant="flat" size="sm">
+                  {pwaInstalled ? "Instalada" : "No instalada"}
+                </Chip>
+              </div>
+
+              {!pwaInstalled && (
+                <div className="mt-4 flex flex-col sm:flex-row gap-3">
+                  {pwaCanPromptInstall && (
+                    <Button
+                      color="primary"
+                      onPress={() => onPwaPromptInstall?.()}
+                      startContent={<Download className="h-4 w-4" />}
+                    >
+                      Instalar app
+                    </Button>
+                  )}
+
+                  {pwaBannerDismissed && (
+                    <Button
+                      color="default"
+                      variant="flat"
+                      onPress={() => onPwaResetBannerDismiss?.()}
+                    >
+                      Volver a mostrar recordatorio
+                    </Button>
+                  )}
+                </div>
+              )}
+
+              {!pwaInstalled && pwaIsIosSafariNotInstalled && (
+                <div className="mt-4 p-3 bg-secondary-50 dark:bg-secondary-900/20 border border-secondary-200 dark:border-secondary-800 rounded-lg">
+                  <p className="text-sm text-secondary-700 dark:text-secondary-300">
+                    En iPhone/iPad (Safari): abre Compartir y luego "Agregar a pantalla de inicio". Después abre la app instalada y activa las notificaciones push.
+                  </p>
+                </div>
+              )}
+
+              {!pwaInstalled && !pwaCanPromptInstall && !pwaIsIosSafariNotInstalled && (
+                <div className="mt-4 p-3 bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg">
+                  <p className="text-sm text-slate-700 dark:text-slate-300">
+                    Si tu navegador no muestra la opción de instalar, abre el menú del navegador y busca "Instalar app" o "Agregar a pantalla de inicio".
+                  </p>
                 </div>
               )}
             </div>

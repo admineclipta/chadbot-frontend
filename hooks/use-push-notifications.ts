@@ -90,6 +90,11 @@ export function usePushNotifications({
   }, []);
 
   const registerServiceWorker = useCallback(async () => {
+    const existingRegistration = await navigator.serviceWorker.getRegistration("/");
+    if (existingRegistration) {
+      return existingRegistration;
+    }
+
     const registration = await navigator.serviceWorker.register("/sw.js", {
       scope: "/",
     });
@@ -249,6 +254,17 @@ export function usePushNotifications({
   }, [refreshState]);
 
   useEffect(() => {
+    if (!enabled) return;
+    if (!isSupported || !isSecureContextValue) return;
+
+    void registerServiceWorker().catch((err) => {
+      if (process.env.NODE_ENV === "development") {
+        console.debug("[Push] No se pudo registrar el service worker", err);
+      }
+    });
+  }, [enabled, isSecureContextValue, isSupported, registerServiceWorker]);
+
+  useEffect(() => {
     if (!enabled || !token) return;
     if (!isSupported || !isSecureContextValue) return;
     if (Notification.permission !== "granted") return;
@@ -281,4 +297,3 @@ export function usePushNotifications({
     refreshState,
   };
 }
-
